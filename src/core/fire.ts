@@ -111,23 +111,3 @@ export const SIMPLE_PORTFOLIO = [
   { name: 'Keep costs low', detail: 'Expense ratios under 0.1% are easy to find. Fees compound against you just like returns compound for you.' },
   { name: 'Stay the course', detail: 'Keep investing every paycheck through ups and downs. Time in the market beats timing the market.' },
 ];
-
-export interface FeedItem {
-  title: string;
-  url: string;
-  date: string;
-}
-
-/** Parse Reddit's public Atom feed for a subreddit. */
-export function parseRedditFeed(xml: string): FeedItem[] {
-  const out: FeedItem[] = [];
-  for (const m of xml.matchAll(/<entry>([\s\S]*?)<\/entry>/g)) {
-    const e = m[1];
-    const title = e.match(/<title>([\s\S]*?)<\/title>/)?.[1] ?? '';
-    const url = e.match(/<link[^>]*href="([^"]+)"/)?.[1] ?? '';
-    const date = e.match(/<(?:updated|published)>([^<]+)</)?.[1] ?? '';
-    const clean = title.replace(/&amp;/g, '&').replace(/&#39;|&apos;/g, "'").replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').trim();
-    if (clean && url && !/daily (fi )?discussion/i.test(clean)) out.push({ title: clean, url, date: date.slice(0, 10) });
-  }
-  return out;
-}

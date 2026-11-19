@@ -103,3 +103,134 @@ export function apyFromText(lines: string[]): number | null {
   const v = parseFloat(m[1]);
   return v > 0 && v < 20 ? v : null;
 }
+
+// ---------------- keeping goals equal to the real savings account ----------------
+// The bank is the source of truth: every deposit into the goals account is split across goals the
+// way that paycheck's plan split it, withdrawals come out of goals, and anything else (money saved
+// before Pebbles, a deposit Pebbles hasn't seen yet) is spread so the goals always add up to the
+// balance. Contribution ids are deterministic so phone and computer agree.
+
+export interface Weight {
+  goalId: string;
+  w: number;
+}
+
+/** Split an amount by weights, to the cent, keeping the exact total. */
+export function splitByWeights(amount: number, weights: Weight[]): { goalId: string; amount: number }[] {
+  const pos = weights.filter((x) => x.w > 0);
+  const total = pos.reduce((s, x) => s + x.w, 0);
+  if (!pos.length || total <= 0 || Math.abs(amount) < 0.005) return [];
+  const cents = Math.round(amount * 100);
+  const raw = pos.map((x) => ({ goalId: x.goalId, c: Math.trunc((cents * x.w) / total) }));
+  let left = cents - raw.reduce((s, r) => s + r.c, 0);
+  const step = left > 0 ? 1 : -1;
+  for (let i = 0; left !== 0; i = (i + 1) % raw.length) {
+    raw[i].c += step;
+    left -= step;
+  }
+  return raw.filter((r) => r.c !== 0).map((r) => ({ goalId: r.goalId, amount: r.c / 100 }));
+}
+
+export interface GoalSyncInput {
+  account: Account;
+  txns: Transaction[];
+  goals: Goal[];
+  contributions: Contribution[];
+  since: ISODate; // deposits from this date on are split one by one; earlier money is the starting balance
+  planWeights: Weight[]; // how the current plan splits savings
+  /** The paycheck a deposit on `date` belongs to, with how its savings were split. */
+  paycheckFor: (date: ISODate) => { periodStart: string; weights: Weight[] } | null;
+}
+
+export interface GoalSyncResult {
+  put: Contribution[];
+  remove: string[];
+}
+
+const isBankAdj = (c: Contribution, acctId: string) => c.id.startsWith(`bank|${acctId}|`);
+
+export function syncGoalsWithAccount(i: GoalSyncInput): GoalSyncResult {
+  const { account, goals } = i;
+  const put: Contribution[] = [];
+  const remove = new Set<string>();
+  const active = goals.filter((g) => !g.archived);
+  if (!active.length) return { put, remove: [] };
+  const activeIds = new Set(active.map((g) => g.id));
+  let contribs = i.contributions.slice();
+  const balanceOf = (goalId: string) => round2(contribs.filter((c) => c.goalId === goalId && !remove.has(c.id)).reduce((s, c) => s + c.amount, 0));
+  const equal = active.filter((g) => !g.completedAt).map((g) => ({ goalId: g.id, w: 1 }));
+  const fallback = (w: Weight[]) => (w.some((x) => x.w > 0 && activeIds.has(x.goalId)) ? w.filter((x) => activeIds.has(x.goalId)) : equal.length ? equal : active.map((g) => ({ goalId: g.id, w: 1 })));
+  const add = (c: Contribution) => {
+    put.push(c);
+    contribs.push(c);
+  };
+
+  const seen = (prefix: string) => contribs.some((c) => c.id.startsWith(prefix) && !remove.has(c.id));
+  const mine = i.txns
+    .filter((t) => t.accountId === account.id && !t.pending && t.date >= i.since && !isInterest(t))
+    .sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
+
+  for (const t of mine) {
+    if (t.amount > 0) {
+      if (seen(`dep|${t.id}|`)) continue;
+      const pc = i.paycheckFor(t.date);
+      let weights = fallback(i.planWeights);
+      if (pc) {
+        // you already checked off "moved to savings" for this paycheck: use the real amount instead
+        const manual = contribs.filter((c) => c.id.startsWith(`pc|${pc.periodStart}|`) && !remove.has(c.id));
+        if (manual.length) {
+          weights = manual.map((c) => ({ goalId: c.goalId, w: c.amount }));
+          manual.forEach((c) => remove.add(c.id));
+        } else if (pc.weights.some((x) => x.w > 0)) weights = fallback(pc.weights);
+      }
+      for (const s of splitByWeights(t.amount, weights))
+        add({ id: `dep|${t.id}|${s.goalId}`, goalId: s.goalId, amount: s.amount, date: t.date, note: `Moved to ${account.name}`, paycheckId: pc?.periodStart ?? null, kind: 'deposit' });
+    } else if (t.amount < 0) {
+      if (seen(`wd|${t.id}|`)) continue;
+      const out = -t.amount;
+      // a finished goal holding about this much: you bought the thing
+      const match = active.find((g) => g.completedAt && Math.abs(balanceOf(g.id) - out) <= Math.max(5, out * 0.1));
+      const weights = match ? [{ goalId: match.id, w: 1 }] : active.map((g) => ({ goalId: g.id, w: Math.max(0, balanceOf(g.id)) }));
+      for (const s of splitByWeights(-out, weights.some((x) => x.w > 0) ? weights : fallback(i.planWeights)))
+        add({ id: `wd|${t.id}|${s.goalId}`, goalId: s.goalId, amount: s.amount, date: t.date, note: `Taken out of ${account.name}`, paycheckId: null, kind: 'withdrawal' });
+    }
+  }
+
+  // whatever's left over keeps goals equal to the balance
+  if (account.balance != null) {
+    contribs = contribs.filter((c) => !remove.has(c.id));
+    const tracked = contribs.filter((c) => !isBankAdj(c, account.id)).reduce((s, c) => s + c.amount, 0);
+    const residual = round2(account.balance - tracked);
+    const existing = contribs.filter((c) => isBankAdj(c, account.id) && activeIds.has(c.goalId));
+    // only the change since last time gets spread, so a split you set by hand stays put
+    const delta = round2(residual - existing.reduce((x, c) => x + c.amount, 0));
+    const desired = new Map(existing.map((c) => [c.goalId, c.amount]));
+    if (Math.abs(delta) >= 0.005) {
+      const byBalance = active.map((g) => ({ goalId: g.id, w: Math.max(0, balanceOf(g.id)) }));
+      const weights = delta < 0 && byBalance.some((x) => x.w > 0) ? byBalance : fallback(i.planWeights);
+      for (const sp of splitByWeights(delta, weights)) desired.set(sp.goalId, round2((desired.get(sp.goalId) ?? 0) + sp.amount));
+    }
+    const day = account.balanceDate ?? i.since;
+    for (const g of active) {
+      const id = `bank|${account.id}|${g.id}`;
+      const cur = contribs.find((c) => c.id === id);
+      const want = desired.get(g.id) ?? 0;
+      if (Math.abs(want) < 0.005) {
+        if (cur) remove.add(id);
+      } else if (!cur || Math.abs(cur.amount - want) >= 0.005) {
+        put.push({ id, goalId: g.id, amount: want, date: cur?.date ?? day, note: `Already in ${account.name}`, paycheckId: null, kind: want >= 0 ? 'deposit' : 'withdrawal' });
+      }
+    }
+    for (const c of contribs) if (isBankAdj(c, account.id) && !activeIds.has(c.goalId)) remove.add(c.id);
+  }
+  return { put, remove: [...remove] };
+}
+
+/** Set exactly how much of the account each goal holds (writes the leftover adjustments). */
+export function setGoalSplit(account: Account, wanted: Map<string, number>, contributions: Contribution[], date: ISODate): Contribution[] {
+  return [...wanted.entries()].map(([goalId, amount]) => {
+    const others = contributions.filter((c) => c.goalId === goalId && !isBankAdj(c, account.id)).reduce((s, c) => s + c.amount, 0);
+    const adj = round2(amount - others);
+    return { id: `bank|${account.id}|${goalId}`, goalId, amount: adj, date, note: `Already in ${account.name}`, paycheckId: null, kind: adj >= 0 ? ('deposit' as const) : ('withdrawal' as const) };
+  });
+}

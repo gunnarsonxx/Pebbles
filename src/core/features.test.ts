@@ -337,3 +337,88 @@ describe('guidelines', () => {
     expect(checks.find((c) => c.id === 'savings')!.standing).toBe('good');
   });
 });
+
+describe('paystub screenshots from pay apps', () => {
+  const L2 = (t: string) => t.split('\n').map((text) => ({ text, confidence: 85 }));
+  it('reads labels and amounts on separate lines', () => {
+    const p = parsePaystub(
+      L2(`Pay Date
+11/13/2026
+Gross Pay
+$1,671.50
+Net Pay
+$1,355.31
+Federal Income Tax
+$98.12
+Social Security
+$103.63`),
+    );
+    expect(p.gross).toBe(1671.5);
+    expect(p.net).toBe(1355.31);
+    expect(p.lines.find((l) => l.kind === 'federal')?.current).toBe(98.12);
+  });
+  it('reads an amount printed above its label', () => {
+    const p = parsePaystub(L2(`Earnings statement\n$1,355.31\nTake Home Pay`));
+    expect(p.net).toBe(1355.31);
+  });
+  it('reads a header row over a row of amounts', () => {
+    const p = parsePaystub(L2(`Gross Pay   Deductions   Net Pay\n$1,671.50   $316.19   $1,355.31`));
+    expect(p.gross).toBe(1671.5);
+    expect(p.net).toBe(1355.31);
+  });
+  it('fixes common misreads', async () => {
+    const { cleanOcrMoney } = await import('./paystub');
+    expect(cleanOcrMoney('Net Pay S1,355.31')).toBe('Net Pay $1,355.31');
+    expect(cleanOcrMoney('Gross $ 1, 671 .50')).toBe('Gross $1,671.50');
+    expect(cleanOcrMoney('Gross 1.671.50')).toBe('Gross 1,671.50');
+  });
+});
+
+describe('a real stub screenshot, as the on-device reader saw it (personal details removed)', () => {
+  // rows rebuilt from word positions, with the reader's actual mistakes left in
+  const rows = `Check Date:   Check #:
+Saint Petersburg   FL 33716   11/20/2026   1393110
+Pay Period: 11/1/2026 THRU 11/14/2026
+Pay Type: Hourly   CURRENT
+Rate   Hous Eamings* Hours   Eamings | Description   Peiod   YTD   Description   Period
+2250 5880   1316.25   1667.00   3844754 Reimbursement   181.18 | Federd WH   119.84   3298.76
+24.500   1450   38625   FICA   103.64   272385
+Holiday   32.00   1096.52   Medicare   2424   637.02
+Overtime   5325   1909.69   COWH   65.00   1707.00
+Sick   48.00   1080.00   COPFMLEE   7.36   198.31
+Total   181.18 Total   320.08   8550.94
+Total   73.00   1671.50   1853.32   43637.91   Begin   924
+Blended OT   004   Adjustments   0.00   0.00
+Blended OT   19.81   Available Balance   10.77
+IMPORTANT MESSAGE   | COIRA Roth   1325.79
+Total   0.00   1325.79
+Gross   FCA   Federal   Other
+Wages   Taxable   Taxable   Taxes   Deducts   Net Pay
+Current   1671 30   1671 50   1671 50   3 20.08   0.00   1351.42
+YTD   43933.03   43933.03   43933.03   8559.94   1325.79   3422848
+11/20/2026`;
+  const p = parsePaystub(
+    rows.split('\n').map((text) => ({ text, confidence: 85 })),
+    [22.5, 24.5],
+  );
+  it('finds gross, net and dates', () => {
+    expect(p.gross).toBe(1671.5);
+    expect(p.net).toBe(1351.42);
+    expect(p.payDate).toBe('2026-11-20');
+    expect(p.periodStart).toBe('2026-11-01');
+    expect(p.periodEnd).toBe('2026-11-14');
+  });
+  it('reads every tax, and they add up to the stub’s total', () => {
+    const t = (k: string) => p.lines.find((l) => l.kind === k)?.current;
+    expect(t('federal')).toBe(119.84);
+    expect(t('social_security')).toBe(103.64);
+    expect(t('medicare')).toBe(24.24);
+    expect(t('state')).toBe(65);
+    expect(t('famli')).toBe(7.36);
+    expect(p.warnings).toEqual([]);
+  });
+  it('treats the year-to-date Roth IRA total as nothing taken this check', () => {
+    expect(p.lines.find((l) => /ROTH/i.test(l.label))?.current ?? 0).toBe(0);
+    expect(p.hours.some((h) => h.amount === 19.81)).toBe(false);
+  });
+});

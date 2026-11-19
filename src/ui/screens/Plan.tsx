@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Fuel, Plus, RefreshCw, ShoppingBasket, Sparkles, Home as HomeIcon, Settings as SettingsIcon } from 'lucide-react';
 import type { AppData } from '../../data/useData';
-import type { Tab } from '../App';
+import type { GoTo } from '../App';
 import { SplitBar } from '../charts';
 import { CategoryIcon, Field, GemIcon, NumberInput, Sheet, TextInput, ToggleRow, useToast } from '../components';
 import { InsightList } from '../InsightList';
@@ -15,7 +15,7 @@ import { usd, pebbles } from '../../core/money';
 import { deleteBill, newBill, saveBill, setManualGasPrice, setSavingsOverride, updateMarket } from '../../data/actions';
 import type { Bill, BillFrequency } from '../../core/types';
 
-export function PlanScreen({ data, go }: { data: AppData; go: (t: Tab) => void }) {
+export function PlanScreen({ data, go }: { data: AppData; go: GoTo }) {
   const toast = useToast();
   const { plan, essentials, upcoming } = data;
   const [editingBill, setEditingBill] = useState<Bill | null>(null);

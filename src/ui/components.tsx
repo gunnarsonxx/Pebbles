@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import {
   AlertTriangle,
   ArrowLeftRight,
@@ -125,27 +126,70 @@ export function Sheet({ title, onClose, children, footer, wide }: { title: React
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
     window.addEventListener('keydown', onKey);
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      window.removeEventListener('keydown', onKey);
-      document.body.style.overflow = prev;
-    };
+    return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
-  return (
+  // rendered at the top of the page so nothing (tab bar, scrolling content) can cover it
+  return createPortal(
     <div className="scrim" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className={`sheet${wide ? ' wide' : ''}`} role="dialog" aria-modal="true">
-        <div className="grabber" />
         <div className="sheet-head">
           <h2>{title}</h2>
           <button className="icon-btn" onClick={onClose} aria-label="Close">
             <X />
           </button>
         </div>
-        {children}
+        <div className="sheet-body">{children}</div>
         {footer && <div className="sheet-foot">{footer}</div>}
       </div>
-    </div>
+    </div>,
+    document.body,
+  );
+}
+
+// ---------------- confirm ----------------
+
+interface ConfirmOpts {
+  title: string;
+  body?: ReactNode;
+  confirm?: string;
+  cancel?: string;
+  danger?: boolean;
+}
+
+const ConfirmCtx = createContext<(o: ConfirmOpts) => Promise<boolean>>(async () => false);
+
+/** `const ok = await confirm({ title: 'Reset…?' })`: an in-app replacement for window.confirm. */
+export const useConfirm = () => useContext(ConfirmCtx);
+
+function ConfirmHost({ children }: { children: ReactNode }) {
+  const [req, setReq] = useState<(ConfirmOpts & { resolve: (v: boolean) => void }) | null>(null);
+  const ask = useCallback((o: ConfirmOpts) => new Promise<boolean>((resolve) => setReq({ ...o, resolve })), []);
+  const done = (v: boolean) => {
+    req?.resolve(v);
+    setReq(null);
+  };
+  return (
+    <ConfirmCtx.Provider value={ask}>
+      {children}
+      {req && (
+        <Sheet
+          title={req.title}
+          onClose={() => done(false)}
+          footer={
+            <>
+              <button className="btn" onClick={() => done(false)}>
+                {req.cancel ?? 'Cancel'}
+              </button>
+              <button className={`btn ${req.danger ? 'danger-solid' : 'primary'}`} onClick={() => done(true)} autoFocus>
+                {req.confirm ?? 'OK'}
+              </button>
+            </>
+          }
+        >
+          {req.body && <div className="ink2">{req.body}</div>}
+        </Sheet>
+      )}
+    </ConfirmCtx.Provider>
   );
 }
 
@@ -289,24 +333,43 @@ export function Empty({ icon, title, children }: { icon?: ReactNode; title: stri
 
 // ---------------- toast ----------------
 
-const ToastCtx = createContext<(msg: string) => void>(() => {});
+interface ToastAction {
+  label: string;
+  run: () => void | Promise<void>;
+}
+type ToastFn = (msg: string, action?: ToastAction) => void;
+const ToastCtx = createContext<ToastFn>(() => {});
 
 export function ToastProvider({ children }: { children: ReactNode }) {
-  const [msg, setMsg] = useState<string | null>(null);
+  const [msg, setMsg] = useState<{ text: string; action?: ToastAction } | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const show = useCallback((m: string) => {
-    setMsg(m);
+  const show = useCallback<ToastFn>((m, action) => {
+    setMsg({ text: m, action });
     if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => setMsg(null), 3200);
+    timer.current = setTimeout(() => setMsg(null), action ? 8000 : 3200);
   }, []);
   return (
     <ToastCtx.Provider value={show}>
-      {children}
-      {msg && (
-        <div className="toast" role="status">
-          {msg}
-        </div>
-      )}
+      <ConfirmHost>{children}</ConfirmHost>
+      {msg &&
+        createPortal(
+          <div className="toast" role="status">
+            <span>{msg.text}</span>
+            {msg.action && (
+              <button
+                className="toast-action"
+                onClick={async () => {
+                  const a = msg.action!;
+                  setMsg(null);
+                  await a.run();
+                }}
+              >
+                {msg.action.label}
+              </button>
+            )}
+          </div>,
+          document.body,
+        )}
     </ToastCtx.Provider>
   );
 }

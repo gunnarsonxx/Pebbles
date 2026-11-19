@@ -1,7 +1,7 @@
 import { useState, useSyncExternalStore } from 'react';
 import { Landmark, Link2, Plus, RefreshCw, Unlink, PiggyBank } from 'lucide-react';
 import type { AppData } from '../../data/useData';
-import { Field, NumberInput, Sheet, ToggleRow, TextInput, useToast } from '../components';
+import { Field, NumberInput, Sheet, ToggleRow, TextInput, useConfirm, useToast } from '../components';
 import { bankLog, connectBank, cancelConnect, disconnectBank, plaidCreds, syncAllBanks, syncBank } from '../../data/bank';
 import { store } from '../../data/store';
 import { usd } from '../../core/money';
@@ -10,6 +10,7 @@ import type { Account, BankLink } from '../../core/types';
 
 export function AccountsView({ data, openSettings }: { data: AppData; openSettings: () => void }) {
   const toast = useToast();
+  const ask = useConfirm();
   const [status, setStatus] = useState<string | null>(null);
   const [editing, setEditing] = useState<Account | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -85,7 +86,7 @@ export function AccountsView({ data, openSettings }: { data: AppData; openSettin
                       className="icon-btn"
                       aria-label="Disconnect"
                       onClick={async () => {
-                        if (confirm(`Disconnect ${l.institution}? Transactions already in Pebbles stay.`)) await disconnectBank(l);
+                        if (await ask({ title: `Disconnect ${l.institution}?`, body: 'Transactions already in Pebbles stay.', confirm: 'Disconnect', danger: true })) await disconnectBank(l);
                       }}
                     >
                       <Unlink />

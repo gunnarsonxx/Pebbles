@@ -1,9 +1,17 @@
 import type { IntegrationSettings, PayRate, Settings } from './types';
+import { DEFAULT_HOLIDAYS } from './holidays';
 
 // Free U.S. EIA open-data key (read-only public gas prices). Your own key in Settings overrides it.
 export const BUILTIN_EIA_KEY = 'CNMWTKhfFBG8krrGRmjrcrmLnQhdWt8RdJR6wRQn';
 
 export const TAX_RULES_URL = 'https://raw.githubusercontent.com/gunnarsonxx/Pebbles/main/data/tax-rules.json';
+
+/** Where Pebbles looks for updated data files: the main branch first, then the branch builds come from. */
+export const FEED_REFS = ['main', 'claude/pebbles-money-tracking-6kk484'];
+export function feedUrls(file: string, custom?: string): string[] {
+  const base = FEED_REFS.map((ref) => `https://raw.githubusercontent.com/gunnarsonxx/Pebbles/${ref}/data/${file}`);
+  return custom && !base.includes(custom) ? [custom, ...base] : base;
+}
 
 export function defaultSettings(): Settings {
   return {
@@ -43,6 +51,7 @@ export function defaultSettings(): Settings {
       breakAfterMidnight: true,
       overtime: { weeklyThreshold: 40, dailyThreshold: 12, multiplier: 1.5, method: 'weighted' },
       holidayMultiplier: 1.5,
+      holidays: { ids: DEFAULT_HOLIDAYS, observed: false, rule: 'calendar' },
     },
     household: {
       adults: 1,
@@ -93,7 +102,7 @@ export function normalizeSettings(s: Partial<Settings> | undefined): Settings {
     ...s,
     w4: { ...d.w4, ...(s.w4 ?? {}) },
     stateTax: { ...d.stateTax, ...(s.stateTax ?? {}) },
-    pay: { ...d.pay, ...(s.pay ?? {}), overtime: { ...d.pay.overtime, ...(s.pay?.overtime ?? {}) } },
+    pay: { ...d.pay, ...(s.pay ?? {}), overtime: { ...d.pay.overtime, ...(s.pay?.overtime ?? {}) }, holidays: { ...d.pay.holidays, ...(s.pay?.holidays ?? {}) } },
     household: { ...d.household, ...(s.household ?? {}) },
     budget: { ...d.budget, ...(s.budget ?? {}) },
     integrations: { ...d.integrations, ...(s.integrations ?? {}) },

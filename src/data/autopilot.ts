@@ -4,7 +4,9 @@ import { store } from './store';
 import { computeData } from './useData';
 import { today } from '../core/dates';
 import { findPaycheckDeposit, findSavingsTransfer, moveId, type MoveKey } from '../core/moves';
-import { goalsAccount, interestContributions } from '../core/savingsAccount';
+import { goalsAccount, interestContributions, syncGoalsWithAccount, type Weight } from '../core/savingsAccount';
+import { addDays } from '../core/dates';
+import { periodByIndex, periodContaining } from '../core/pay';
 import type { Allocation, PaycheckPlan } from '../core/budget';
 import type { Period } from '../core/pay';
 import type { Contribution, PaycheckRecord } from '../core/types';
@@ -16,13 +18,15 @@ export function paycheckContributions(period: Period, allocations: Allocation[],
 }
 
 /** Check (or uncheck) a payday move. Checking "move to savings" drops the pebbles into your goals. */
-export async function setMove(period: Period, plan: PaycheckPlan, key: MoveKey, done: boolean, auto = false): Promise<void> {
+export async function setMove(period: Period, plan: PaycheckPlan, key: MoveKey, done: boolean, auto = false, bankTracks = false): Promise<void> {
   await store.put('moves', { id: moveId(period, key), done, at: Date.now(), auto });
   if (key !== 'save' && key !== 'bonus') return;
   const existing = store.list('contributions').filter((c) => c.paycheckId === period.start && c.kind !== 'interest');
   if (key === 'save') {
     const mine = existing.filter((c) => c.id.startsWith('pc|'));
-    if (done && !mine.length) await store.putMany('contributions', paycheckContributions(period, plan.allocations, today() < period.payday ? period.payday : today()));
+    // when the bank shows the transfer, the real deposit fills the goals instead (see syncGoalsWithAccount)
+    const fromBank = store.list('contributions').some((c) => c.paycheckId === period.start && c.id.startsWith('dep|'));
+    if (done && !mine.length && !fromBank && !(auto && bankTracks)) await store.putMany('contributions', paycheckContributions(period, plan.allocations, today() < period.payday ? period.payday : today()));
     if (!done && mine.length) await store.remove('contributions', mine.map((c) => c.id));
   }
 }
@@ -58,6 +62,39 @@ export async function runAutopilot(): Promise<void> {
     const interest = interestContributions(d.txns, acct, d.goals, d.contributions, d.balances);
     if (interest.length) await store.putMany('contributions', interest);
 
+    // 1b) the goals account is the truth: deposits split by plan, goals add up to the balance
+    if (acct) {
+      const key = `goalsSyncSince:${acct.id}`;
+      let since = await store.getMeta<string>(key);
+      if (!since) {
+        since = d.today;
+        await store.setMeta(key, since);
+      }
+      const planWeights: Weight[] = d.plan.allocations.map((a) => ({ goalId: a.goalId, w: a.amount }));
+      const fresh = computeData(store.version, today());
+      const res = syncGoalsWithAccount({
+        account: acct,
+        txns: fresh.txns,
+        goals: fresh.goals,
+        contributions: fresh.contributions,
+        since,
+        planWeights,
+        paycheckFor: (date) => {
+          const base = periodContaining(fresh.settings.pay, date);
+          for (const k of [0, -1, 1]) {
+            const p = periodByIndex(fresh.settings.pay, base.index + k);
+            if (date >= addDays(p.payday, -2) && date <= addDays(p.payday, 10)) {
+              const rec = fresh.paychecks.get(p.start);
+              return { periodStart: p.start, weights: (rec?.goalAllocations ?? []).map((a) => ({ goalId: a.goalId, w: a.amount })) };
+            }
+          }
+          return null;
+        },
+      });
+      if (res.remove.length) await store.remove('contributions', res.remove);
+      if (res.put.length) await store.putMany('contributions', res.put);
+    }
+
     // 2) the paycheck landed → record it
     const m = d.movesFor;
     if (m && m.period.payday <= d.today) {
@@ -87,7 +124,7 @@ export async function runAutopilot(): Promise<void> {
       const saveState = store.get('moves', moveId(m.period, 'save'));
       if (!saveState?.done && m.plan.savings > 0) {
         const transfer = findSavingsTransfer(d.txns, m.period.payday, m.plan.savings, acct?.id ?? null);
-        if (transfer) await setMove(m.period, m.plan, 'save', true, true);
+        if (transfer) await setMove(m.period, m.plan, 'save', true, true, acct?.source === 'plaid' || transfer.accountId === acct?.id);
       }
     }
   } catch (e) {

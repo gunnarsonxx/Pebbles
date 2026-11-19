@@ -1,46 +1,59 @@
 import { useEffect, useState } from 'react';
-import { CalendarDays, Compass, Gem, House, Moon, Receipt, Settings as SettingsIcon, ChevronLeft, Sun, TrendingUp } from 'lucide-react';
+import { CalendarDays, Gem, House, Moon, PieChart, Settings as SettingsIcon, ShoppingBasket, ChevronLeft, Sun } from 'lucide-react';
 import { saveSettings } from '../data/actions';
 import { useData, useSync } from '../data/useData';
 import { PebbleLogo, ToastProvider } from './components';
 import { HomeScreen } from './screens/Home';
 import { PaycheckScreen } from './screens/Paycheck';
-import { SpendingScreen } from './screens/Spending';
+import { BudgetScreen } from './screens/Budget';
 import { SavingsScreen } from './screens/Savings';
-import { PlanScreen } from './screens/Plan';
-import { GrowScreen } from './screens/Grow';
-import { SettingsScreen } from './screens/Settings';
+import { GroceriesScreen } from './screens/Groceries';
+import { SettingsScreen, SETTINGS_SECTIONS } from './screens/Settings';
 import { Onboarding } from './screens/Onboarding';
 import { onBack, pairEvents } from '../platform/native';
 import { useToast } from './components';
 import { platformKind } from '../platform';
 
-export type Tab = 'home' | 'paycheck' | 'spending' | 'savings' | 'grow' | 'plan' | 'settings';
+export type Tab = 'home' | 'paycheck' | 'budget' | 'groceries' | 'savings' | 'settings';
+/** Older names still used by some buttons: where they lead now. */
+type Alias = 'plan' | 'spending' | 'accounts' | 'grow';
+export type GoTo = (t: Tab | Alias, sub?: string) => void;
+const ALIASES: Record<Alias, [Tab, string]> = {
+  plan: ['budget', 'plan'],
+  spending: ['budget', 'spending'],
+  accounts: ['budget', 'accounts'],
+  grow: ['savings', 'retirement'],
+};
 
 const TABS: { id: Tab; label: string; icon: typeof House }[] = [
   { id: 'home', label: 'Home', icon: House },
-  { id: 'paycheck', label: 'Paycheck', icon: CalendarDays },
-  { id: 'spending', label: 'Spending', icon: Receipt },
+  { id: 'paycheck', label: 'Pay', icon: CalendarDays },
+  { id: 'budget', label: 'Budget', icon: PieChart },
+  { id: 'groceries', label: 'Groceries', icon: ShoppingBasket },
   { id: 'savings', label: 'Savings', icon: Gem },
-  { id: 'grow', label: 'Grow', icon: TrendingUp },
-  { id: 'plan', label: 'Plan', icon: Compass },
 ];
 
 const TITLES: Record<Tab, string> = {
   home: 'Pebbles',
   paycheck: 'Paycheck',
-  spending: 'Spending',
+  budget: 'Budget',
+  groceries: 'Groceries',
   savings: 'Savings',
-  grow: 'Retirement & FIRE',
-  plan: 'Plan',
   settings: 'Settings',
 };
+
+const VALID_TABS = new Set<string>(['home', 'paycheck', 'budget', 'groceries', 'savings', 'settings']);
 
 export function App() {
   const data = useData();
   const sync = useSync();
-  const [tab, setTab] = useState<Tab>(() => (localStorageGet('pebbles.tab') as Tab) || 'home');
+  const [tab, setTab] = useState<Tab>(() => {
+    const t = localStorageGet('pebbles.tab');
+    return t && VALID_TABS.has(t) && t !== 'settings' ? (t as Tab) : 'home';
+  });
   const [prevTab, setPrevTab] = useState<Tab>('home');
+  const [subs, setSubs] = useState<Partial<Record<Tab, string>>>({});
+  const setSub = (t: Tab, v: string | undefined) => setSubs((s) => ({ ...s, [t]: v }));
 
   useEffect(() => {
     const t = data.settings.theme;
@@ -64,13 +77,17 @@ export function App() {
     }
     window.scrollTo({ top: 0 });
     document.querySelector('.main')?.scrollTo({ top: 0 });
-  }, [tab]);
+  }, [tab, subs.settings]);
 
   useEffect(
     () =>
       onBack(() => {
         if (document.querySelector('.scrim')) {
           window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+          return true;
+        }
+        if (tab === 'settings' && subs.settings) {
+          setSub('settings', undefined);
           return true;
         }
         if (tab === 'settings') {
@@ -83,11 +100,13 @@ export function App() {
         }
         return false;
       }),
-    [tab, prevTab],
+    [tab, prevTab, subs.settings],
   );
 
-  const go = (t: Tab) => {
+  const go: GoTo = (to, sub) => {
+    const [t, s2] = to in ALIASES ? ALIASES[to as Alias] : [to as Tab, sub];
     if (t === 'settings') setPrevTab(tab === 'settings' ? prevTab : tab);
+    setSub(t, sub ?? s2);
     setTab(t);
   };
 
@@ -122,7 +141,7 @@ export function App() {
             <PebbleLogo size={34} /> Pebbles
           </div>
           {TABS.map((t) => (
-            <button key={t.id} className={`side-link${tab === t.id ? ' active' : ''}`} onClick={() => go(t.id)}>
+            <button key={t.id} className={`side-link${tab === t.id ? ' active' : ''}`} onClick={() => go(t.id, subs[t.id])}>
               <t.icon /> {t.label}
             </button>
           ))}
@@ -137,7 +156,7 @@ export function App() {
         <div className="main">
           <header className="topbar">
             {tab === 'settings' && (
-              <button className="icon-btn" onClick={() => setTab(prevTab)} aria-label="Back">
+              <button className="icon-btn" onClick={() => (subs.settings ? setSub('settings', undefined) : setTab(prevTab))} aria-label="Back">
                 <ChevronLeft />
               </button>
             )}
@@ -146,9 +165,9 @@ export function App() {
                 <PebbleLogo size={28} />
               </span>
             )}
-            <div className="title">{TITLES[tab]}</div>
+            <div className="title">{tab === 'settings' && subs.settings ? (SETTINGS_SECTIONS.find((x) => x.id === subs.settings)?.title ?? 'Settings') : TITLES[tab]}</div>
             <ThemeToggle theme={data.settings.theme} />
-            <button className="icon-btn" title={sync.message || syncLabel} aria-label={syncLabel} onClick={() => go('settings')}>
+            <button className="icon-btn" title={sync.message || syncLabel} aria-label={syncLabel} onClick={() => go('settings', 'sync')}>
               <span className={`sync-dot ${sync.status}`} />
             </button>
             {tab !== 'settings' && (
@@ -160,17 +179,16 @@ export function App() {
           <PairListener />
           <main className="content">
             {tab === 'home' && <HomeScreen data={data} go={go} />}
-            {tab === 'paycheck' && <PaycheckScreen data={data} />}
-            {tab === 'spending' && <SpendingScreen data={data} openSettings={() => go('settings')} />}
-            {tab === 'savings' && <SavingsScreen data={data} />}
-            {tab === 'plan' && <PlanScreen data={data} go={go} />}
-            {tab === 'grow' && <GrowScreen data={data} />}
-            {tab === 'settings' && <SettingsScreen data={data} />}
+            {tab === 'paycheck' && <PaycheckScreen data={data} go={go} />}
+            {tab === 'budget' && <BudgetScreen data={data} go={go} view={subs.budget} setView={(v) => setSub('budget', v)} />}
+            {tab === 'groceries' && <GroceriesScreen data={data} go={go} view={subs.groceries} setView={(v) => setSub('groceries', v)} />}
+            {tab === 'savings' && <SavingsScreen data={data} go={go} view={subs.savings} setView={(v) => setSub('savings', v)} />}
+            {tab === 'settings' && <SettingsScreen data={data} section={subs.settings} open={(v) => setSub('settings', v)} />}
           </main>
         </div>
         <nav className="tabbar" aria-label="Main">
           {TABS.map((t) => (
-            <button key={t.id} className={`tab${tab === t.id ? ' active' : ''}`} onClick={() => go(t.id)} aria-current={tab === t.id ? 'page' : undefined}>
+            <button key={t.id} className={`tab${tab === t.id ? ' active' : ''}`} onClick={() => go(t.id, subs[t.id])} aria-current={tab === t.id ? 'page' : undefined}>
               <t.icon />
               {t.label}
             </button>

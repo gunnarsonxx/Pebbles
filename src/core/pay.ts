@@ -12,6 +12,7 @@ import { addDays, dayOfWeek, diffDays, fmtDay, rangeDays } from './dates';
 import { BASE_RATE_ID } from './defaults';
 import { round2 } from './money';
 import type { DayStatus, ISODate, PayRate, PaySettings, WorkDay, WorkSegment } from './types';
+import { holidayOn, type HolidayDef } from './holidays';
 
 export interface Period {
   index: number;
@@ -80,6 +81,9 @@ export interface ResolvedDay {
   holidayPremium: number;
   defaultPay: number; // what this day contributes to "base pay"
   note: string;
+  preShare?: number; // share of this shift's hours before midnight, when the shift has its own times
+  holiday?: HolidayDef | null; // a paid holiday falls on this calendar day
+  countedHours?: number; // hours counted on this calendar day (overnight shifts)
 }
 
 function resolveSegments(segments: WorkSegment[], rates: PayRate[], baseRate: number): ResolvedSegment[] {
@@ -121,8 +125,10 @@ export function resolveDay(
     const hours = segs.reduce((s, x) => s + x.hours, 0);
     const straight = segs.reduce((s, x) => s + x.hours * x.rate, 0);
     const holidayPremium = override.workedHoliday ? straight * Math.max(0, pay.holidayMultiplier - 1) : 0;
+    const own = override.start && override.end ? splitTimes(override.start, override.end, pay) : null;
     return {
       ...base,
+      preShare: own ? (own.overnight ? (hours > 0 ? Math.min(hours, own.pre) / hours : 1) : 1) : undefined,
       edited: true,
       status: hours > 0 ? 'worked' : 'off',
       segments: segs,
@@ -188,16 +194,34 @@ function minutes(t: string): number {
   return (h || 0) * 60 + (m || 0);
 }
 
+/** Paid hours before and after midnight for a shift from `start` to `end` (break taken off one side). */
+export function splitTimes(start: string, end: string, pay: Pick<PaySettings, 'breakMinutes' | 'breakAfterMidnight'>): { overnight: boolean; pre: number; post: number } {
+  const s = minutes(start);
+  const e = minutes(end);
+  const b = (pay.breakMinutes || 0) / 60;
+  if (e > s) return { overnight: false, pre: round2(Math.max(0, (e - s) / 60 - b)), post: 0 };
+  // a break on the side of midnight that has no time at all comes off the other side
+  let pre = (1440 - s) / 60;
+  let post = e / 60;
+  if (pay.breakAfterMidnight && post >= b) post -= b;
+  else if (!pay.breakAfterMidnight && pre >= b) pre -= b;
+  else if (post >= b) post -= b;
+  else pre -= b;
+  return { overnight: true, pre: round2(Math.max(0, pre)), post: round2(Math.max(0, post)) };
+}
+
 /** Normal paid hours before and after midnight for one shift. */
 export function shiftSplit(pay: PaySettings): { overnight: boolean; pre: number; post: number } {
   if (!pay.shiftStart || !pay.shiftEnd) return { overnight: false, pre: pay.hoursPerDay, post: 0 };
-  const s = minutes(pay.shiftStart);
-  const e = minutes(pay.shiftEnd);
-  if (e > s) return { overnight: false, pre: pay.hoursPerDay, post: 0 };
-  const b = (pay.breakMinutes || 0) / 60;
-  const pre = Math.max(0, (1440 - s) / 60 - (pay.breakAfterMidnight ? 0 : b));
-  const post = Math.max(0, e / 60 - (pay.breakAfterMidnight ? b : 0));
-  return { overnight: true, pre: round2(pre), post: round2(post) };
+  const sp = splitTimes(pay.shiftStart, pay.shiftEnd, pay);
+  if (!sp.overnight) return { overnight: false, pre: pay.hoursPerDay, post: 0 };
+  return sp;
+}
+
+/** Hours for a shift with its own start/end times. */
+export function hoursForTimes(start: string, end: string, pay: PaySettings): number {
+  const sp = splitTimes(start, end, pay);
+  return round2(sp.pre + sp.post);
 }
 
 /** Paid hours for one shift, normally. */
@@ -237,7 +261,14 @@ export function computeGross(
     cal.set(d, c);
   };
   const actualPay = (x: ResolvedDay) => x.straightPay + x.leavePay + x.holidayPremium;
-  const fracOf = (x: ResolvedDay) => preMidnightShare(x.workedHours || x.paidLeaveHours, pay);
+  const fracOf = (x: ResolvedDay) => x.preShare ?? preMidnightShare(x.workedHours || x.paidLeaveHours, pay);
+  // paid holidays: Pebbles adds the premium itself, so a manual "worked a holiday" doesn't double it
+  const hol = (d: ISODate) => (pay.holidays?.ids?.length ? holidayOn(d, pay.holidays) : null);
+  const holidayMult = Math.max(0, pay.holidayMultiplier - 1);
+  for (const x of allShifts) {
+    const touches = pay.holidays?.rule === 'shiftStart' ? hol(x.date) : hol(x.date) || (fracOf(x) < 1 ? hol(addDays(x.date, 1)) : null);
+    if (touches && x.holidayPremium) x.holidayPremium = 0;
+  }
   for (const x of allShifts) {
     const next = addDays(x.date, 1);
     const f = fracOf(x);
@@ -258,7 +289,10 @@ export function computeGross(
   const sum = (k: 'hours' | 'straight' | 'leave' | 'defaultHours' | 'defaultPay', dates = periodDates) => dates.reduce((s, d) => s + (cal.get(d)?.[k] ?? 0), 0);
   const scheduledHours = round2(sum('defaultHours'));
   const basePay = round2(sum('defaultPay'));
-  for (const d of days) (d as ResolvedDay & { countedHours?: number }).countedHours = round2(cal.get(d.date)?.hours ?? 0);
+  for (const d of days) {
+    d.countedHours = round2(cal.get(d.date)?.hours ?? 0);
+    d.holiday = hol(d.date);
+  }
 
   const unit = sp.overnight ? 'shift' : 'day';
   const adjustments: Adjustment[] = [];
@@ -273,7 +307,9 @@ export function computeGross(
     const when = sp.overnight ? `${fmtDay(d.date)} night` : fmtDay(d.date);
     const part = partial ? ' (part of it on this check)' : '';
     if (d.status === 'missed' || (d.status === 'off' && d.scheduled)) {
-      adjustments.push({ date: d.date, label: `Missed ${unit}`, detail: `${when} · ${normalShift} h unpaid${part}`, amount: diffIn, kind: 'missed' });
+      const hrsHere = round2(normalShift * ((inPeriod(d.date) ? normalPre : 0) + (inPeriod(next) ? 1 - normalPre : 0)));
+      const detail = partial ? `${when} · ${hrsHere} h unpaid on this check (the rest is on the ${inPeriod(d.date) ? 'next' : 'previous'} one)` : `${when} · ${normalShift} h unpaid`;
+      adjustments.push({ date: d.date, label: `Missed ${unit}`, detail, amount: diffIn, kind: 'missed' });
     } else if (d.status === 'pto' || d.status === 'sick' || d.status === 'holiday') {
       const name = d.status === 'pto' ? 'Paid time off' : d.status === 'sick' ? 'Sick leave' : 'Paid holiday';
       adjustments.push({ date: d.date, label: name, detail: `${when} · ${d.paidLeaveHours} h at base${part}`, amount: diffIn, kind: 'leave' });
@@ -296,6 +332,29 @@ export function computeGross(
         kind = 'holiday';
       }
       if (Math.abs(diffIn) >= 0.005 || label !== 'Different pay') adjustments.push({ date: d.date, label, detail: `${when} · ${rateDesc}${part}`, amount: diffIn, kind });
+    }
+  }
+
+  // Holiday pay: worked hours on a paid holiday earn the holiday multiplier
+  if (holidayMult > 0 && pay.holidays?.ids?.length) {
+    if (pay.holidays.rule === 'shiftStart') {
+      for (const x of allShifts) {
+        const h = hol(x.date);
+        if (!h || x.workedHours <= 0) continue;
+        const f = fracOf(x);
+        const share = (inPeriod(x.date) ? f : 0) + (inPeriod(addDays(x.date, 1)) ? 1 - f : 0);
+        const amount = round2(x.straightPay * holidayMult * share);
+        if (amount > 0)
+          adjustments.push({ date: x.date, label: `Holiday pay · ${h.name}`, detail: `${round2(x.workedHours * share)} h × ${pay.holidayMultiplier} for the shift starting ${fmtDay(x.date)}`, amount, kind: 'holiday' });
+      }
+    } else {
+      for (const d of periodDates) {
+        const h = hol(d);
+        const c = cal.get(d);
+        if (!h || !c || c.hours <= 0) continue;
+        const amount = round2(c.straight * holidayMult);
+        adjustments.push({ date: d, label: `Holiday pay · ${h.name}`, detail: `${round2(c.hours)} h worked on ${fmtDay(d)} × ${pay.holidayMultiplier}`, amount, kind: 'holiday' });
+      }
     }
   }
 

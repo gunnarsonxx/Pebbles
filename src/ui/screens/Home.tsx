@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { ArrowRight, CalendarDays, Fuel, Receipt, ShoppingBasket, Sprout } from 'lucide-react';
 import type { AppData } from '../../data/useData';
-import type { Tab } from '../App';
+import type { GoTo } from '../App';
 import { SplitBar } from '../charts';
 import { PebblePile } from '../PebblePile';
 import { CategoryIcon, GemIcon, Progress } from '../components';
@@ -13,7 +13,7 @@ import { fmtDay, fmtShort, relativeDays, addDays, diffDays } from '../../core/da
 import { billsDueBetween } from '../../core/budget';
 import { pebbles, usd } from '../../core/money';
 import { currentGasPrice } from '../../core/food';
-import { GEM_BY_ID } from '../../core/categories';
+import { gemBar } from '../../core/categories';
 
 function greeting(): string {
   const h = new Date().getHours();
@@ -32,7 +32,7 @@ export function Ridge() {
   );
 }
 
-export function HomeScreen({ data, go }: { data: AppData; go: (t: Tab) => void }) {
+export function HomeScreen({ data, go }: { data: AppData; go: GoTo }) {
   const [receiving, setReceiving] = useState(false);
   const { upcoming, plan, settings } = data;
   const p = upcoming.period;
@@ -117,7 +117,7 @@ export function HomeScreen({ data, go }: { data: AppData; go: (t: Tab) => void }
                   </span>
                 </div>
                 <div style={{ marginTop: 5 }}>
-                  <Progress value={bal / g.target} color={GEM_BY_ID[g.gem]?.color} />
+                  <Progress value={bal / g.target} color={gemBar(g.gem)} />
                 </div>
               </div>
             );

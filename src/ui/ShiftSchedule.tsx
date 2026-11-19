@@ -32,10 +32,11 @@ export function ShiftSchedule({ pay, onChange }: { pay: PaySettings; onChange: (
             <Field label="Shift ends (next morning)">
               <input className="input" type="time" value={pay.shiftEnd ?? '06:00'} onChange={(e) => e.target.value && update({ ...pay, shiftEnd: e.target.value })} />
             </Field>
-            <Field label="Unpaid break">
-              <NumberInput value={pay.breakMinutes} onChange={(v) => update({ ...pay, breakMinutes: Math.max(0, Math.round(v ?? 0)) })} suffix="min" />
-            </Field>
-            <Field label="Break is usually">
+          </div>
+          <Field label="Unpaid break">
+            <NumberInput value={pay.breakMinutes} onChange={(v) => update({ ...pay, breakMinutes: Math.max(0, Math.round(v ?? 0)) })} suffix="min" />
+          </Field>
+          <Field label="Break is usually">
               <Segmented
                 value={pay.breakAfterMidnight ? 'after' : 'before'}
                 options={[
@@ -44,8 +45,7 @@ export function ShiftSchedule({ pay, onChange }: { pay: PaySettings; onChange: (
                 ]}
                 onChange={(v) => update({ ...pay, breakAfterMidnight: v === 'after' })}
               />
-            </Field>
-          </div>
+          </Field>
           <p className="small ink2">
             Each shift pays {num(sp.pre + sp.post)} h: <strong>{num(sp.pre)} h</strong> on the night it starts and <strong>{num(sp.post)} h</strong> the next day. Pebbles counts them on those days, the way
             payroll does, so a Saturday-night shift is split between pay periods.

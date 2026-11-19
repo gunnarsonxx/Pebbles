@@ -60,6 +60,11 @@ export interface PaySettings {
   breakAfterMidnight: boolean; // which side of midnight the break falls
   overtime: OvertimeSettings;
   holidayMultiplier: number; // pay multiplier for working a holiday (1 = none)
+  holidays: {
+    ids: string[]; // which holidays your employer pays (see core/holidays.ts)
+    observed: boolean; // weekend holidays move to Friday/Monday
+    rule: 'calendar' | 'shiftStart'; // hours worked on the holiday's date, or whole shifts that start on it
+  };
 }
 
 export interface HouseholdSettings {
@@ -157,7 +162,9 @@ export interface WorkDay {
   status: DayStatus;
   segments: WorkSegment[]; // for 'worked' (can be split across rates)
   paidHours: number; // for pto/sick/holiday
-  workedHoliday?: boolean; // worked on a holiday -> holiday multiplier applies
+  workedHoliday?: boolean; // worked a holiday Pebbles doesn't know about -> holiday multiplier applies
+  start?: string | null; // this shift's own start time ('21:30'), when it differs from usual
+  end?: string | null; // and end time ('04:00')
   note: string;
 }
 
@@ -348,7 +355,12 @@ export type GemName =
   | 'topaz'
   | 'obsidian'
   | 'agate'
-  | 'emerald';
+  | 'emerald'
+  | 'alexandrite'
+  | 'aquamarine'
+  | 'peridot'
+  | 'rose_quartz'
+  | 'ruby';
 
 export interface Goal {
   id: string;

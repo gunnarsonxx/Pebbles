@@ -1,10 +1,16 @@
 import { useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, FileText, Plus, RotateCcw, Sprout, Info } from 'lucide-react';
+import { ChevronLeft, ChevronRight, FileText, Plus, RotateCcw, Sprout, Info, Moon, Clock } from 'lucide-react';
 import type { AppData } from '../../data/useData';
 import { DayEditor } from '../sheets/DayEditor';
 import { ReceiveSheet } from '../sheets/ReceiveSheet';
 import { PaystubSheet } from '../sheets/PaystubSheet';
-import { Field, GemIcon, NumberInput, Sheet, TextInput, useToast } from '../components';
+import { Field, GemIcon, NumberInput, Sheet, TextInput, useConfirm, useToast } from '../components';
+import { ShiftSchedule } from '../ShiftSchedule';
+import type { GoTo } from '../App';
+import type { PaySettings, WorkDay } from '../../core/types';
+import { saveSettings, setWorkDay } from '../../data/actions';
+import { shiftSplit } from '../../core/pay';
+import { fmtTime } from '../../core/dates';
 import { periodByIndex, allRates } from '../../core/pay';
 import { estimatePaycheck } from '../../core/paycheck';
 import { rangeDays, fmtShort, fmtDay, dowName, dayOfWeek, diffDays, parts } from '../../core/dates';
@@ -15,8 +21,10 @@ import { archiveRate, clearWorkDay, saveRate } from '../../data/actions';
 import { store } from '../../data/store';
 import type { PayRate } from '../../core/types';
 
-export function PaycheckScreen({ data }: { data: AppData }) {
+export function PaycheckScreen({ data }: { data: AppData; go: GoTo }) {
   const toast = useToast();
+  const ask = useConfirm();
+  const [shiftsOpen, setShiftsOpen] = useState(false);
   const [offset, setOffset] = useState(0);
   const [editing, setEditing] = useState<string | null>(null);
   const [receiving, setReceiving] = useState(false);
@@ -34,6 +42,25 @@ export function PaycheckScreen({ data }: { data: AppData }) {
   const g = est.gross;
   const w = est.withholding;
   const edits = days.filter((d) => data.workdays.has(d));
+
+  const overnight = shiftSplit(settings.pay).overnight;
+  const resetPeriod = async () => {
+    const ok = await ask({
+      title: 'Reset these two weeks?',
+      body: `This clears the ${edits.length} day${edits.length === 1 ? '' : 's'} you changed (missed shifts, different rates, extra hours) and goes back to your normal schedule.`,
+      confirm: 'Reset',
+      danger: true,
+    });
+    if (!ok) return;
+    const saved: WorkDay[] = edits.map((d) => data.workdays.get(d)!).filter(Boolean);
+    for (const d of edits) await clearWorkDay(d);
+    toast('Back to your normal schedule', {
+      label: 'Undo',
+      run: async () => {
+        for (const w of saved) await setWorkDay(w);
+      },
+    });
+  };
 
   const label = offset === 0 ? 'Next paycheck' : offset < 0 ? (offset === -1 ? 'Previous paycheck' : `${-offset} paychecks ago`) : offset === 1 ? 'The one after' : `${offset} paychecks ahead`;
 
@@ -57,7 +84,7 @@ export function PaycheckScreen({ data }: { data: AppData }) {
       <div className="grid two-wide">
         <div className="col" style={{ gap: 14 }}>
           <div className="card">
-            <div className="row between wrap">
+            <div className="row between" style={{ alignItems: 'flex-end' }}>
               <div>
                 <div className="eyebrow">Estimated take-home</div>
                 <div className="hero-number">{usd(est.net)}</div>
@@ -65,42 +92,53 @@ export function PaycheckScreen({ data }: { data: AppData }) {
               <div style={{ textAlign: 'right' }}>
                 <div className="small muted">Gross</div>
                 <div className="strong num">{usd(g.gross)}</div>
-                <div className="small muted">
-                  {num(g.workedHours)} h worked{g.leaveHours ? ` · ${num(g.leaveHours)} h paid leave` : ''}
-                </div>
               </div>
+            </div>
+            <div className="small muted mt-s">
+              {num(g.workedHours)} h worked{g.leaveHours ? ` · ${num(g.leaveHours)} h paid leave` : ''}
+              {g.otHours ? ` · ${num(g.otHours)} h overtime` : ''}
             </div>
             {record?.received && (
               <div className="badge good mt">
-                Received {usd(record.actualNet ?? 0)} ({signedUsd((record.actualNet ?? 0) - record.estimatedNet)} vs estimate)
+                Received {usd(record.actualNet ?? 0)} ({signedUsd((record.actualNet ?? 0) - record.estimatedNet)} vs. estimate)
               </div>
             )}
-            <div className="row wrap mt">
-              <button className="btn" onClick={() => setStubOpen(true)}>
-                <FileText /> Upload pay stub
-              </button>
-              {diffDays(period.payday, data.today) <= 1 && (
-                <button className="btn primary" onClick={() => setReceiving(true)}>
-                  <Sprout /> {record?.received ? 'Edit payday split' : 'I got paid'}
-                </button>
-              )}
-              {edits.length > 0 && (
-                <button
-                  className="btn"
-                  onClick={async () => {
-                    for (const d of edits) await clearWorkDay(d);
-                    toast('Back to a normal two weeks');
-                  }}
-                >
-                  <RotateCcw /> Reset to normal
-                </button>
-              )}
-            </div>
           </div>
+
+          {diffDays(period.payday, data.today) <= 1 && (
+            <button className="card action-card" onClick={() => setReceiving(true)}>
+              <span className="list-icon" style={{ background: 'var(--moss)', color: 'var(--on-moss)' }}>
+                <Sprout />
+              </span>
+              <div className="grow">
+                <div className="strong">{record?.received ? 'Edit this payday' : diffDays(period.payday, data.today) > 0 ? 'Payday is tomorrow' : 'Got paid?'}</div>
+                <div className="small muted">{record?.received ? 'Change the amount or how it was split' : 'Enter what landed and Pebbles splits it up'}</div>
+              </div>
+              <ChevronRight size={18} className="muted" />
+            </button>
+          )}
 
           <div className="card">
             <div className="card-head">
-              <div className="eyebrow">{settings.pay.shiftStart ? 'Your shifts · tap the night a shift starts' : 'Your two weeks · tap a day to change it'}</div>
+              <div className="eyebrow">{overnight ? 'Your shifts' : 'Your two weeks'}</div>
+              <div className="row gap-s">
+                {edits.length > 0 && (
+                  <button className="btn ghost small" onClick={() => void resetPeriod()}>
+                    <RotateCcw /> Reset
+                  </button>
+                )}
+                <button className="btn small" onClick={() => setShiftsOpen(true)} aria-label="Shift times">
+                  {overnight ? <Moon /> : <Clock />} {overnight ? `${fmtTime(settings.pay.shiftStart!)}–${fmtTime(settings.pay.shiftEnd!)}` : `${num(settings.pay.hoursPerDay)} h days`}
+                </button>
+              </div>
+            </div>
+            {!overnight && (
+              <button className="tip-row" onClick={() => setShiftsOpen(true)}>
+                <Moon size={16} /> Work overnight shifts? Set your shift times so hours split across midnight correctly.
+              </button>
+            )}
+            <div className="small muted" style={{ marginBottom: 8 }}>
+              {overnight ? 'Tap the night a shift starts to change it.' : 'Tap a day to change it.'}
             </div>
             <div className="cal" style={{ marginBottom: 6 }}>
               {days.slice(0, 7).map((d) => (
@@ -117,23 +155,20 @@ export function PaycheckScreen({ data }: { data: AppData }) {
                   d.status === 'missed' ? 'missed' : '',
                   d.status === 'pto' || d.status === 'sick' || d.status === 'holiday' ? 'leave' : '',
                   d.edited ? 'edited' : '',
+                  d.holiday ? 'holiday' : '',
                   d.date === data.today ? 'today' : '',
                 ].join(' ');
                 const hrs = d.workedHours || d.paidLeaveHours;
                 return (
-                  <button key={d.date} className={cls} onClick={() => setEditing(d.date)} aria-label={`${fmtDay(d.date)}: ${d.status}`}>
+                  <button key={d.date} className={cls} onClick={() => setEditing(d.date)} aria-label={`${fmtDay(d.date)}: ${d.status}${d.holiday ? `, ${d.holiday.name}` : ''}`}>
                     <span className="d">{parts(d.date).d}</span>
-                    <span className="h">
-                      {d.status === 'missed' ? 'off' : d.status === 'off' ? '–' : `${num(hrs)}h`}
-                    </span>
-                    {settings.pay.shiftStart && (
+                    <span className="h">{d.status === 'missed' ? 'off' : d.status === 'off' ? '–' : `${num(hrs)}h`}</span>
+                    {overnight && (
                       <span className="tiny muted" title="Hours counted on this calendar day">
-                        {num((d as unknown as { countedHours?: number }).countedHours ?? 0)}h day
+                        {num(d.countedHours ?? 0)}h day
                       </span>
                     )}
-                    <span className="tiny muted">
-                      {d.status === 'pto' ? 'PTO' : d.status === 'sick' ? 'sick' : d.status === 'holiday' ? 'holiday' : d.status === 'worked' && d.segments.some((s) => s.rateId !== BASE_RATE_ID) ? '' : ''}
-                    </span>
+                    <span className="tiny muted">{d.status === 'pto' ? 'PTO' : d.status === 'sick' ? 'Sick' : d.status === 'holiday' ? 'Holiday' : d.holiday ? 'Holiday' : ''}</span>
                     <span className="gems">
                       {d.segments
                         .filter((s) => s.rateId !== BASE_RATE_ID)
@@ -148,13 +183,16 @@ export function PaycheckScreen({ data }: { data: AppData }) {
             </div>
             <div className="row wrap small muted mt" style={{ gap: 14 }}>
               <span className="row gap-s">
-                <span className="swatch" style={{ background: 'var(--bad-soft)', border: '1px solid var(--line)', marginTop: 0 }} /> missed
+                <span className="swatch" style={{ background: 'var(--bad-soft)', border: '1px solid var(--line)', marginTop: 0 }} /> Missed
               </span>
               <span className="row gap-s">
-                <span className="swatch" style={{ background: 'var(--moss-soft)', border: '1px solid var(--line)', marginTop: 0 }} /> paid leave
+                <span className="swatch" style={{ background: 'var(--moss-soft)', border: '1px solid var(--line)', marginTop: 0 }} /> Paid leave
               </span>
               <span className="row gap-s">
-                <GemIcon gem="amethyst" size={12} /> different rate
+                <span className="swatch holiday-swatch" style={{ marginTop: 0 }} /> Holiday
+              </span>
+              <span className="row gap-s">
+                <GemIcon gem="amethyst" size={12} /> Different rate
               </span>
             </div>
           </div>
@@ -176,6 +214,20 @@ export function PaycheckScreen({ data }: { data: AppData }) {
               ))}
             </div>
             <p className="tiny muted mt">Pick a rate when you edit a day. Split days can mix rates.</p>
+          </div>
+
+          <div className="card">
+            <div className="card-head">
+              <div>
+                <div className="eyebrow">Pay stubs</div>
+                <div className="small muted">
+                  {data.paystubs[0] ? `Last: ${data.paystubs[0].payDate ? fmtDay(data.paystubs[0].payDate) : 'no date'}${data.paystubs[0].net != null ? ` · ${usd(data.paystubs[0].net)} take-home` : ''}` : 'Pebbles learns your real taxes and deductions from them'}
+                </div>
+              </div>
+              <button className="btn small" onClick={() => setStubOpen(true)}>
+                <FileText /> Upload
+              </button>
+            </div>
           </div>
         </div>
 
@@ -222,6 +274,7 @@ export function PaycheckScreen({ data }: { data: AppData }) {
       {receiving && <ReceiveSheet data={data} estimate={est} onClose={() => setReceiving(false)} />}
       {rateEdit && <RateSheet rate={rateEdit} onClose={() => setRateEdit(null)} />}
       {stubOpen && <PaystubSheet data={data} onClose={() => setStubOpen(false)} />}
+      {shiftsOpen && <ShiftsSheet pay={settings.pay} onClose={() => setShiftsOpen(false)} />}
     </div>
   );
 }
@@ -326,6 +379,34 @@ function RateSheet({ rate, onClose }: { rate: PayRate; onClose: () => void }) {
           </div>
         </Field>
       </div>
+    </Sheet>
+  );
+}
+
+function ShiftsSheet({ pay, onClose }: { pay: PaySettings; onClose: () => void }) {
+  const [p, setP] = useState(pay);
+  return (
+    <Sheet
+      title="Your shifts"
+      onClose={onClose}
+      footer={
+        <>
+          <button className="btn" onClick={onClose}>
+            Cancel
+          </button>
+          <button
+            className="btn primary"
+            onClick={async () => {
+              await saveSettings((s) => ({ ...s, pay: p }));
+              onClose();
+            }}
+          >
+            Save
+          </button>
+        </>
+      }
+    >
+      <ShiftSchedule pay={p} onChange={setP} />
     </Sheet>
   );
 }

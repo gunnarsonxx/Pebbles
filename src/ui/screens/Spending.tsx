@@ -37,7 +37,7 @@ export function SpendingScreen({ data, openSettings }: { data: AppData; openSett
   );
 }
 
-function TransactionsView({ data }: { data: AppData }) {
+export function TransactionsView({ data }: { data: AppData }) {
   const months = monthsWithData(data.txns);
   const latest = months[months.length - 1] ?? monthKey(data.today);
   const [month, setMonth] = useState<string>(latest);

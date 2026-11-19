@@ -1,7 +1,7 @@
 import { store } from './store';
 import { effectiveRules } from './useData';
 import { http } from '../platform';
-import { BUILTIN_EIA_KEY, normalizeSettings } from '../core/defaults';
+import { BUILTIN_EIA_KEY, feedUrls, normalizeSettings } from '../core/defaults';
 import { categorize } from '../core/categories';
 import { cleanMerchant, transactionIds, type ParsedTxn } from '../core/statements';
 import { refreshMarket } from '../core/market';
@@ -248,11 +248,11 @@ export async function checkTaxUpdates(force = false): Promise<{ updated: boolean
   const current = effectiveRules();
   const lastCheck = (await store.getMeta<number>('lastTaxCheck')) ?? 0;
   if (!force && Date.now() - lastCheck < 24 * 3600_000) return { updated: false, version: current.version };
-  const url = getSettings().integrations.taxRulesUrl;
+  const custom = getSettings().integrations.taxRulesUrl;
+  const res = await fetchFeed(feedUrls('tax-rules.json', custom));
+  await store.setMeta('lastTaxCheck', Date.now());
+  if (!res.ok) return { updated: false, version: current.version, error: res.error };
   try {
-    const res = await http(url + (url.includes('?') ? '&' : '?') + 't=' + Date.now());
-    await store.setMeta('lastTaxCheck', Date.now());
-    if (res.status !== 200) return { updated: false, version: current.version, error: `Update server replied ${res.status}` };
     const parsed = JSON.parse(res.text);
     if (!isValidRulesFile(parsed)) return { updated: false, version: current.version, error: 'The downloaded tax file was not valid' };
     if (newerVersion(parsed.version, current.version)) {
@@ -263,6 +263,24 @@ export async function checkTaxUpdates(force = false): Promise<{ updated: boolean
   } catch (e) {
     return { updated: false, version: current.version, error: (e as Error).message };
   }
+}
+
+/** Try each place a data file is published; the first good copy wins. */
+export async function fetchFeed(urls: string[]): Promise<{ ok: true; text: string } | { ok: false; error: string }> {
+  let lastErr = '';
+  let notFound = 0;
+  for (const url of urls) {
+    try {
+      const res = await http(url + (url.includes('?') ? '&' : '?') + 't=' + Date.now());
+      if (res.status === 200) return { ok: true, text: res.text };
+      if (res.status === 404) notFound++;
+      lastErr = `replied ${res.status}`;
+    } catch (e) {
+      lastErr = (e as Error).message;
+    }
+  }
+  if (notFound === urls.length) return { ok: false, error: 'No update published yet. You’re using the tables built into this version.' };
+  return { ok: false, error: lastErr.startsWith('replied') ? `The update server ${lastErr}. Try again later.` : 'Couldn’t reach the update server. Check your internet connection.' };
 }
 
 export async function exportBackup(): Promise<string> {

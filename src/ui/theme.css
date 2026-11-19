@@ -45,6 +45,11 @@
   --font-sans: 'Inter Variable', 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --font-serif: 'Fraunces Variable', 'Fraunces', Georgia, 'Times New Roman', serif;
   --nav-h: 66px;
+  /* system bars: Capacitor injects --safe-area-inset-* on Android; browsers use env() */
+  --sat: var(--safe-area-inset-top, env(safe-area-inset-top, 0px));
+  --sab: var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px));
+  --sal: var(--safe-area-inset-left, env(safe-area-inset-left, 0px));
+  --sar: var(--safe-area-inset-right, env(safe-area-inset-right, 0px));
   color-scheme: light;
 }
 
@@ -144,6 +149,20 @@ body {
   -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;
   overscroll-behavior-y: none;
+  overflow-x: hidden;
+  /* an app, not a document: no long-press text selection or callouts */
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  touch-action: pan-x pan-y;
+}
+
+input,
+textarea,
+select,
+[contenteditable='true'] {
+  -webkit-user-select: text;
+  user-select: text;
 }
 
 h1,
@@ -281,10 +300,8 @@ a {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: calc(env(safe-area-inset-top, 0px) + 10px) 16px 10px;
-  background: color-mix(in srgb, var(--bg) 88%, transparent);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  padding: calc(var(--sat) + 10px) 16px 10px;
+  background: var(--bg);
 }
 
 .topbar .title {
@@ -298,7 +315,7 @@ a {
   width: 100%;
   max-width: 1120px;
   margin: 0 auto;
-  padding: 4px 16px calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 28px);
+  padding: 4px 16px calc(var(--nav-h) + var(--sab) + 28px);
 }
 
 .tabbar {
@@ -308,13 +325,13 @@ a {
   bottom: 0;
   z-index: 30;
   display: grid;
-  grid-template-columns: repeat(6, 1fr);
-  height: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px));
-  padding-bottom: env(safe-area-inset-bottom, 0px);
-  background: color-mix(in srgb, var(--card) 94%, transparent);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  grid-template-columns: repeat(5, 1fr);
+  height: calc(var(--nav-h) + var(--sab));
+  padding-bottom: var(--sab);
+  background: var(--card);
   border-top: 1px solid var(--line);
+  padding-left: var(--sal);
+  padding-right: var(--sar);
 }
 
 .tab {
@@ -555,6 +572,12 @@ a {
 
 .btn.danger {
   color: var(--bad);
+}
+
+.btn.danger-solid {
+  background: var(--bad);
+  border-color: var(--bad);
+  color: #fff;
 }
 
 .btn.small {
@@ -857,35 +880,38 @@ button.list-item {
   position: fixed;
   inset: 0;
   z-index: 100;
-  background: rgba(25, 20, 12, 0.42);
+  background: rgba(25, 20, 12, 0.46);
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: center;
+  /* keep clear of the status bar, Android's navigation bar and the screen edges */
+  padding: calc(var(--sat) + 16px) calc(var(--sar) + 14px) calc(var(--sab) + 16px) calc(var(--sal) + 14px);
   animation: fade 0.18s ease;
 }
 
 .sheet {
   width: 100%;
   max-width: 620px;
-  max-height: 92vh;
-  overflow-y: auto;
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
   background: var(--card);
-  border-radius: 26px 26px 0 0;
-  padding: 10px 18px calc(env(safe-area-inset-bottom, 0px) + 22px);
+  border-radius: 24px;
   box-shadow: var(--shadow-lg);
   animation: rise 0.24s cubic-bezier(0.2, 0.9, 0.3, 1);
+  overflow: hidden;
 }
 
 .sheet.wide {
   max-width: 900px;
 }
 
-.sheet .grabber {
-  width: 40px;
-  height: 5px;
-  border-radius: 3px;
-  background: var(--line-2);
-  margin: 0 auto 10px;
+.sheet-body {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0 18px 18px;
+  min-height: 0;
+  flex: 1 1 auto;
 }
 
 .sheet-head {
@@ -893,13 +919,21 @@ button.list-item {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  margin-bottom: 14px;
+  padding: 16px 12px 12px 18px;
+  flex-shrink: 0;
+}
+
+.sheet-head h2 {
+  font-size: 20px;
 }
 
 .sheet-foot {
   display: flex;
   gap: 10px;
-  margin-top: 20px;
+  padding: 12px 18px 16px;
+  border-top: 1px solid var(--line);
+  background: var(--card);
+  flex-shrink: 0;
 }
 
 .sheet-foot .btn {
@@ -908,15 +942,16 @@ button.list-item {
 
 @media (min-width: 700px) {
   .scrim {
-    align-items: center;
     padding: 24px;
   }
-  .sheet {
-    border-radius: 26px;
-    padding: 22px 24px 24px;
+  .sheet-body {
+    padding: 0 24px 22px;
   }
-  .sheet .grabber {
-    display: none;
+  .sheet-head {
+    padding: 20px 16px 14px 24px;
+  }
+  .sheet-foot {
+    padding: 14px 24px 20px;
   }
 }
 
@@ -938,7 +973,7 @@ button.list-item {
 .toast {
   position: fixed;
   left: 50%;
-  bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 16px);
+  bottom: calc(var(--nav-h) + var(--sab) + 16px);
   transform: translateX(-50%);
   z-index: 200;
   background: var(--ink);
@@ -949,6 +984,22 @@ button.list-item {
   box-shadow: var(--shadow-lg);
   animation: rise 0.25s ease;
   max-width: calc(100vw - 32px);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.toast-action {
+  border: 0;
+  background: none;
+  color: var(--moss-soft);
+  font: inherit;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 13px;
+  padding: 4px 2px;
+  cursor: pointer;
 }
 
 @media (min-width: 900px) {
@@ -1074,6 +1125,8 @@ button.list-item {
 
 .day {
   position: relative;
+  min-width: 0;
+  overflow: hidden;
   border: 1px solid var(--line);
   background: var(--card);
   border-radius: 14px;
@@ -1121,6 +1174,11 @@ button.list-item {
 
 .day.today {
   box-shadow: 0 0 0 2px var(--moss);
+}
+
+.day .tiny {
+  white-space: nowrap;
+  font-size: 10px;
 }
 
 .day .gems {
@@ -1296,7 +1354,7 @@ button.list-item {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: calc(env(safe-area-inset-top, 0px) + 24px) 16px calc(env(safe-area-inset-bottom, 0px) + 24px);
+  padding: calc(var(--sat) + 24px) 16px calc(var(--sab) + 24px);
 }
 
 .onboard .card {
@@ -1366,6 +1424,8 @@ button.list-item {
     flex: 1;
     min-height: 0;
     overflow-y: auto;
+    overflow-x: hidden;
+    touch-action: pan-y;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior-y: contain;
   }
@@ -1380,7 +1440,7 @@ button.list-item {
     padding-bottom: 28px;
   }
   .toast {
-    bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 16px);
+    bottom: calc(var(--nav-h) + var(--sab) + 16px);
   }
 }
 
@@ -1402,3 +1462,163 @@ button.list-item {
 .status-bad {
   color: var(--bad);
 }
+
+.subnav {
+  margin: 0 0 14px;
+  max-width: 520px;
+}
+
+.stat-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.stat {
+  background: var(--card-2);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  min-width: 0;
+}
+.stat .strong {
+  font-size: 15px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.next-step {
+  border-left: 4px solid var(--moss);
+}
+.disclosure {
+  padding: 0;
+}
+.disclosure-head {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  padding: 16px 18px;
+  cursor: pointer;
+  text-align: left;
+}
+.disclosure-head svg {
+  transition: transform 0.2s ease;
+  color: var(--ink-3);
+  flex-shrink: 0;
+}
+.disclosure.open .disclosure-head svg {
+  transform: rotate(180deg);
+}
+.disclosure-body {
+  padding: 0 18px 16px;
+}
+.card .disclosure,
+.sheet .disclosure {
+  background: var(--card-2);
+  box-shadow: none;
+}
+ol.steps {
+  margin: 0;
+  padding-left: 20px;
+}
+ol.steps li {
+  margin-bottom: 10px;
+}
+ol.steps li.done {
+  opacity: 0.55;
+}
+ol.steps li.done strong::after {
+  content: ' ✓';
+  color: var(--good);
+}
+ol.steps li.now strong {
+  color: var(--moss-strong);
+}
+
+.mt-s {
+  margin-top: 6px;
+}
+.action-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.action-card .list-icon {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+}
+.tip-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  border: 1px dashed var(--line-2);
+  background: var(--card-2);
+  color: var(--ink-2);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.tip-row svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--moss);
+}
+.day.holiday {
+  box-shadow: inset 0 0 0 2px var(--citrine);
+}
+.holiday-swatch {
+  background: transparent;
+  border: 2px solid var(--citrine);
+}
+.settings-link {
+  padding: 12px;
+}
+.check-row {
+  cursor: pointer;
+}
+.check-row input[type='checkbox'] {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--moss);
+  flex-shrink: 0;
+}
+
+/* ---------- gem tones that adapt to light/dark ---------- */
+:root {
+  --gem-alexandrite: #2b8079; /* daylight teal */
+  --gem-obsidian-bar: #4a4541;
+  --gem-quartz-bar: #a89d8a;
+}
+:root[data-mode='dark'] {
+  --gem-alexandrite: #c0629b; /* lamplight raspberry */
+  --gem-obsidian-bar: #a49d95;
+  --gem-quartz-bar: #e3dccf;
+}
+
+/* ---------- more gemstone accents ---------- */
+:root[data-accent='alexandrite'] { --moss: #2b7a72; --moss-strong: #1f5f58; --moss-soft: #dcefec; --on-moss: #ffffff; --focus: #2b7a72; }
+:root[data-accent='alexandrite'][data-mode='dark'] { --moss: #c47aaa; --moss-strong: #d797c0; --moss-soft: #3a2333; --on-moss: #1f0f1a; --focus: #d797c0; }
+:root[data-accent='aquamarine'] { --moss: #2a7f9e; --moss-strong: #20647d; --moss-soft: #dbeef5; --on-moss: #ffffff; --focus: #2a7f9e; }
+:root[data-accent='aquamarine'][data-mode='dark'] { --moss: #6cbcd8; --moss-strong: #8ccde3; --moss-soft: #1b3039; --on-moss: #0b1a20; --focus: #8ccde3; }
+:root[data-accent='peridot'] { --moss: #637f1c; --moss-strong: #4f6616; --moss-soft: #eaf1d6; --on-moss: #ffffff; --focus: #637f1c; }
+:root[data-accent='peridot'][data-mode='dark'] { --moss: #a9c75a; --moss-strong: #bfd77c; --moss-soft: #2c3519; --on-moss: #141a08; --focus: #bfd77c; }
+:root[data-accent='rose_quartz'] { --moss: #a9506f; --moss-strong: #8a3f59; --moss-soft: #f6e1e8; --on-moss: #ffffff; --focus: #a9506f; }
+:root[data-accent='rose_quartz'][data-mode='dark'] { --moss: #e095ae; --moss-strong: #eab0c3; --moss-soft: #3a2229; --on-moss: #1f0f14; --focus: #eab0c3; }
+:root[data-accent='ruby'] { --moss: #a8233c; --moss-strong: #8a1c31; --moss-soft: #f6dde2; --on-moss: #ffffff; --focus: #a8233c; }
+:root[data-accent='ruby'][data-mode='dark'] { --moss: #e0697f; --moss-strong: #ea8a9c; --moss-soft: #3a1c22; --on-moss: #1f0a0f; --focus: #ea8a9c; }

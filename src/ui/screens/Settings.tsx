@@ -1,14 +1,15 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import QRCode from 'qrcode';
-import { Download, FolderOpen, Laptop, Link2, Plus, RefreshCw, Smartphone, Trash2, Unlink, Upload } from 'lucide-react';
+import { CalendarClock, ChevronRight, Download, FolderOpen, Landmark, Laptop, Link2, MonitorSmartphone, Palette, Plug, Plus, RefreshCw, Smartphone, Trash2, Unlink, Upload, Wallet } from 'lucide-react';
 import type { AppData } from '../../data/useData';
 import { useSync } from '../../data/useData';
-import { Field, NumberInput, Segmented, TextInput, ToggleRow, useToast } from '../components';
+import { Field, NumberInput, Segmented, TextInput, ToggleRow, useConfirm, useToast } from '../components';
 import { saveSettings, checkTaxUpdates, exportBackup, restoreBackup } from '../../data/actions';
 import { syncClient, DEFAULT_PORT } from '../../data/syncClient';
 import { desktop, platformKind, type DesktopInfo, type DeviceInfo, type PairingInfo } from '../../platform';
 import { addDays, diffDays, fmtDay, fmtLong } from '../../core/dates';
 import { STATE_NAMES, rulesForYear } from '../../core/taxrules';
+import { holidaysInYear } from '../../core/holidays';
 import { statusLabel } from '../../core/tax';
 import { FOOD_PLAN_LABEL, foodPlanMonthly } from '../../core/food';
 import { usd, uid } from '../../core/money';
@@ -30,39 +31,84 @@ import { ACCENTS, PALETTES } from '../themes';
 import { ChecksCard } from '../ChecksCard';
 import { BankSettings, GroceryPriceSettings } from './ConnectionsSettings';
 
-export function SettingsScreen({ data }: { data: AppData }) {
+export const SETTINGS_SECTIONS: { id: string; title: string; hint: string; icon: typeof Wallet }[] = [
+  { id: 'pay', title: 'Pay & schedule', hint: 'Rate, shifts, pay periods, overtime, holidays', icon: CalendarClock },
+  { id: 'taxes', title: 'Taxes & deductions', hint: 'Filing status, W-4, Colorado, 401(k), insurance', icon: Landmark },
+  { id: 'budget', title: 'Budget', hint: 'How each paycheck is split, household and car', icon: Wallet },
+  { id: 'connections', title: 'Connections', hint: 'Banks, King Soopers, gas prices, status checks', icon: Plug },
+  { id: 'look', title: 'Appearance', hint: 'Your name, colors, light and dark mode, reminders', icon: Palette },
+  { id: 'sync', title: 'Sync & devices', hint: 'Pair your phone and computer', icon: MonitorSmartphone },
+  { id: 'app', title: 'Updates & backup', hint: 'Get the newest version, tax tables, back up your data', icon: Download },
+];
+
+export function SettingsScreen({ data, section, open }: { data: AppData; section?: string; open: (id: string | undefined) => void }) {
   const s = data.settings;
   const set = (patch: (s: Settings) => Settings) => void saveSettings(patch);
+  const sync = useSync();
+  if (!section || !SETTINGS_SECTIONS.some((x) => x.id === section)) {
+    return (
+      <div className="col" style={{ gap: 14, maxWidth: 720 }}>
+        <div className="card" style={{ padding: 6 }}>
+          <div className="list">
+            {SETTINGS_SECTIONS.map((x) => (
+              <button key={x.id} className="list-item settings-link" onClick={() => open(x.id)}>
+                <span className="list-icon" style={{ width: 38, height: 38, background: 'var(--moss-soft)', color: 'var(--moss-strong)' }}>
+                  <x.icon />
+                </span>
+                <div className="grow">
+                  <div className="strong">{x.title}</div>
+                  <div className="tiny muted">{x.id === 'sync' ? syncHint(sync.status) : x.hint}</div>
+                </div>
+                <ChevronRight size={18} className="muted" />
+              </button>
+            ))}
+          </div>
+        </div>
+        <p className="tiny muted center">Pebbles · your data stays on your phone and your computer.</p>
+      </div>
+    );
+  }
   return (
-    <div className="col" style={{ gap: 14 }}>
-      <div className="grid two">
-        <SyncSection />
-        <UpdateCard />
-      </div>
-      <ChecksCard />
-      <div className="grid two">
-        <BankSettings s={s} set={set} />
-        <GroceryPriceSettings s={s} set={set} />
-      </div>
-      <div className="grid two">
-        <PaySection s={s} set={set} />
-        <TaxSection data={data} set={set} />
-      </div>
-      <div className="grid two">
-        <DeductionsSection s={s} set={set} />
-        <HouseholdSection s={s} set={set} />
-      </div>
-      <div className="grid two">
-        <BudgetSection s={s} set={set} />
-        <PricesSection s={s} set={set} />
-      </div>
-      <div className="grid two">
-        <GeneralSection s={s} set={set} />
-        <DataSection />
-      </div>
-      <p className="tiny muted center">Pebbles 1.0 · your data stays on your phone and your computer.</p>
+    <div className="col settings-page" style={{ gap: 14, maxWidth: 720 }}>
+      {section === 'pay' && <PaySection s={s} set={set} />}
+      {section === 'taxes' && (
+        <>
+          <TaxSection data={data} set={set} />
+          <DeductionsSection s={s} set={set} />
+        </>
+      )}
+      {section === 'budget' && (
+        <>
+          <BudgetSection s={s} set={set} />
+          <HouseholdSection s={s} set={set} />
+        </>
+      )}
+      {section === 'connections' && (
+        <>
+          <ChecksCard />
+          <BankSettings s={s} set={set} />
+          <GroceryPriceSettings s={s} set={set} />
+          <PricesSection s={s} set={set} />
+        </>
+      )}
+      {section === 'look' && <GeneralSection s={s} set={set} />}
+      {section === 'sync' && <SyncSection />}
+      {section === 'app' && (
+        <>
+          <UpdateCard />
+          <DataSection />
+        </>
+      )}
     </div>
   );
+}
+
+function syncHint(status: string): string {
+  if (status === 'ok') return 'Synced with your computer';
+  if (status === 'unpaired') return 'Not paired yet';
+  if (status === 'offline') return 'Away from home Wi-Fi';
+  if (status === 'error') return 'Sync problem: tap to see';
+  return 'Pair your phone and computer';
 }
 
 // ---------------- pay ----------------
@@ -103,7 +149,7 @@ function PaySection({ s, set }: { s: Settings; set: (f: (s: Settings) => Setting
       </div>
       <details>
         <summary className="strong small" style={{ cursor: 'pointer' }}>
-          Overtime & holidays
+          Overtime
         </summary>
         <div className="form-grid two mt">
           <Field label="Overtime after (hours / week)">
@@ -114,9 +160,6 @@ function PaySection({ s, set }: { s: Settings; set: (f: (s: Settings) => Setting
           </Field>
           <Field label="Overtime multiplier">
             <NumberInput value={p.overtime.multiplier} onChange={(v) => set((x) => ({ ...x, pay: { ...x.pay, overtime: { ...x.pay.overtime, multiplier: v ?? 1.5 } } }))} suffix="×" />
-          </Field>
-          <Field label="Holiday worked multiplier">
-            <NumberInput value={p.holidayMultiplier} onChange={(v) => set((x) => ({ ...x, pay: { ...x.pay, holidayMultiplier: v ?? 1 } }))} suffix="×" />
           </Field>
         </div>
         <div className="mt">
@@ -133,7 +176,59 @@ function PaySection({ s, set }: { s: Settings; set: (f: (s: Settings) => Setting
           <p className="tiny muted mt">With different rates in one week, the law uses the week’s blended (weighted average) rate for overtime. Pick “Base rate” if your stubs show otherwise.</p>
         </div>
       </details>
+      <HolidaySettings p={p} set={set} />
     </Section>
+  );
+}
+
+function HolidaySettings({ p, set }: { p: Settings['pay']; set: (f: (s: Settings) => Settings) => void }) {
+  const h = p.holidays;
+  const up = (patch: Partial<Settings['pay']['holidays']>) => set((x) => ({ ...x, pay: { ...x.pay, holidays: { ...x.pay.holidays, ...patch } } }));
+  const year = new Date().getFullYear();
+  const list = holidaysInYear(year, h);
+  return (
+    <div className="col gap-l">
+      <div className="divider" />
+      <div>
+        <h3 style={{ fontSize: 17 }}>Holiday pay</h3>
+        <p className="small muted" style={{ margin: '4px 0 0' }}>
+          Pebbles adds holiday pay on its own when you work one of these days.
+        </p>
+      </div>
+      <Field label="Holiday pay rate" hint="1.5× is time and a half. Set 1× if you don’t get extra.">
+        <NumberInput value={p.holidayMultiplier} onChange={(v) => set((x) => ({ ...x, pay: { ...x.pay, holidayMultiplier: v ?? 1 } }))} suffix="×" />
+      </Field>
+      <Field label="Which hours count">
+        <Segmented
+          value={h.rule}
+          options={[
+            { value: 'calendar', label: 'Hours on the date' },
+            { value: 'shiftStart', label: 'Shifts starting that day' },
+          ]}
+          onChange={(v) => up({ rule: v })}
+        />
+      </Field>
+      <ToggleRow title="Move weekend holidays to Friday or Monday" hint="How offices observe them. Most 24/7 jobs pay on the real date." on={h.observed} onChange={(v) => up({ observed: v })} />
+      <Field label={`Paid holidays in ${year}`}>
+        <div className="list">
+          {list.map(({ def, date }) => {
+            const on = h.ids.includes(def.id);
+            return (
+              <label key={def.id} className="list-item check-row">
+                <input type="checkbox" checked={on} onChange={() => up({ ids: on ? h.ids.filter((x) => x !== def.id) : [...h.ids, def.id] })} />
+                <div className="grow">
+                  <div className="small strong">{def.name}</div>
+                  <div className="tiny muted">
+                    {fmtDay(date)}
+                    {def.federal ? '' : ' · not a federal holiday'}
+                  </div>
+                </div>
+              </label>
+            );
+          })}
+        </div>
+      </Field>
+    </div>
   );
 }
 
@@ -236,7 +331,7 @@ function TaxSection({ data, set }: { data: AppData; set: (f: (s: Settings) => Se
               setChecking(true);
               const r = await checkTaxUpdates(true);
               setChecking(false);
-              toast(r.error ? `Couldn’t check: ${r.error}` : r.updated ? `Updated to tax tables ${r.version}` : 'Your tax tables are up to date');
+              toast(r.error ? r.error : r.updated ? `Updated to tax tables ${r.version}` : 'Your tax tables are up to date');
             }}
           >
             <RefreshCw /> {checking ? 'Checking…' : 'Check for updates'}
@@ -423,7 +518,7 @@ function PricesSection({ s, set }: { s: Settings; set: (f: (s: Settings) => Sett
 
 function GeneralSection({ s, set }: { s: Settings; set: (f: (s: Settings) => Settings) => void }) {
   return (
-    <Section title="You & look">
+    <Section title="Appearance">
       <Field label="Your first name (for greetings)">
         <TextInput value={s.name} onChange={(v) => set((x) => ({ ...x, name: v }))} />
       </Field>
@@ -466,7 +561,12 @@ function GeneralSection({ s, set }: { s: Settings; set: (f: (s: Settings) => Set
             />
           ))}
         </div>
-        <span className="hint">{ACCENTS.find((a) => a.id === (s.accent || 'moss'))?.name}</span>
+        <span className="hint">
+          {(() => {
+            const a = ACCENTS.find((x) => x.id === (s.accent || 'moss'));
+            return a ? ('note' in a ? `${a.name}: ${a.note}` : a.name) : '';
+          })()}
+        </span>
       </Field>
       {platformKind === 'android' && <ToggleRow title="Payday & bill reminders" on={s.notifications} onChange={(v) => set((x) => ({ ...x, notifications: v }))} />}
     </Section>
@@ -477,6 +577,7 @@ function GeneralSection({ s, set }: { s: Settings; set: (f: (s: Settings) => Set
 
 function DataSection() {
   const toast = useToast();
+  const ask = useConfirm();
   const fileRef = useRef<HTMLInputElement>(null);
   return (
     <Section title="Backup">
@@ -526,7 +627,7 @@ function DataSection() {
         className="btn ghost danger small"
         style={{ alignSelf: 'flex-start' }}
         onClick={async () => {
-          if (!confirm('Erase everything Pebbles stores on this device? Synced data stays on your computer.')) return;
+          if (!(await ask({ title: 'Erase this device?', body: 'Everything Pebbles stores on this device is deleted. Data already synced to your computer stays there.', confirm: 'Erase', danger: true }))) return;
           await store.wipe();
           location.reload();
         }}
@@ -634,6 +735,7 @@ export function PhoneSync() {
 export function DesktopSync() {
   const sync = useSync();
   const toast = useToast();
+  const ask = useConfirm();
   const [info, setInfo] = useState<DesktopInfo | null>(null);
   const [pairing, setPairing] = useState<PairingInfo | null>(null);
   const [devices, setDevices] = useState<DeviceInfo[]>([]);
@@ -758,7 +860,7 @@ export function DesktopSync() {
                   <button
                     className="btn ghost danger small"
                     onClick={async () => {
-                      if (confirm(`Unpair ${d.name}?`)) {
+                      if (await ask({ title: `Unpair ${d.name}?`, body: 'It stops syncing until you pair it again.', confirm: 'Unpair', danger: true })) {
                         await desktop!.revoke(d.id);
                         void refresh();
                       }

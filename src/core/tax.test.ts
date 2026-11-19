@@ -105,7 +105,7 @@ describe('full paycheck withholding, Colorado Springs', () => {
 
 describe('pay periods and gross pay', () => {
   const s = settings();
-  s.pay = { ...s.pay, periodAnchor: '2026-11-08', paydayOffset: 6, baseRate: 22 };
+  s.pay = { ...s.pay, periodAnchor: '2026-11-08', paydayOffset: 6, baseRate: 22, holidays: { ids: [], observed: false, rule: 'calendar' } };
 
   it('finds the upcoming payday', () => {
     const p = upcomingPayPeriod(s.pay, '2026-11-19');
@@ -210,7 +210,7 @@ describe('learning from real paychecks', () => {
 describe('overnight shifts (9:30p–6a, 30 min break after midnight)', () => {
   const s = defaultSettings();
   // shifts start Sat, Sun, Mon, Tue, Wed nights; pay periods run Sun–Sat
-  s.pay = { ...s.pay, periodAnchor: '2026-11-08', paydayOffset: 6, baseRate: 20, workDays: [6, 0, 1, 2, 3], shiftStart: '21:30', shiftEnd: '06:00', breakMinutes: 30, breakAfterMidnight: true };
+  s.pay = { ...s.pay, periodAnchor: '2026-11-08', paydayOffset: 6, baseRate: 20, workDays: [6, 0, 1, 2, 3], shiftStart: '21:30', shiftEnd: '06:00', breakMinutes: 30, breakAfterMidnight: true, holidays: { ids: [], observed: false, rule: 'calendar' } };
   const period = periodByIndex(s.pay, 0); // Sun Nov 8 – Sat Nov 21
 
   it('splits each shift 2.5 h before midnight and 5.5 h after', async () => {
@@ -252,5 +252,65 @@ describe('overnight shifts (9:30p–6a, 30 min break after midnight)', () => {
     // week 1 (Nov 8–14): 5.5 carry-in + 5 shifts... check OT appears only beyond 40 h
     expect(g.weeks[0].hours).toBeGreaterThan(40);
     expect(g.weeks[0].otHours).toBeCloseTo(g.weeks[0].hours - 40, 2);
+  });
+});
+
+describe('overnight shift edge cases', () => {
+  const s = defaultSettings();
+  s.pay = { ...s.pay, periodAnchor: '2026-11-08', paydayOffset: 6, baseRate: 20, workDays: [6, 0, 1, 2, 3], shiftStart: '21:30', shiftEnd: '06:00', breakMinutes: 30, breakAfterMidnight: true, holidays: { ids: [], observed: false, rule: 'calendar' } };
+  const p0 = periodByIndex(s.pay, 0);
+  const p1 = periodByIndex(s.pay, 1);
+
+  it('calling off the Saturday night shift on the last day takes 2.5 h from this check and 5.5 h from the next', () => {
+    const off = { '2026-11-21': newWorkDay('2026-11-21', 'missed', s.pay) };
+    expect(computeGross(p0, s.pay, [], off).gross).toBe(1600 - 2.5 * 20);
+    expect(computeGross(p1, s.pay, [], off).gross).toBe(1600 - 5.5 * 20);
+  });
+
+  it('a shift with its own times (left at 4 a.m.) splits by those times', async () => {
+    const { hoursForTimes } = await import('./pay');
+    expect(hoursForTimes('21:30', '04:00', s.pay)).toBe(6);
+    const day = { ...newWorkDay('2026-11-14', 'worked', s.pay), start: '21:30', end: '04:00', segments: [{ hours: 6, rateId: 'base', rate: null }] };
+    const g = computeGross(p0, s.pay, [], { '2026-11-14': day });
+    expect(g.gross).toBe(1600 - 2 * 20);
+    expect(g.days.find((d) => d.date === '2026-11-15')?.countedHours).toBe(3.5 + 2.5);
+  });
+});
+
+describe('holidays', () => {
+  it('knows the federal dates', async () => {
+    const { holidayOn, HOLIDAYS } = await import('./holidays');
+    const all = { ids: HOLIDAYS.map((h) => h.id), observed: false };
+    expect(holidayOn('2026-11-26', all)?.id).toBe('thanksgiving');
+    expect(holidayOn('2026-01-19', all)?.id).toBe('mlk');
+    expect(holidayOn('2026-05-25', all)?.id).toBe('memorial');
+    expect(holidayOn('2026-04-05', all)?.id).toBe('easter');
+    expect(holidayOn('2026-07-03', all)).toBeNull();
+    expect(holidayOn('2026-07-03', { ...all, observed: true })?.id).toBe('independence'); // July 4, 2026 is a Saturday
+  });
+
+  const s = defaultSettings();
+  s.pay = { ...s.pay, periodAnchor: '2026-11-08', paydayOffset: 6, baseRate: 20, workDays: [6, 0, 1, 2, 3], shiftStart: '21:30', shiftEnd: '06:00', breakMinutes: 30, breakAfterMidnight: true, holidayMultiplier: 1.5 };
+  const p0 = periodByIndex(s.pay, 0); // includes Veterans Day, Wed Nov 11
+
+  it('pays the hours worked on the holiday date at 1.5×', () => {
+    const pay = { ...s.pay, holidays: { ids: ['veterans'], observed: false, rule: 'calendar' as const } };
+    const g = computeGross(p0, pay, [], {});
+    const h = g.adjustments.find((a) => a.kind === 'holiday');
+    // Tuesday night's 5.5 h after midnight + Wednesday night's 2.5 h before midnight
+    expect(h?.amount).toBe(8 * 20 * 0.5);
+    expect(g.days.find((d) => d.date === '2026-11-11')?.holiday?.id).toBe('veterans');
+  });
+
+  it('or the whole shift that starts on the holiday', () => {
+    const pay = { ...s.pay, holidays: { ids: ['veterans'], observed: false, rule: 'shiftStart' as const } };
+    const g = computeGross(p0, pay, [], {});
+    expect(g.adjustments.filter((a) => a.kind === 'holiday').reduce((x, a) => x + a.amount, 0)).toBe(8 * 20 * 0.5);
+  });
+
+  it('no holiday pay when you are off', () => {
+    const pay = { ...s.pay, holidays: { ids: ['veterans'], observed: false, rule: 'calendar' as const } };
+    const off = { '2026-11-10': newWorkDay('2026-11-10', 'missed', pay), '2026-11-11': newWorkDay('2026-11-11', 'missed', pay) };
+    expect(computeGross(p0, pay, [], off).adjustments.some((a) => a.kind === 'holiday')).toBe(false);
   });
 });

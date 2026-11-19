@@ -2,14 +2,16 @@ import { useRef, useState } from 'react';
 import { ImagePlus, Minus, Pencil, Plus, Trash2, Target, ShieldCheck } from 'lucide-react';
 import type { AppData } from '../../data/useData';
 import { PebblePile } from '../PebblePile';
-import { compressImage, Empty, Field, GemIcon, NumberInput, Progress, Segmented, Sheet, TextInput, ToggleRow, useToast } from '../components';
-import { GEMS, GEM_BY_ID } from '../../core/categories';
+import { compressImage, Empty, Field, GemIcon, NumberInput, Progress, Segmented, Sheet, TextInput, ToggleRow, useConfirm, useToast } from '../components';
+import { GEMS, GEM_BY_ID, gemBar } from '../../core/categories';
 import { fmtLong, fmtShort, diffDays, today } from '../../core/dates';
 import { pebbles, usd, uid } from '../../core/money';
 import { projectGoalDate } from '../../core/budget';
 import { addContribution, deleteContribution, deleteGoal, newGoal, saveGoal } from '../../data/actions';
 import { SavingsAccountCard } from '../AutopilotCards';
 import type { Goal, GemName } from '../../core/types';
+import type { GoTo } from '../App';
+import { RetirementView } from './Retirement';
 
 export const MILESTONES: { pct: number; gem: GemName; label: string }[] = [
   { pct: 0.25, gem: 'quartz', label: 'Quartz · a quarter of the way' },
@@ -22,7 +24,26 @@ export function earnedGems(balance: number, target: number): GemName[] {
   return MILESTONES.filter((m) => target > 0 && balance >= target * m.pct).map((m) => m.gem);
 }
 
-export function SavingsScreen({ data }: { data: AppData }) {
+export function SavingsScreen({ data, view, setView }: { data: AppData; go: GoTo; view?: string; setView: (v: 'goals' | 'retirement') => void }) {
+  const v = view === 'retirement' ? 'retirement' : 'goals';
+  return (
+    <div>
+      <div className="subnav">
+        <Segmented
+          value={v}
+          options={[
+            { value: 'goals', label: 'Goals' },
+            { value: 'retirement', label: 'Retirement' },
+          ]}
+          onChange={setView}
+        />
+      </div>
+      {v === 'goals' ? <GoalsView data={data} /> : <RetirementView data={data} />}
+    </div>
+  );
+}
+
+function GoalsView({ data }: { data: AppData }) {
   const [editing, setEditing] = useState<Goal | null>(null);
   const [viewing, setViewing] = useState<string | null>(null);
   const goals = data.goals.filter((g) => !g.archived);
@@ -109,7 +130,7 @@ export function SavingsScreen({ data }: { data: AppData }) {
                 <span className="small strong">{Math.min(100, Math.round(pct * 100))}%</span>
               </div>
               <div style={{ margin: '8px 0' }}>
-                <Progress value={pct} color={gem.color} />
+                <Progress value={pct} color={gemBar(g.gem)} />
               </div>
               <div className="row between tiny muted">
                 <span>{g.completedAt ? 'Reached! 🎉' : next > 0 ? `+${pebbles(next)} next payday` : 'Not in this paycheck’s plan'}</span>
@@ -237,6 +258,7 @@ function GoalEditor({ goal, onClose }: { goal: Goal; onClose: () => void }) {
 
 function GoalDetail({ goal, data, onClose, onEdit }: { goal: Goal; data: AppData; onClose: () => void; onEdit: () => void }) {
   const toast = useToast();
+  const ask = useConfirm();
   const bal = data.balances.get(goal.id) ?? 0;
   const [amount, setAmount] = useState<number | null>(null);
   const [prevBal, setPrevBal] = useState<number | undefined>(undefined);
@@ -265,7 +287,7 @@ function GoalDetail({ goal, data, onClose, onEdit }: { goal: Goal; data: AppData
           <button
             className="btn danger"
             onClick={async () => {
-              if (confirm(`Delete “${goal.name}” and its history?`)) {
+              if (await ask({ title: `Delete “${goal.name}”?`, body: 'This removes the goal and its history. Money in your bank isn’t touched.', confirm: 'Delete', danger: true })) {
                 await deleteGoal(goal.id);
                 onClose();
               }
@@ -292,7 +314,7 @@ function GoalDetail({ goal, data, onClose, onEdit }: { goal: Goal; data: AppData
             {remaining > 0 ? `${pebbles(remaining)} to go` : 'Goal reached'} · goal {pebbles(goal.target)}
           </div>
         </div>
-        <Progress value={bal / goal.target} color={GEM_BY_ID[goal.gem].color} />
+        <Progress value={bal / goal.target} color={gemBar(goal.gem)} />
         {checksLeft && remaining > 0 && (
           <p className="small ink2 center">
             To reach it by {fmtLong(goal.targetDate!)}: about {usd(remaining / checksLeft, true)} per paycheck for {checksLeft} paycheck{checksLeft === 1 ? '' : 's'}.

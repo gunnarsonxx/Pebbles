@@ -37,9 +37,17 @@ export function PaystubSheet({ data, onClose }: { data: AppData; onClose: () => 
   const read = async (file: File) => {
     setError('');
     setProgress('Reading…');
+    const known = [data.settings.pay.baseRate, ...data.rates.map((r) => r.rate)];
     try {
-      const { lines } = await linesFromFile(file, (p, st) => setProgress(st.includes('recogniz') ? `Reading the stub… ${Math.round(p * 100)}%` : 'Getting the reader ready…'));
-      const known = [data.settings.pay.baseRate, ...data.rates.map((r) => r.rate)];
+      const { lines } = await linesFromFile(
+        file,
+        (p, st) => setProgress(st.includes('second') ? 'Taking a second look…' : st.includes('recogniz') ? `Reading the stub… ${Math.round(p * 100)}%` : 'Getting the reader ready…'),
+        (first) => {
+          const t = parsePaystub(first, known);
+          return t.gross == null || t.net == null;
+        },
+        'table',
+      );
       setStub(parsePaystub(lines, known));
     } catch (e) {
       setError((e as Error).message || 'Could not read that file.');

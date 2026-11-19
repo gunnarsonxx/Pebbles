@@ -15,6 +15,12 @@ export const ACCENTS = [
   { id: 'garnet', name: 'Garnet', color: '#a3453a' },
   { id: 'citrine', name: 'Citrine', color: '#94661a' },
   { id: 'copper', name: 'Copper', color: '#a85a2b' },
+  // teal in light mode, raspberry in dark mode, like the real stone in daylight vs. lamplight
+  { id: 'alexandrite', name: 'Alexandrite', note: 'Teal in light mode, raspberry in dark mode, like the real stone in daylight and lamplight', color: 'linear-gradient(135deg, #2b7a72 50%, #c47aaa 50%)' },
+  { id: 'aquamarine', name: 'Aquamarine', color: '#2a7f9e' },
+  { id: 'peridot', name: 'Peridot', color: '#637f1c' },
+  { id: 'rose_quartz', name: 'Rose quartz', color: '#a9506f' },
+  { id: 'ruby', name: 'Ruby', color: '#a8233c' },
 ] as const;
 
 export type PaletteId = (typeof PALETTES)[number]['id'];

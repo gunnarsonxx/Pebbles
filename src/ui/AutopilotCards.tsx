@@ -1,8 +1,14 @@
-import { Check, Circle, Compass, PiggyBank, Sparkles, TriangleAlert, CircleCheck, CircleDot } from 'lucide-react';
+import { useState } from 'react';
+import { Check, Circle, Compass, PiggyBank, TriangleAlert, CircleCheck, CircleDot, SlidersHorizontal } from 'lucide-react';
+import { GemIcon, NumberInput, Sheet, useToast } from './components';
+import { store } from '../data/store';
+import { setGoalSplit } from '../core/savingsAccount';
+import { round2 } from '../core/money';
+import type { Account, Goal } from '../core/types';
 import type { AppData } from '../data/useData';
 import { setBonusMove, setMove } from '../data/autopilot';
 import { fmtDay, fmtShort } from '../core/dates';
-import { pebbles, usd } from '../core/money';
+import { usd } from '../core/money';
 import { projectSavings } from '../core/savingsAccount';
 import type { Standing } from '../core/guidelines';
 
@@ -73,13 +79,14 @@ export function SavingsAccountCard({ data }: { data: AppData }) {
   const apy = acct?.apy ?? null;
   const proj = apy ? projectSavings(balance, apy, monthlyDeposit, 12) : null;
   const rec = data.reconcile;
+  const [splitting, setSplitting] = useState(false);
   if (!acct) {
     return (
       <div className="card tint mt">
         <div className="row">
           <PiggyBank style={{ color: 'var(--jade)' }} />
           <div className="grow small ink2">
-            Keep your goals in a high-yield savings account like Marcus? Connect it (Spending → Accounts) or import its statement, then mark it as “My savings goals live here”. Pebbles will add its interest to your pile and project the next 12 months.
+            Keep your goals in a high-yield savings account like Marcus? Connect it (Budget → Accounts) or import its statement. Pebbles keeps your goals equal to its balance, splits every deposit between goals, and adds the interest to your pile.
           </div>
         </div>
       </div>
@@ -90,7 +97,7 @@ export function SavingsAccountCard({ data }: { data: AppData }) {
       <div className="card-head">
         <div>
           <div className="eyebrow">{acct.name}</div>
-          <div className="small muted">{apy ? `${apy}% APY · interest compounds daily, paid monthly` : 'Add the APY under Spending → Accounts to project interest'}</div>
+          <div className="small muted">{apy ? `${apy}% APY · interest compounds daily, paid monthly` : 'Add the APY under Budget → Accounts to project interest'}</div>
         </div>
         <PiggyBank style={{ color: 'var(--jade)' }} />
       </div>
@@ -114,15 +121,80 @@ export function SavingsAccountCard({ data }: { data: AppData }) {
         )}
       </div>
       {proj && <Projection points={proj.map((p) => p.balance)} />}
-      {rec && Math.abs(rec.difference) >= 1 && (
-        <p className="small ink2 mt row gap-s" style={{ alignItems: 'flex-start' }}>
-          <Sparkles size={15} style={{ flexShrink: 0, marginTop: 2, color: 'var(--amethyst)' }} />
-          {rec.difference > 0
-            ? `${acct.name} holds ${usd(rec.difference)} more than your goals track (${pebbles(rec.goals)} pebbles). That’s money saved before Pebbles or interest not yet split; it’s still yours.`
-            : `Your goals track ${usd(-rec.difference)} more than ${acct.name} shows. If you took money out, record it on the goal so the pile stays honest.`}
-        </p>
+      {acct.balance != null && (
+        <div className="row between mt" style={{ gap: 10 }}>
+          <p className="small ink2" style={{ margin: 0 }}>
+            {rec && Math.abs(rec.difference) < 1
+              ? `Your goals add up to your ${acct.name} balance. Each deposit is split the way that paycheck’s plan split it.`
+              : `Matching your goals to ${acct.name}…`}
+          </p>
+          <button className="btn small" onClick={() => setSplitting(true)}>
+            <SlidersHorizontal /> Adjust split
+          </button>
+        </div>
       )}
+      {splitting && <SplitSheet account={acct} data={data} onClose={() => setSplitting(false)} />}
     </div>
+  );
+}
+
+function SplitSheet({ account, data, onClose }: { account: Account; data: AppData; onClose: () => void }) {
+  const toast = useToast();
+  const goals = data.goals.filter((g) => !g.archived);
+  const [vals, setVals] = useState<Map<string, number>>(() => new Map(goals.map((g) => [g.id, round2(data.balances.get(g.id) ?? 0)])));
+  const total = round2([...vals.values()].reduce((s, v) => s + v, 0));
+  const target = account.balance ?? 0;
+  const off = round2(target - total);
+  const fill = (g: Goal) => setVals(new Map(vals).set(g.id, round2((vals.get(g.id) ?? 0) + off)));
+  return (
+    <Sheet
+      title={`Split ${account.name}`}
+      onClose={onClose}
+      footer={
+        <>
+          <button className="btn" onClick={onClose}>
+            Cancel
+          </button>
+          <button
+            className="btn primary"
+            disabled={Math.abs(off) >= 0.01}
+            onClick={async () => {
+              await store.putMany('contributions', setGoalSplit(account, vals, data.contributions, data.today));
+              toast('Goals updated');
+              onClose();
+            }}
+          >
+            Save
+          </button>
+        </>
+      }
+    >
+      <div className="col gap-l">
+        <p className="small ink2" style={{ margin: 0 }}>
+          How much of your {usd(target)} belongs to each goal. New deposits keep splitting by your plan.
+        </p>
+        {goals.map((g) => (
+          <div key={g.id} className="row" style={{ gap: 10 }}>
+            <GemIcon gem={g.gem} size={22} />
+            <div className="grow strong small">{g.name}</div>
+            <div style={{ width: 150 }}>
+              <NumberInput value={vals.get(g.id) ?? 0} onChange={(v) => setVals(new Map(vals).set(g.id, v ?? 0))} prefix="$" ariaLabel={`${g.name} amount`} />
+            </div>
+          </div>
+        ))}
+        <div className={`small ${Math.abs(off) < 0.01 ? 'good' : 'warn'}`}>
+          {Math.abs(off) < 0.01 ? 'Adds up to your balance.' : off > 0 ? `${usd(off)} left to place.` : `${usd(-off)} more than your balance.`}
+          {Math.abs(off) >= 0.01 && goals.length > 0 && (
+            <>
+              {' '}
+              <button className="btn ghost small" onClick={() => fill(goals[0])}>
+                Put it in {goals[0].name}
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    </Sheet>
   );
 }
 

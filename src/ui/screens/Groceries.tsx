@@ -9,6 +9,7 @@ import { round2, usd } from '../../core/money';
 import { refreshStorePrices } from '../../data/groceryActions';
 import { krogerStoresOf } from '../../core/defaults';
 import type { Receipt } from '../../core/types';
+import type { GoTo } from '../App';
 
 export function GroceriesView({ data, openSettings }: { data: AppData; openSettings: () => void }) {
   const toast = useToast();
@@ -254,4 +255,8 @@ export function GroceriesView({ data, openSettings }: { data: AppData; openSetti
       {viewing && <ReceiptSheet data={data} existing={viewing} onClose={() => setViewing(null)} />}
     </div>
   );
+}
+
+export function GroceriesScreen({ data, go }: { data: AppData; go: GoTo; view?: string; setView: (v: string) => void }) {
+  return <GroceriesView data={data} openSettings={() => go('settings', 'connections')} />;
 }

@@ -10,7 +10,9 @@ import { estimatePaycheck } from '../core/paycheck';
 import { computeWithholding } from '../core/tax';
 import { rulesForYear } from '../core/taxrules';
 import { periodContaining } from '../core/pay';
-import { GUIDELINES_URL, isValidGuidelines } from '../core/guidelines';
+import { isValidGuidelines } from '../core/guidelines';
+import { feedUrls } from '../core/defaults';
+import { fetchFeed } from './actions';
 import { newerVersion } from '../core/taxrules';
 import { krogerStoresOf, normalizeSettings } from '../core/defaults';
 import { today } from '../core/dates';
@@ -127,9 +129,9 @@ export async function checkGuidelineUpdates(): Promise<void> {
   const last = (await store.getMeta<number>('lastGuidelinesCheck')) ?? 0;
   if (Date.now() - last < 24 * 3600_000) return;
   try {
-    const res = await http(GUIDELINES_URL + '?t=' + Date.now());
+    const res = await fetchFeed(feedUrls('guidelines.json'));
     await store.setMeta('lastGuidelinesCheck', Date.now());
-    if (res.status !== 200) return;
+    if (!res.ok) return;
     const parsed = JSON.parse(res.text);
     if (isValidGuidelines(parsed) && newerVersion(parsed.version, effectiveGuidelines().version)) {
       await store.put('guidelines', { id: 'current', json: res.text, version: parsed.version, fetchedAt: Date.now() });

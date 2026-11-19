@@ -175,3 +175,11 @@ function safe(y: number, m: number, d: number): ISODate | null {
   if (d > daysInMonth(y, m)) return null;
   return makeDate(y, m, d);
 }
+
+/** '21:30' → '9:30p', '06:00' → '6a' (compact clock times for shift labels). */
+export function fmtTime(hhmm: string): string {
+  const [h, m] = hhmm.split(':').map(Number);
+  const suffix = h >= 12 ? 'p' : 'a';
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${h12}${m ? `:${String(m).padStart(2, '0')}` : ''}${suffix}`;
+}

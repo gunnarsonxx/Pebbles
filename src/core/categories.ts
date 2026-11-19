@@ -73,7 +73,19 @@ export const GEMS: { id: GemName; name: string; color: string; meaning: string }
   { id: 'obsidian', name: 'Obsidian', color: '#3A3836', meaning: 'protection' },
   { id: 'agate', name: 'Agate', color: '#B9784F', meaning: 'stability' },
   { id: 'emerald', name: 'Emerald', color: '#2F8A5B', meaning: 'growth' },
+  // alexandrite changes color with the light: teal by day (light mode), raspberry by lamplight (dark mode)
+  { id: 'alexandrite', name: 'Alexandrite', color: 'var(--gem-alexandrite)', meaning: 'joy and luck (June birthstone)' },
+  { id: 'aquamarine', name: 'Aquamarine', color: '#4FA3B8', meaning: 'courage (March birthstone)' },
+  { id: 'peridot', name: 'Peridot', color: '#8DA637', meaning: 'strength (August birthstone)' },
+  { id: 'rose_quartz', name: 'Rose quartz', color: '#D18FA6', meaning: 'love' },
+  { id: 'ruby', name: 'Ruby', color: '#B3243F', meaning: 'passion (July birthstone)' },
 ];
+
+/** Progress-bar color for a gem: the pale and near-black gems get a tone that stands out on cards. */
+export function gemBar(gem: GemName): string {
+  const g = GEM_BY_ID[gem] ?? GEM_BY_ID.quartz;
+  return gem === 'obsidian' || gem === 'quartz' ? `var(--gem-${gem}-bar)` : g.color;
+}
 
 export const GEM_BY_ID = Object.fromEntries(GEMS.map((g) => [g.id, g])) as Record<GemName, (typeof GEMS)[number]>;
 
