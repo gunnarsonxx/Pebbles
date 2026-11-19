@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Pebbles syncs with your own computer over your home network using plain HTTP
+     (every payload is AES-256-GCM encrypted by the app itself). Everything else uses HTTPS. -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

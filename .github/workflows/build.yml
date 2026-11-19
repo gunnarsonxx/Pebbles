@@ -1,0 +1,106 @@
+name: Build Pebbles
+
+# Builds the Android app (APK) and the Windows installer on every push, and
+# publishes both on the repository's Releases page so you can download them.
+on:
+  push:
+    branches: [main, 'claude/**']
+    paths-ignore: ['**.md']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
+  android:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@v3
+      - run: npm ci
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+      - run: npm run build
+      - run: npx cap sync android
+      - name: Build APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon --stacktrace
+      - run: cp android/app/build/outputs/apk/release/app-release.apk Pebbles.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Pebbles-android
+          path: Pebbles.apk
+
+  windows:
+    needs: test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run desktop:dist
+      - name: Collect installer
+        shell: bash
+        run: cp release/Pebbles-Setup-*.exe Pebbles-Setup.exe
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Pebbles-windows
+          path: Pebbles-Setup.exe
+
+  release:
+    needs: [android, windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: out
+          merge-multiple: true
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          target_commitish: ${{ github.sha }}
+          name: Pebbles build ${{ github.run_number }}
+          prerelease: ${{ github.ref != 'refs/heads/main' }}
+          make_latest: ${{ github.ref == 'refs/heads/main' }}
+          body: |
+            **Android:** download `Pebbles.apk` on your phone and open it to install (allow installing from your browser or Files app when asked).
+            **Windows:** download `Pebbles-Setup.exe` and run it. If SmartScreen appears, choose *More info → Run anyway* (the app isn't code-signed).
+
+            Built from `${{ github.ref_name }}` at ${{ github.sha }}.
+          files: |
+            out/Pebbles.apk
+            out/Pebbles-Setup.exe
