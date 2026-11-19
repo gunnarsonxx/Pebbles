@@ -186,7 +186,7 @@ export class Hub {
   private async handle(req: IncomingMessage, res: ServerResponse) {
     const send = (status: number, json?: unknown) => {
       res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
-      res.end(json === undefined ? '' : JSON.stringify(json));
+      res.end(JSON.stringify(json ?? { ok: status < 400, status }));
     };
     try {
       const url = (req.url ?? '/').split('?')[0];
@@ -225,9 +225,23 @@ export class Hub {
     this.saveTimer = null;
     const text = JSON.stringify(this.data);
     const tmp = this.file + '.tmp';
-    await fs.writeFile(tmp, text, 'utf8');
-    await fs.rename(tmp, this.file);
-    await this.dailyBackup(text);
+    try {
+      await fs.writeFile(tmp, text, 'utf8');
+      // Windows can briefly lock files (antivirus, indexing): retry the swap a few times
+      for (let i = 0; ; i++) {
+        try {
+          await fs.rename(tmp, this.file);
+          break;
+        } catch (e) {
+          if (i >= 5) throw e;
+          await new Promise((r) => setTimeout(r, 150 * (i + 1)));
+        }
+      }
+    } catch (e) {
+      console.error('Pebbles: atomic save failed, writing directly', e);
+      await fs.writeFile(this.file, text, 'utf8').catch((err) => console.error('Pebbles: save failed', err));
+    }
+    await this.dailyBackup(text).catch((e) => console.error('Pebbles: backup failed', e));
   }
 
   private async dailyBackup(text: string) {

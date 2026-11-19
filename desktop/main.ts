@@ -6,6 +6,8 @@ import { pathToFileURL } from 'node:url';
 import { Hub } from './hub';
 import type { SyncRequest } from '../src/core/sync';
 
+process.on('unhandledRejection', (e) => console.error('Pebbles: unhandled', e));
+
 const SCHEME = 'pebbles-app';
 protocol.registerSchemesAsPrivileged([{ scheme: SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true, codeCache: true } }]);
 

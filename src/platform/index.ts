@@ -54,6 +54,19 @@ export const desktop: DesktopBridge | undefined = typeof window !== 'undefined' 
 
 export const platformKind: PlatformKind = desktop ? 'desktop' : Capacitor.isNativePlatform() ? 'android' : 'web';
 
+/** Native HTTP serializes JSON bodies itself, so pass objects rather than strings. */
+function nativeData(init: { headers?: Record<string, string>; body?: string }): unknown {
+  const ct = Object.entries(init.headers ?? {}).find(([k]) => k.toLowerCase() === 'content-type')?.[1] ?? '';
+  if (init.body && ct.includes('application/json')) {
+    try {
+      return JSON.parse(init.body);
+    } catch {
+      return init.body;
+    }
+  }
+  return init.body;
+}
+
 export const http: HttpFn = async (url, init = {}) => {
   if (desktop) return desktop.http(url, init);
   if (platformKind === 'android') {
@@ -61,7 +74,7 @@ export const http: HttpFn = async (url, init = {}) => {
       url,
       method: init.method ?? 'GET',
       headers: init.headers ?? {},
-      data: init.body,
+      data: nativeData(init),
       responseType: 'text',
       connectTimeout: 8000,
       readTimeout: 20000,
@@ -80,7 +93,7 @@ export async function lanRequest(url: string, init: { method?: string; headers?:
       url,
       method: init.method ?? 'GET',
       headers: init.headers ?? {},
-      data: init.body,
+      data: nativeData(init),
       responseType: 'text',
       connectTimeout: timeoutMs,
       readTimeout: timeoutMs * 3,
