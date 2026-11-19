@@ -19,7 +19,7 @@ export const ACCENTS = [
   { id: 'alexandrite', name: 'Alexandrite', note: 'Teal in light mode, raspberry in dark mode, like the real stone in daylight and lamplight', color: 'linear-gradient(135deg, #2b7a72 50%, #c47aaa 50%)' },
   { id: 'aquamarine', name: 'Aquamarine', color: '#2a7f9e' },
   { id: 'peridot', name: 'Peridot', color: '#637f1c' },
-  { id: 'rose_quartz', name: 'Rose quartz', color: '#a9506f' },
+  { id: 'rose_quartz', name: 'Rose Quartz', color: '#a9506f' },
   { id: 'ruby', name: 'Ruby', color: '#a8233c' },
 ] as const;
 

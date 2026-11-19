@@ -57,7 +57,7 @@ export function GroceriesView({ data, openSettings }: { data: AppData; openSetti
         </Empty>
         <div className="center">
           <button className="btn primary" onClick={() => setScanning(true)}>
-            <Camera /> Add a receipt
+            <Camera /> Add a Receipt
           </button>
         </div>
         {scanning && <ReceiptSheet data={data} onClose={() => setScanning(false)} />}
@@ -70,9 +70,9 @@ export function GroceriesView({ data, openSettings }: { data: AppData; openSetti
       <div className="grid two">
         <div className="card">
           <div className="card-head">
-            <div className="eyebrow">A usual grocery trip</div>
+            <div className="eyebrow">A Usual Grocery Trip</div>
             <button className="btn primary small" onClick={() => setScanning(true)}>
-              <Camera /> Add receipt
+              <Camera /> Add Receipt
             </button>
           </div>
           {g && g.usual.length ? (
@@ -109,7 +109,7 @@ export function GroceriesView({ data, openSettings }: { data: AppData; openSetti
 
         <div className="card">
           <div className="eyebrow" style={{ marginBottom: 8 }}>
-            Where the extras go
+            Where the Extras Go
           </div>
           {g && g.extrasByDept.length ? (
             <div className="list">
@@ -135,7 +135,7 @@ export function GroceriesView({ data, openSettings }: { data: AppData; openSetti
       <div className="card mt">
         <div className="card-head">
           <div>
-            <div className="eyebrow">Prices on what you buy</div>
+            <div className="eyebrow">Prices on What You Buy</div>
             <div className="small muted">{hasKroger ? `Live prices from ${krogerStores.map((x) => x.name).join(' and ')}, plus what you paid elsewhere` : 'What you paid at each store'}</div>
           </div>
           {hasKroger ? (
@@ -149,11 +149,11 @@ export function GroceriesView({ data, openSettings }: { data: AppData; openSetti
                 toast(r.error ? r.error : `Checked ${r.updated} prices`);
               }}
             >
-              <RefreshCw /> {pricing ? 'Checking…' : 'Check prices'}
+              <RefreshCw /> {pricing ? 'Checking…' : 'Check Prices'}
             </button>
           ) : (
             <button className="btn small" onClick={openSettings}>
-              <Store /> Add King Soopers prices
+              <Store /> Add King Soopers Prices
             </button>
           )}
         </div>

@@ -32,13 +32,13 @@ import { ChecksCard } from '../ChecksCard';
 import { BankSettings, GasStationSettings, GroceryPriceSettings } from './ConnectionsSettings';
 
 export const SETTINGS_SECTIONS: { id: string; title: string; hint: string; icon: typeof Wallet }[] = [
-  { id: 'pay', title: 'Pay & schedule', hint: 'Rate, shifts, pay periods, overtime, holidays', icon: CalendarClock },
-  { id: 'taxes', title: 'Taxes & deductions', hint: 'Filing status, W-4, Colorado, 401(k), insurance', icon: Landmark },
+  { id: 'pay', title: 'Pay & Schedule', hint: 'Rate, shifts, pay periods, overtime, holidays', icon: CalendarClock },
+  { id: 'taxes', title: 'Taxes & Deductions', hint: 'Filing status, W-4, Colorado, 401(k), insurance', icon: Landmark },
   { id: 'budget', title: 'Budget', hint: 'How each paycheck is split, household and car', icon: Wallet },
   { id: 'connections', title: 'Connections', hint: 'Banks, King Soopers, gas prices, status checks', icon: Plug },
   { id: 'look', title: 'Appearance', hint: 'Your name, colors, light and dark mode, reminders', icon: Palette },
-  { id: 'sync', title: 'Sync & devices', hint: 'Pair your phone and computer', icon: MonitorSmartphone },
-  { id: 'app', title: 'Updates & backup', hint: 'Get the newest version, tax tables, back up your data', icon: Download },
+  { id: 'sync', title: 'Sync & Devices', hint: 'Pair your phone and computer', icon: MonitorSmartphone },
+  { id: 'app', title: 'Updates & Backup', hint: 'Get the newest version, tax tables, back up your data', icon: Download },
 ];
 
 export function SettingsScreen({ data, section, open }: { data: AppData; section?: string; open: (id: string | undefined) => void }) {
@@ -121,13 +121,13 @@ function PaySection({ s, set }: { s: Settings; set: (f: (s: Settings) => Setting
   return (
     <Section title="Pay">
       <div className="form-grid two">
-        <Field label="Base hourly rate">
+        <Field label="Base Hourly Rate">
           <NumberInput value={p.baseRate} onChange={(v) => set((x) => ({ ...x, pay: { ...x.pay, baseRate: v ?? 0 } }))} prefix="$" suffix="/hr" />
         </Field>
       </div>
       <ShiftSchedule pay={p} onChange={(np) => set((x) => ({ ...x, pay: np }))} />
       <div className="form-grid two">
-        <Field label="A pay period started on" hint={`So periods run ${fmtDay(p.periodAnchor)} – ${fmtDay(periodEnd)}`}>
+        <Field label="A Pay Period Started On" hint={`So periods run ${fmtDay(p.periodAnchor)} – ${fmtDay(periodEnd)}`}>
           <input
             className="input"
             type="date"
@@ -135,7 +135,7 @@ function PaySection({ s, set }: { s: Settings; set: (f: (s: Settings) => Setting
             onChange={(e) => e.target.value && set((x) => ({ ...x, pay: { ...x.pay, periodAnchor: e.target.value } }))}
           />
         </Field>
-        <Field label="…and that period was paid on" hint={`${p.paydayOffset} day${p.paydayOffset === 1 ? '' : 's'} after it ends`}>
+        <Field label="…And That Period Was Paid On" hint={`${p.paydayOffset} day${p.paydayOffset === 1 ? '' : 's'} after it ends`}>
           <input
             className="input"
             type="date"
@@ -153,23 +153,23 @@ function PaySection({ s, set }: { s: Settings; set: (f: (s: Settings) => Setting
           Overtime
         </summary>
         <div className="form-grid two mt">
-          <Field label="Overtime after (hours / week)">
+          <Field label="Overtime After (Hours / Week)">
             <NumberInput value={p.overtime.weeklyThreshold} onChange={(v) => set((x) => ({ ...x, pay: { ...x.pay, overtime: { ...x.pay.overtime, weeklyThreshold: v ?? 40 } } }))} suffix="h" />
           </Field>
-          <Field label="…or after (hours / day)" hint="Colorado law: 12. Leave empty for none.">
+          <Field label="…Or After (Hours / Day)" hint="Colorado law: 12. Leave empty for none.">
             <NumberInput value={p.overtime.dailyThreshold} allowEmpty onChange={(v) => set((x) => ({ ...x, pay: { ...x.pay, overtime: { ...x.pay.overtime, dailyThreshold: v } } }))} suffix="h" />
           </Field>
-          <Field label="Overtime multiplier">
+          <Field label="Overtime Multiplier">
             <NumberInput value={p.overtime.multiplier} onChange={(v) => set((x) => ({ ...x, pay: { ...x.pay, overtime: { ...x.pay.overtime, multiplier: v ?? 1.5 } } }))} suffix="×" />
           </Field>
         </div>
         <div className="mt">
-          <Field label="Overtime rate is based on">
+          <Field label="Overtime Rate Is Based On">
             <Segmented
               value={p.overtime.method}
               options={[
-                { value: 'weighted', label: 'Blended rate (law)' },
-                { value: 'base', label: 'Base rate' },
+                { value: 'weighted', label: 'Blended Rate (Law)' },
+                { value: 'base', label: 'Base Rate' },
               ]}
               onChange={(v) => set((x) => ({ ...x, pay: { ...x.pay, overtime: { ...x.pay.overtime, method: v } } }))}
             />
@@ -191,25 +191,25 @@ function HolidaySettings({ p, set }: { p: Settings['pay']; set: (f: (s: Settings
     <div className="col gap-l">
       <div className="divider" />
       <div>
-        <h3 style={{ fontSize: 17 }}>Holiday pay</h3>
+        <h3 style={{ fontSize: 17 }}>Holiday Pay</h3>
         <p className="small muted" style={{ margin: '4px 0 0' }}>
           Pebbles adds holiday pay on its own when you work one of these days.
         </p>
       </div>
-      <Field label="Holiday pay rate" hint="1.5× is time and a half. Set 1× if you don’t get extra.">
+      <Field label="Holiday Pay Rate" hint="1.5× is time and a half. Set 1× if you don’t get extra.">
         <NumberInput value={p.holidayMultiplier} onChange={(v) => set((x) => ({ ...x, pay: { ...x.pay, holidayMultiplier: v ?? 1 } }))} suffix="×" />
       </Field>
-      <Field label="Which hours count">
+      <Field label="Which Hours Count">
         <Segmented
           value={h.rule}
           options={[
-            { value: 'calendar', label: 'Hours on the date' },
-            { value: 'shiftStart', label: 'Shifts starting that day' },
+            { value: 'calendar', label: 'Hours on the Date' },
+            { value: 'shiftStart', label: 'Shifts Starting That Day' },
           ]}
           onChange={(v) => up({ rule: v })}
         />
       </Field>
-      <ToggleRow title="Move weekend holidays to Friday or Monday" hint="How offices observe them. Most 24/7 jobs pay on the real date." on={h.observed} onChange={(v) => up({ observed: v })} />
+      <ToggleRow title="Move Weekend Holidays to Friday or Monday" hint="How offices observe them. Most 24/7 jobs pay on the real date." on={h.observed} onChange={(v) => up({ observed: v })} />
       <Field label={`Paid holidays in ${year}`}>
         <div className="list">
           {list.map(({ def, date }) => {
@@ -245,7 +245,7 @@ function TaxSection({ data, set }: { data: AppData; set: (f: (s: Settings) => Se
   const [checking, setChecking] = useState(false);
   return (
     <Section title="Taxes">
-      <Field label="Filing status (from your W-4)">
+      <Field label="Filing Status (from Your W-4)">
         <select className="input" value={s.filingStatus} onChange={(e) => set((x) => ({ ...x, filingStatus: e.target.value as Settings['filingStatus'] }))}>
           {(['single', 'married_joint', 'married_separate', 'head_of_household'] as const).map((f) => (
             <option key={f} value={f}>
@@ -254,18 +254,18 @@ function TaxSection({ data, set }: { data: AppData; set: (f: (s: Settings) => Se
           ))}
         </select>
       </Field>
-      <ToggleRow title="W-4 step 2 box checked" hint="Two jobs, or both spouses work" on={s.w4.step2MultipleJobs} onChange={(v) => set((x) => ({ ...x, w4: { ...x.w4, step2MultipleJobs: v } }))} />
+      <ToggleRow title="W-4 Step 2 Box Checked" hint="Two jobs, or both spouses work" on={s.w4.step2MultipleJobs} onChange={(v) => set((x) => ({ ...x, w4: { ...x.w4, step2MultipleJobs: v } }))} />
       <div className="form-grid two">
-        <Field label="Children under 17">
+        <Field label="Children Under 17">
           <NumberInput value={s.w4.childrenUnder17} onChange={(v) => set((x) => ({ ...x, w4: { ...x.w4, childrenUnder17: Math.max(0, Math.round(v ?? 0)) } }))} />
         </Field>
-        <Field label="Other dependents">
+        <Field label="Other Dependents">
           <NumberInput value={s.w4.otherDependents} onChange={(v) => set((x) => ({ ...x, w4: { ...x.w4, otherDependents: Math.max(0, Math.round(v ?? 0)) } }))} />
         </Field>
-        <Field label="Extra federal withholding" hint="W-4 step 4(c), per paycheck">
+        <Field label="Extra Federal Withholding" hint="W-4 step 4(c), per paycheck">
           <NumberInput value={s.w4.extraWithholding} onChange={(v) => set((x) => ({ ...x, w4: { ...x.w4, extraWithholding: v ?? 0 } }))} prefix="$" />
         </Field>
-        <Field label="Other income / deductions" hint="W-4 step 4(a) / 4(b), yearly">
+        <Field label="Other Income / Deductions" hint="W-4 step 4(a) / 4(b), yearly">
           <div className="row">
             <NumberInput value={s.w4.otherIncome} onChange={(v) => set((x) => ({ ...x, w4: { ...x.w4, otherIncome: v ?? 0 } }))} prefix="+" />
             <NumberInput value={s.w4.deductions} onChange={(v) => set((x) => ({ ...x, w4: { ...x.w4, deductions: v ?? 0 } }))} prefix="−" />
@@ -288,7 +288,7 @@ function TaxSection({ data, set }: { data: AppData; set: (f: (s: Settings) => Se
         </Field>
       </div>
       {locals.length > 0 && (
-        <Field label="Local tax where you work" hint={stateRules?.noLocalTaxNote}>
+        <Field label="Local Tax Where You Work" hint={stateRules?.noLocalTaxNote}>
           <select className="input" value={st.localTax ?? ''} onChange={(e) => set((x) => ({ ...x, stateTax: { ...x.stateTax, localTax: e.target.value || null } }))}>
             <option value="">None (e.g. Colorado Springs)</option>
             {locals.map((l) => (
@@ -302,14 +302,14 @@ function TaxSection({ data, set }: { data: AppData; set: (f: (s: Settings) => Se
       {st.state === 'CO' && (
         <>
           <div className="form-grid two">
-            <Field label="DR 0004 allowance (optional)" hint="Line 2 of your Colorado DR 0004, if you filed one">
+            <Field label="DR 0004 Allowance (Optional)" hint="Line 2 of your Colorado DR 0004, if you filed one">
               <NumberInput value={st.dr0004Allowance} allowEmpty onChange={(v) => set((x) => ({ ...x, stateTax: { ...x.stateTax, dr0004Allowance: v } }))} prefix="$" />
             </Field>
-            <Field label="Extra Colorado withholding" hint="per paycheck">
+            <Field label="Extra Colorado Withholding" hint="per paycheck">
               <NumberInput value={st.extraWithholding} onChange={(v) => set((x) => ({ ...x, stateTax: { ...x.stateTax, extraWithholding: v ?? 0 } }))} prefix="$" />
             </Field>
           </div>
-          <ToggleRow title="Colorado FAMLI premium" hint="Paid family & medical leave: most employers withhold the employee share" on={st.famliEnabled} onChange={(v) => set((x) => ({ ...x, stateTax: { ...x.stateTax, famliEnabled: v } }))} />
+          <ToggleRow title="Colorado FAMLI Premium" hint="Paid family & medical leave: most employers withhold the employee share" on={st.famliEnabled} onChange={(v) => set((x) => ({ ...x, stateTax: { ...x.stateTax, famliEnabled: v } }))} />
         </>
       )}
       {!stateRules && (
@@ -335,7 +335,7 @@ function TaxSection({ data, set }: { data: AppData; set: (f: (s: Settings) => Se
               toast(r.error ? r.error : r.updated ? `Updated to tax tables ${r.version}` : 'Your tax tables are up to date');
             }}
           >
-            <RefreshCw /> {checking ? 'Checking…' : 'Check for updates'}
+            <RefreshCw /> {checking ? 'Checking…' : 'Check for Updates'}
           </button>
         </div>
         {yr.rules.statusNote && <p className="tiny ink2 mt">{yr.rules.statusNote}</p>}
@@ -345,7 +345,7 @@ function TaxSection({ data, set }: { data: AppData; set: (f: (s: Settings) => Se
           ))}
         </ul>
       </div>
-      <ToggleRow title="Check for tax changes automatically" hint="Once a day when online" on={s.integrations.autoUpdate} onChange={(v) => set((x) => ({ ...x, integrations: { ...x.integrations, autoUpdate: v } }))} />
+      <ToggleRow title="Check for Tax Changes Automatically" hint="Once a day when online" on={s.integrations.autoUpdate} onChange={(v) => set((x) => ({ ...x, integrations: { ...x.integrations, autoUpdate: v } }))} />
     </Section>
   );
 }
@@ -353,17 +353,17 @@ function TaxSection({ data, set }: { data: AppData; set: (f: (s: Settings) => Se
 // ---------------- deductions ----------------
 
 const KIND_LABEL: Record<DeductionKind, string> = {
-  traditional_401k: '401(k) / 403(b) (pre-tax)',
-  roth_401k: 'Roth 401(k) (after tax)',
-  section125: 'Health / dental / vision (pre-tax)',
-  hsa: 'HSA through work (pre-tax)',
-  post_tax: 'Other (after tax)',
+  traditional_401k: '401(k) / 403(b) (Pre-Tax)',
+  roth_401k: 'Roth 401(k) (After Tax)',
+  section125: 'Health / Dental / Vision (Pre-Tax)',
+  hsa: 'HSA Through Work (Pre-Tax)',
+  post_tax: 'Other (After Tax)',
 };
 
 function DeductionsSection({ s, set }: { s: Settings; set: (f: (s: Settings) => Settings) => void }) {
   const update = (id: string, patch: Partial<PayrollDeduction>) => set((x) => ({ ...x, deductions: x.deductions.map((d) => (d.id === id ? { ...d, ...patch } : d)) }));
   return (
-    <Section title="Paycheck deductions">
+    <Section title="Paycheck Deductions">
       <p className="small ink2">Copy these from a pay stub: retirement, insurance, HSA, union dues. They make the take-home estimate exact.</p>
       {s.deductions.map((d) => (
         <div key={d.id} className="card tint" style={{ padding: 12 }}>
@@ -405,7 +405,7 @@ function DeductionsSection({ s, set }: { s: Settings; set: (f: (s: Settings) => 
         <button className="btn small" onClick={() => set((x) => ({ ...x, deductions: [...x.deductions, { id: uid('d_'), name: '401(k)', kind: 'traditional_401k', mode: 'percent', amount: 5 }] }))}>
           <Plus /> Retirement
         </button>
-        <button className="btn small" onClick={() => set((x) => ({ ...x, deductions: [...x.deductions, { id: uid('d_'), name: 'Health insurance', kind: 'section125', mode: 'fixed', amount: 50 }] }))}>
+        <button className="btn small" onClick={() => set((x) => ({ ...x, deductions: [...x.deductions, { id: uid('d_'), name: 'Health Insurance', kind: 'section125', mode: 'fixed', amount: 50 }] }))}>
           <Plus /> Insurance
         </button>
         <button className="btn small" onClick={() => set((x) => ({ ...x, deductions: [...x.deductions, { id: uid('d_'), name: 'Other', kind: 'post_tax', mode: 'fixed', amount: 10 }] }))}>
@@ -422,7 +422,7 @@ function HouseholdSection({ s, set }: { s: Settings; set: (f: (s: Settings) => S
   const h = s.household;
   const up = (patch: Partial<Settings['household']>) => set((x) => ({ ...x, household: { ...x.household, ...patch } }));
   return (
-    <Section title="Household & car">
+    <Section title="Household & Car">
       <div className="form-grid two">
         <Field label="Adults (19–50)">
           <NumberInput value={h.adults} onChange={(v) => up({ adults: Math.max(0, Math.round(v ?? 0)) })} />
@@ -433,11 +433,11 @@ function HouseholdSection({ s, set }: { s: Settings; set: (f: (s: Settings) => S
         <Field label="Adults 51+">
           <NumberInput value={h.seniors} onChange={(v) => up({ seniors: Math.max(0, Math.round(v ?? 0)) })} />
         </Field>
-        <Field label="Other basics per month" hint="Toiletries, cleaning, pet food">
+        <Field label="Other Basics per Month" hint="Toiletries, cleaning, pet food">
           <NumberInput value={h.otherEssentialsMonthly} onChange={(v) => up({ otherEssentialsMonthly: v ?? 0 })} prefix="$" />
         </Field>
       </div>
-      <Field label="Grocery comfort level" hint={`USDA ${FOOD_PLAN_LABEL[h.foodPlan]} plan for your household ≈ ${usd(foodPlanMonthly(h), true)}/month`}>
+      <Field label="Grocery Comfort Level" hint={`USDA ${FOOD_PLAN_LABEL[h.foodPlan]} plan for your household ≈ ${usd(foodPlanMonthly(h), true)}/month`}>
         <Segmented
           value={h.foodPlan}
           options={(['thrifty', 'low', 'moderate', 'liberal'] as const).map((p) => ({ value: p, label: FOOD_PLAN_LABEL[p] }))}
@@ -445,10 +445,10 @@ function HouseholdSection({ s, set }: { s: Settings; set: (f: (s: Settings) => S
         />
       </Field>
       <div className="form-grid two">
-        <Field label="Car fuel economy">
+        <Field label="Car Fuel Economy">
           <NumberInput value={h.vehicleMpg} allowEmpty onChange={(v) => up({ vehicleMpg: v })} suffix="mpg" />
         </Field>
-        <Field label="Miles driven per month" hint="Commute + errands">
+        <Field label="Miles Driven per Month" hint="Commute + errands">
           <NumberInput value={h.milesPerMonth} allowEmpty onChange={(v) => up({ milesPerMonth: v })} suffix="mi" />
         </Field>
       </div>
@@ -462,7 +462,7 @@ function BudgetSection({ s, set }: { s: Settings; set: (f: (s: Settings) => Sett
   const b = s.budget;
   const up = (patch: Partial<Settings['budget']>) => set((x) => ({ ...x, budget: { ...x.budget, ...patch } }));
   return (
-    <Section title="Budget style">
+    <Section title="Budget Style">
       <Field label={`Savings aim: ${b.savingsTargetPct}% of take-home`} hint="Pebbles suggests up to this, and less when money is tight">
         <input className="range" type="range" min={0} max={50} value={b.savingsTargetPct} onChange={(e) => up({ savingsTargetPct: Number(e.target.value) })} />
       </Field>
@@ -475,21 +475,21 @@ function BudgetSection({ s, set }: { s: Settings; set: (f: (s: Settings) => Sett
       <Field label={`Always keep for you: at least ${b.personalFloorPct}%`} hint="Your comfort floor. Savings never eat into it">
         <input className="range" type="range" min={0} max={40} value={b.personalFloorPct} onChange={(e) => up({ personalFloorPct: Number(e.target.value) })} />
       </Field>
-      <Field label="Setting aside for bills">
+      <Field label="Setting Aside for Bills">
         <Segmented
           value={b.billsMode}
           options={[
-            { value: 'due_dates', label: 'Bills due before next payday' },
-            { value: 'even', label: 'Same amount every check' },
+            { value: 'due_dates', label: 'Bills Due Before Next Payday' },
+            { value: 'even', label: 'Same Amount Every Check' },
           ]}
           onChange={(v) => up({ billsMode: v })}
         />
       </Field>
       <div className="form-grid two">
-        <Field label="Emergency fund goal" hint="Months of bills + essentials">
+        <Field label="Emergency Fund Goal" hint="Months of bills + essentials">
           <NumberInput value={b.emergencyMonths} onChange={(v) => up({ emergencyMonths: Math.max(1, v ?? 3) })} suffix="mo" />
         </Field>
-        <Field label="Round suggestions to">
+        <Field label="Round Suggestions To">
           <NumberInput value={b.roundTo} onChange={(v) => up({ roundTo: Math.max(1, v ?? 5) })} prefix="$" />
         </Field>
       </div>
@@ -501,14 +501,14 @@ function BudgetSection({ s, set }: { s: Settings; set: (f: (s: Settings) => Sett
 
 function PricesSection({ s, set }: { s: Settings; set: (f: (s: Settings) => Settings) => void }) {
   return (
-    <Section title="Prices & updates">
+    <Section title="Prices & Updates">
       <p className="small ink2">
         Pebbles checks grocery inflation and staple prices from the U.S. Bureau of Labor Statistics, and gas prices from the U.S. Energy Information Administration, then adjusts your essentials so you’re always covered.
       </p>
-      <Field label="EIA API key" hint="A key is built in for weekly Colorado gas prices. Paste your own only if you want to use a different one.">
+      <Field label="EIA API Key" hint="A key is built in for weekly Colorado gas prices. Paste your own only if you want to use a different one.">
         <TextInput value={s.integrations.eiaApiKey} onChange={(v) => set((x) => ({ ...x, integrations: { ...x.integrations, eiaApiKey: v.trim() } }))} placeholder="Built-in key in use" />
       </Field>
-      <Field label="Tax table update address">
+      <Field label="Tax Table Update Address">
         <TextInput value={s.integrations.taxRulesUrl} onChange={(v) => set((x) => ({ ...x, integrations: { ...x.integrations, taxRulesUrl: v.trim() } }))} />
       </Field>
     </Section>
@@ -520,14 +520,14 @@ function PricesSection({ s, set }: { s: Settings; set: (f: (s: Settings) => Sett
 function GeneralSection({ s, set }: { s: Settings; set: (f: (s: Settings) => Settings) => void }) {
   return (
     <Section title="Appearance">
-      <Field label="Your first name (for greetings)">
+      <Field label="Your First Name (for Greetings)">
         <TextInput value={s.name} onChange={(v) => set((x) => ({ ...x, name: v }))} />
       </Field>
       <Field label="Theme">
         <Segmented
           value={s.theme}
           options={[
-            { value: 'auto', label: 'Match device' },
+            { value: 'auto', label: 'Match Device' },
             { value: 'light', label: 'Limestone' },
             { value: 'dark', label: 'Basalt' },
           ]}
@@ -569,7 +569,7 @@ function GeneralSection({ s, set }: { s: Settings; set: (f: (s: Settings) => Set
           })()}
         </span>
       </Field>
-      {platformKind === 'android' && <ToggleRow title="Payday & bill reminders" on={s.notifications} onChange={(v) => set((x) => ({ ...x, notifications: v }))} />}
+      {platformKind === 'android' && <ToggleRow title="Payday & Bill Reminders" on={s.notifications} onChange={(v) => set((x) => ({ ...x, notifications: v }))} />}
     </Section>
   );
 }
@@ -596,14 +596,14 @@ function DataSection() {
             setTimeout(() => URL.revokeObjectURL(a.href), 2000);
           }}
         >
-          <Download /> Save a backup
+          <Download /> Save a Backup
         </button>
         <button className="btn small" onClick={() => fileRef.current?.click()}>
           <Upload /> Restore
         </button>
         {desktop && (
           <button className="btn small" onClick={() => void desktop!.openDataFolder()}>
-            <FolderOpen /> Open data folder
+            <FolderOpen /> Open Data Folder
           </button>
         )}
         <input
@@ -633,7 +633,7 @@ function DataSection() {
           location.reload();
         }}
       >
-        <Trash2 /> Erase this device
+        <Trash2 /> Erase This Device
       </button>
     </Section>
   );
@@ -658,7 +658,7 @@ export function PhoneSync() {
     <div className="card">
       <div className="row" style={{ marginBottom: 12 }}>
         <Smartphone />
-        <h2 className="grow">Sync with your computer</h2>
+        <h2 className="grow">Sync with Your Computer</h2>
         <span className={`sync-dot ${sync.status}`} />
       </div>
       {platformKind === 'web' && !hub && (
@@ -677,7 +677,7 @@ export function PhoneSync() {
           </div>
           <div className="row wrap">
             <button className="btn primary small" onClick={() => void syncClient.syncNow()}>
-              <RefreshCw /> Sync now
+              <RefreshCw /> Sync Now
             </button>
             <button
               className="btn small"
@@ -686,7 +686,7 @@ export function PhoneSync() {
                 toast(ok ? 'Found your computer' : 'Couldn’t find Pebbles on this Wi-Fi');
               }}
             >
-              Find my computer
+              Find My Computer
             </button>
             <button className="btn ghost danger small" onClick={() => void syncClient.unpair()}>
               <Unlink /> Unpair
@@ -701,10 +701,10 @@ export function PhoneSync() {
             <li>Click “Pair a phone” and type the address and 6-digit code here.</li>
           </ol>
           <div className="form-grid two">
-            <Field label="Computer address">
+            <Field label="Computer Address">
               <TextInput value={address} onChange={setAddress} placeholder={`192.168.1.20:${DEFAULT_PORT}`} />
             </Field>
-            <Field label="6-digit code">
+            <Field label="6-Digit Code">
               <input className="input num" inputMode="numeric" maxLength={7} value={code} onChange={(e) => setCode(e.target.value)} placeholder="123 456" />
             </Field>
           </div>
@@ -779,7 +779,7 @@ export function DesktopSync() {
     <div className="card">
       <div className="row" style={{ marginBottom: 12 }}>
         <Laptop />
-        <h2 className="grow">Phone sync</h2>
+        <h2 className="grow">Phone Sync</h2>
         <span className={`sync-dot ${sync.status}`} />
       </div>
       <div className="grid two">
@@ -804,7 +804,7 @@ export function DesktopSync() {
                 setPairing(await desktop!.pairingStart());
               }}
             >
-              <Smartphone /> Pair a phone
+              <Smartphone /> Pair a Phone
             </button>
           ) : (
             <div className="card tint" style={{ padding: 16 }}>
@@ -838,14 +838,14 @@ export function DesktopSync() {
           )}
           {info && (
             <>
-              <ToggleRow title="Keep running in the tray when closed" hint="So your phone can sync any time this PC is on" on={info.closeToTray} onChange={(v) => void desktop!.setPrefs({ closeToTray: v }).then(refresh)} />
+              <ToggleRow title="Keep Running in the Tray When Closed" hint="So your phone can sync any time this PC is on" on={info.closeToTray} onChange={(v) => void desktop!.setPrefs({ closeToTray: v }).then(refresh)} />
               <ToggleRow title="Start Pebbles with Windows" on={info.startWithWindows} onChange={(v) => void desktop!.setPrefs({ startWithWindows: v }).then(refresh)} />
             </>
           )}
         </div>
         <div>
           <div className="eyebrow" style={{ marginBottom: 6 }}>
-            Paired phones
+            Paired Phones
           </div>
           {devices.length ? (
             <div className="list">

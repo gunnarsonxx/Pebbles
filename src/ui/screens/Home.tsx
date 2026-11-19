@@ -74,11 +74,11 @@ export function HomeScreen({ data, go }: { data: AppData; go: GoTo }) {
           </div>
           <div className="row wrap mt-l" style={{ position: 'relative' }}>
             <button className="btn" onClick={() => go('paycheck')}>
-              <CalendarDays /> Adjust days
+              <CalendarDays /> Adjust Days
             </button>
             {(isPayday || diffDays(p.payday, data.today) <= 1) && !record?.received && (
               <button className="btn primary" onClick={() => setReceiving(true)}>
-                <Sprout /> I got paid
+                <Sprout /> I Got Paid
               </button>
             )}
             {record?.received && <span className="badge good">Recorded · {usd(record.actualNet ?? 0)}</span>}
@@ -124,7 +124,7 @@ export function HomeScreen({ data, go }: { data: AppData; go: GoTo }) {
           })}
           {!activeGoals.length && (
             <button className="btn small mt" onClick={() => go('savings')}>
-              Start a savings goal
+              Start a Savings Goal
             </button>
           )}
         </div>
@@ -135,7 +135,7 @@ export function HomeScreen({ data, go }: { data: AppData; go: GoTo }) {
       <div className="card mt">
         <div className="card-head">
           <div>
-            <div className="eyebrow">This paycheck’s plan</div>
+            <div className="eyebrow">This Paycheck’s Plan</div>
             <div className="small muted">How {usd(plan.net, true)} splits up</div>
           </div>
           <button className="btn ghost small" onClick={() => go('plan')}>
@@ -146,7 +146,7 @@ export function HomeScreen({ data, go }: { data: AppData; go: GoTo }) {
           total={plan.net}
           parts={[
             { key: 'bills', label: 'Bills', value: plan.bills, color: 'var(--sapphire)', hint: plan.billsDue.length ? `${plan.billsDue.length} due before next payday` : undefined },
-            { key: 'you', label: 'Your money', value: plan.essentials + Math.max(0, plan.personal), color: 'var(--amethyst)', hint: `${usd(plan.essentials, true)} groceries & gas · ${usd(plan.personalPerDay, true)} a day to enjoy` },
+            { key: 'you', label: 'Your Money', value: plan.essentials + Math.max(0, plan.personal), color: 'var(--amethyst)', hint: `${usd(plan.essentials, true)} groceries & gas · ${usd(plan.personalPerDay, true)} a day to enjoy` },
             { key: 'save', label: 'Savings', value: plan.savings, color: 'var(--jade)', hint: `${Math.round(plan.savingsRate * 100)}% of take-home` },
           ]}
         />
@@ -156,9 +156,9 @@ export function HomeScreen({ data, go }: { data: AppData; go: GoTo }) {
       <div className="grid two mt">
         <div className="card">
           <div className="card-head">
-            <div className="eyebrow">Bills in the next 2 weeks</div>
+            <div className="eyebrow">Bills in the Next 2 Weeks</div>
             <button className="btn ghost small" onClick={() => go('plan')}>
-              All bills
+              All Bills
             </button>
           </div>
           {bills.length ? (
@@ -184,7 +184,7 @@ export function HomeScreen({ data, go }: { data: AppData; go: GoTo }) {
 
         <div className="card">
           <div className="card-head">
-            <div className="eyebrow">Field notes</div>
+            <div className="eyebrow">Field Notes</div>
             <button className="btn ghost small" onClick={() => go('plan')}>
               More
             </button>

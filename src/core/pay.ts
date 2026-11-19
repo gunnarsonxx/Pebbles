@@ -294,7 +294,7 @@ export function computeGross(
     d.holiday = hol(d.date);
   }
 
-  const unit = sp.overnight ? 'shift' : 'day';
+  const unit = sp.overnight ? 'Shift' : 'Day';
   const adjustments: Adjustment[] = [];
   for (const d of allShifts) {
     if (!d.edited) continue;
@@ -311,27 +311,27 @@ export function computeGross(
       const detail = partial ? `${when} · ${hrsHere} h unpaid on this check (the rest is on the ${inPeriod(d.date) ? 'next' : 'previous'} one)` : `${when} · ${normalShift} h unpaid`;
       adjustments.push({ date: d.date, label: `Missed ${unit}`, detail, amount: diffIn, kind: 'missed' });
     } else if (d.status === 'pto' || d.status === 'sick' || d.status === 'holiday') {
-      const name = d.status === 'pto' ? 'Paid time off' : d.status === 'sick' ? 'Sick leave' : 'Paid holiday';
+      const name = d.status === 'pto' ? 'Paid Time Off' : d.status === 'sick' ? 'Sick Leave' : 'Paid Holiday';
       adjustments.push({ date: d.date, label: name, detail: `${when} · ${d.paidLeaveHours} h at base${part}`, amount: diffIn, kind: 'leave' });
     } else if (d.status === 'worked') {
       const rateDesc = d.segments.map((s) => `${s.hours} h ${s.rateName === 'Custom' ? `@ $${s.rate.toFixed(2)}` : s.rateName}`).join(' + ');
-      let label = 'Different pay';
+      let label = 'Different Pay';
       let kind: Adjustment['kind'] = 'rate';
       if (!d.scheduled) {
         label = `Extra ${unit}`;
         kind = 'extra';
       } else if (d.workedHours > normalShift) {
-        label = d.segments.some((s) => s.rate !== pay.baseRate) ? `Longer ${unit}, different pay` : 'Extra hours';
+        label = d.segments.some((s) => s.rate !== pay.baseRate) ? `Longer ${unit}, Different Pay` : 'Extra Hours';
         kind = 'extra';
       } else if (d.workedHours < normalShift) {
         label = `Shorter ${unit}`;
         kind = 'short';
       }
       if (d.holidayPremium > 0) {
-        label = 'Worked holiday';
+        label = 'Worked Holiday';
         kind = 'holiday';
       }
-      if (Math.abs(diffIn) >= 0.005 || label !== 'Different pay') adjustments.push({ date: d.date, label, detail: `${when} · ${rateDesc}${part}`, amount: diffIn, kind });
+      if (Math.abs(diffIn) >= 0.005 || label !== 'Different Pay') adjustments.push({ date: d.date, label, detail: `${when} · ${rateDesc}${part}`, amount: diffIn, kind });
     }
   }
 
@@ -345,7 +345,7 @@ export function computeGross(
         const share = (inPeriod(x.date) ? f : 0) + (inPeriod(addDays(x.date, 1)) ? 1 - f : 0);
         const amount = round2(x.straightPay * holidayMult * share);
         if (amount > 0)
-          adjustments.push({ date: x.date, label: `Holiday pay · ${h.name}`, detail: `${round2(x.workedHours * share)} h × ${pay.holidayMultiplier} for the shift starting ${fmtDay(x.date)}`, amount, kind: 'holiday' });
+          adjustments.push({ date: x.date, label: `Holiday Pay · ${h.name}`, detail: `${round2(x.workedHours * share)} h × ${pay.holidayMultiplier} for the shift starting ${fmtDay(x.date)}`, amount, kind: 'holiday' });
       }
     } else {
       for (const d of periodDates) {
@@ -353,7 +353,7 @@ export function computeGross(
         const c = cal.get(d);
         if (!h || !c || c.hours <= 0) continue;
         const amount = round2(c.straight * holidayMult);
-        adjustments.push({ date: d, label: `Holiday pay · ${h.name}`, detail: `${round2(c.hours)} h worked on ${fmtDay(d)} × ${pay.holidayMultiplier}`, amount, kind: 'holiday' });
+        adjustments.push({ date: d, label: `Holiday Pay · ${h.name}`, detail: `${round2(c.hours)} h worked on ${fmtDay(d)} × ${pay.holidayMultiplier}`, amount, kind: 'holiday' });
       }
     }
   }
@@ -381,7 +381,7 @@ export function computeGross(
     if (otHours > 0) {
       adjustments.push({
         date: null,
-        label: 'Overtime premium',
+        label: 'Overtime Premium',
         detail: `Week of ${fmtDay(wdates[0])} · ${otHours} h × ${(pay.overtime.multiplier - 1).toFixed(1)} × $${rateForOt.toFixed(2)}`,
         amount: premium,
         kind: 'overtime',

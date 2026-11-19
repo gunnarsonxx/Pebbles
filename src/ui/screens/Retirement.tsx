@@ -61,7 +61,7 @@ export function RetirementView({ data }: { data: AppData }) {
             <h2 style={{ fontSize: 24, marginTop: 4 }}>{headline}</h2>
           </div>
           <button className="btn small" onClick={() => setEditing(true)}>
-            <Pencil /> Your numbers
+            <Pencil /> Your Numbers
           </button>
         </div>
         <p className="small ink2" style={{ margin: '8px 0 0' }}>
@@ -82,14 +82,14 @@ export function RetirementView({ data }: { data: AppData }) {
         <div className="stat-row mt">
           <Stat label="Investing" value={`${usd(monthlyInvest, true)}/mo`} />
           <Stat label={`At age ${f.retireAge}`} value={usd(plan.atRetireAge, true)} />
-          <Stat label="Pays you" value={`${usd(plan.incomeAtRetireAge / 12, true)}/mo`} />
+          <Stat label="Pays You" value={`${usd(plan.incomeAtRetireAge / 12, true)}/mo`} />
         </div>
         <p className="tiny muted mt">All amounts are in today’s dollars.</p>
       </div>
 
       {/* 2. the one thing to do next */}
       <div className="card next-step">
-        <div className="eyebrow">Your next step</div>
+        <div className="eyebrow">Your Next Step</div>
         <div className="strong" style={{ fontSize: 17, margin: '4px 0 2px' }}>
           {step.step}
         </div>
@@ -97,7 +97,7 @@ export function RetirementView({ data }: { data: AppData }) {
       </div>
 
       {/* 3. details, folded away */}
-      <Disclosure title="Every step, in order">
+      <Disclosure title="Every Step, in Order">
         <ol className="small steps">
           {ACCOUNT_ORDER.map((s, i) => (
             <li key={s.step} className={i < stepIdx ? 'done' : i === stepIdx ? 'now' : ''}>
@@ -108,7 +108,7 @@ export function RetirementView({ data }: { data: AppData }) {
         </ol>
       </Disclosure>
 
-      <Disclosure title="Different ways to retire">
+      <Disclosure title="Different Ways to Retire">
         <div className="list">
           <Row label="Lean" value={usd(plan.leanFi, true)} note="Covers bills, groceries and gas only" />
           <Row label="Comfortable" value={usd(plan.fi, true)} note="Your life as it is today" />
@@ -121,7 +121,7 @@ export function RetirementView({ data }: { data: AppData }) {
         </div>
       </Disclosure>
 
-      <Disclosure title="How your savings rate changes things">
+      <Disclosure title="How Your Savings Rate Changes Things">
         <p className="small ink2" style={{ marginTop: 0 }}>
           You put away about <strong>{Math.round(savingsRate)}%</strong> of your pay. Starting from zero, here’s how long it takes to be able to retire:
         </p>
@@ -129,7 +129,7 @@ export function RetirementView({ data }: { data: AppData }) {
           <thead>
             <tr>
               <th>Save</th>
-              <th className="r">Years to retire</th>
+              <th className="r">Years to Retire</th>
             </tr>
           </thead>
           <tbody>
@@ -143,7 +143,7 @@ export function RetirementView({ data }: { data: AppData }) {
         </table>
       </Disclosure>
 
-      <Disclosure title="Investing, kept simple">
+      <Disclosure title="Investing, Kept Simple">
         {SIMPLE_PORTFOLIO.map((p) => (
           <div key={p.name} style={{ marginBottom: 10 }}>
             <div className="strong small">{p.name}</div>
@@ -185,7 +185,7 @@ function NumbersSheet({ f, lifestyle, onClose }: { f: FireSettings; lifestyle: n
   const up = (patch: Partial<FireSettings>) => setV({ ...v, ...patch });
   return (
     <Sheet
-      title="Your retirement numbers"
+      title="Your Retirement Numbers"
       onClose={onClose}
       footer={
         <>
@@ -206,36 +206,36 @@ function NumbersSheet({ f, lifestyle, onClose }: { f: FireSettings; lifestyle: n
     >
       <div className="col gap-l">
         <div className="form-grid two">
-          <Field label="Your age">
+          <Field label="Your Age">
             <NumberInput value={v.age} onChange={(x) => up({ age: Math.round(x ?? 28) })} />
           </Field>
-          <Field label="Retire by age">
+          <Field label="Retire by Age">
             <NumberInput value={v.retireAge} onChange={(x) => up({ retireAge: Math.round(x ?? 60) })} />
           </Field>
         </div>
-        <Field label="Invested today" hint="401(k), IRA and brokerage combined. Not your Marcus savings.">
+        <Field label="Invested Today" hint="401(k), IRA and brokerage combined. Not your Marcus savings.">
           <NumberInput value={v.invested} onChange={(x) => up({ invested: x ?? 0 })} prefix="$" />
         </Field>
         <div className="form-grid two">
-          <Field label="Employer 401(k) match" hint="% of your pay">
+          <Field label="Employer 401(k) Match" hint="% of your pay">
             <NumberInput value={v.matchPct} onChange={(x) => up({ matchPct: x ?? 0 })} suffix="%" />
           </Field>
-          <Field label="Other investing" hint="Roth IRA, brokerage">
+          <Field label="Other Investing" hint="Roth IRA, brokerage">
             <NumberInput value={v.extraMonthly} onChange={(x) => up({ extraMonthly: x ?? 0 })} prefix="$" suffix="/mo" />
           </Field>
         </div>
-        <Field label="Spending in retirement" hint={`Per year. Leave empty to use today’s ${usd(lifestyle, true)}.`}>
+        <Field label="Spending in Retirement" hint={`Per year. Leave empty to use today’s ${usd(lifestyle, true)}.`}>
           <NumberInput value={v.annualSpending} allowEmpty onChange={(x) => up({ annualSpending: x })} prefix="$" />
         </Field>
         <Disclosure title="Assumptions">
           <div className="col gap-l">
-            <Field label="Expected return" hint="The stock market has averaged about 7–10% a year before inflation">
+            <Field label="Expected Return" hint="The stock market has averaged about 7–10% a year before inflation">
               <NumberInput value={v.returnPct} onChange={(x) => up({ returnPct: x ?? 7 })} suffix="%" />
             </Field>
             <Field label="Inflation">
               <NumberInput value={v.inflationPct} onChange={(x) => up({ inflationPct: x ?? 3 })} suffix="%" />
             </Field>
-            <Field label="Withdrawal rate" hint="4% is the classic rule; 3.5% if you retire very early">
+            <Field label="Withdrawal Rate" hint="4% is the classic rule; 3.5% if you retire very early">
               <NumberInput value={v.withdrawalPct} onChange={(x) => up({ withdrawalPct: x ?? 4 })} suffix="%" />
             </Field>
           </div>

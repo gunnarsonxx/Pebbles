@@ -310,7 +310,7 @@ export function ToggleRow({ title, hint, on, onChange }: { title: ReactNode; hin
         <div className="strong">{title}</div>
         {hint && <div className="small muted">{hint}</div>}
       </div>
-      <Toggle on={on} onChange={onChange} label={typeof title === 'string' ? title : 'toggle'} />
+      <Toggle on={on} onChange={onChange} label={typeof title === 'string' ? title : 'Toggle'} />
     </div>
   );
 }

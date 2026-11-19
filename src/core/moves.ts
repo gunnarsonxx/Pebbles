@@ -51,7 +51,7 @@ export function paydayMoves(opts: {
     const due = plan.billsDue.slice(0, 4).map((b) => `${b.bill.name} ${b.date.slice(5).replace('-', '/')}`);
     moves.push({
       key: 'bills',
-      title: `Leave ${usd(plan.bills, true)} in checking for bills`,
+      title: `Leave ${usd(plan.bills, true)} in Checking for Bills`,
       detail: due.length ? `Coming up: ${due.join(', ')}${plan.billsDue.length > 4 ? '…' : ''}` : 'Your share of this month’s bills',
       amount: plan.bills,
       checkable: false,
@@ -61,7 +61,7 @@ export function paydayMoves(opts: {
   }
   moves.push({
     key: 'spend',
-    title: `Keep ${usd(plan.essentials + Math.max(0, plan.personal), true)} for you`,
+    title: `Keep ${usd(plan.essentials + Math.max(0, plan.personal), true)} for You`,
     detail:
       plan.personal > 0
         ? `About ${usd(plan.essentials, true)} of it for groceries and gas; the other ${usd(plan.personal, true)} (${usd(plan.personalPerDay, true)} a day) is guilt-free.`
@@ -75,7 +75,7 @@ export function paydayMoves(opts: {
     const extra = round2(Math.floor((plan.personal * 0.5) / 5) * 5);
     moves.push({
       key: 'bonus',
-      title: `Bonus paycheck month: move ${usd(extra, true)} more to ${savingsName}`,
+      title: `Bonus Paycheck Month: Move ${usd(extra, true)} More to ${savingsName}`,
       detail: 'Your bills are covered by the other two checks this month.',
       amount: extra,
       checkable: true,

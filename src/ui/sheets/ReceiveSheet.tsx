@@ -43,7 +43,7 @@ export function ReceiveSheet({ data, estimate, onClose }: { data: AppData; estim
       footer={
         <>
           <button className="btn" onClick={onClose}>
-            Not yet
+            Not Yet
           </button>
           <button
             className="btn primary"
@@ -62,13 +62,13 @@ export function ReceiveSheet({ data, estimate, onClose }: { data: AppData; estim
               onClose();
             }}
           >
-            Split my paycheck
+            Split My Paycheck
           </button>
         </>
       }
     >
       <div className="col gap-l">
-        <Field label="What landed in your account" hint={`Pebbles estimated ${usd(estimate.net)}`}>
+        <Field label="What Landed in Your Account" hint={`Pebbles estimated ${usd(estimate.net)}`}>
           <NumberInput value={actual} onChange={setActual} prefix="$" autoFocus ariaLabel="Actual take-home" />
         </Field>
         {actual != null && Math.abs(diff) >= 1 && (
@@ -80,11 +80,11 @@ export function ReceiveSheet({ data, estimate, onClose }: { data: AppData; estim
           total={plan.net}
           parts={[
             { key: 'bills', label: 'Bills', value: plan.bills, color: 'var(--sapphire)' },
-            { key: 'you', label: 'Your money', value: plan.essentials + Math.max(0, plan.personal), color: 'var(--amethyst)' },
+            { key: 'you', label: 'Your Money', value: plan.essentials + Math.max(0, plan.personal), color: 'var(--amethyst)' },
             { key: 'save', label: 'Savings', value: plan.savings, color: 'var(--jade)' },
           ]}
         />
-        <Field label="Savings from this check">
+        <Field label="Savings from This Check">
           <input
             className="range"
             type="range"
@@ -99,7 +99,7 @@ export function ReceiveSheet({ data, estimate, onClose }: { data: AppData; estim
         {plan.allocations.length > 0 ? (
           <div className="card tint" style={{ padding: 14 }}>
             <div className="eyebrow" style={{ marginBottom: 8 }}>
-              Pebbles going to
+              Pebbles Going To
             </div>
             {plan.allocations.map((a) => {
               const g = goalName(a.goalId);

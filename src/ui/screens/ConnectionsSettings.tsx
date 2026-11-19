@@ -15,7 +15,7 @@ export function BankSettings({ s, set }: { s: Settings; set: SetFn }) {
     <div className="card">
       <div className="row" style={{ marginBottom: 12 }}>
         <Landmark />
-        <h2 className="grow">Bank connections</h2>
+        <h2 className="grow">Bank Connections</h2>
       </div>
       <div className="col gap-l">
         <p className="small ink2">
@@ -34,10 +34,10 @@ export function BankSettings({ s, set }: { s: Settings; set: SetFn }) {
           </li>
         </ol>
         <div className="form-grid two">
-          <Field label="Plaid client_id">
+          <Field label="Plaid Client ID">
             <TextInput value={i.plaidClientId} onChange={(v) => up({ plaidClientId: v.trim() })} placeholder="e.g. 66f0…" />
           </Field>
-          <Field label="Plaid secret">
+          <Field label="Plaid Secret">
             <TextInput type="password" value={i.plaidSecret} onChange={(v) => up({ plaidSecret: v.trim() })} placeholder="Production secret" />
           </Field>
         </div>
@@ -45,8 +45,8 @@ export function BankSettings({ s, set }: { s: Settings; set: SetFn }) {
           <Segmented
             value={i.plaidEnv}
             options={[
-              { value: 'production', label: 'Real banks' },
-              { value: 'sandbox', label: 'Sandbox (test)' },
+              { value: 'production', label: 'Real Banks' },
+              { value: 'sandbox', label: 'Sandbox (Test)' },
             ]}
             onChange={(v) => up({ plaidEnv: v })}
           />
@@ -67,20 +67,20 @@ export function GroceryPriceSettings({ s, set }: { s: Settings; set: SetFn }) {
     <div className="card">
       <div className="row" style={{ marginBottom: 12 }}>
         <Store />
-        <h2 className="grow">Grocery prices</h2>
+        <h2 className="grow">Grocery Prices</h2>
       </div>
       <div className="col gap-l">
         <p className="small ink2">
           King Soopers (Kroger) shares live prices and weekly sales with apps. Create a free account at <strong>developer.kroger.com</strong>, register an app (Production, “Product” scope), and paste its client ID and secret here.
         </p>
         <div className="form-grid two">
-          <Field label="Kroger client ID">
+          <Field label="Kroger Client ID">
             <TextInput value={i.krogerClientId} onChange={(v) => up({ krogerClientId: v.trim() })} />
           </Field>
-          <Field label="Kroger client secret">
+          <Field label="Kroger Client Secret">
             <TextInput type="password" value={i.krogerSecret} onChange={(v) => up({ krogerSecret: v.trim() })} />
           </Field>
-          <Field label="Your ZIP code">
+          <Field label="Your ZIP Code">
             <TextInput value={i.zip} onChange={(v) => up({ zip: v.trim() })} />
           </Field>
           <div style={{ alignSelf: 'end' }}>
@@ -98,7 +98,7 @@ export function GroceryPriceSettings({ s, set }: { s: Settings; set: SetFn }) {
                 }
               }}
             >
-              {busy ? 'Finding…' : 'Find stores near me'}
+              {busy ? 'Finding…' : 'Find Stores Near Me'}
             </button>
           </div>
         </div>
@@ -122,7 +122,7 @@ export function GroceryPriceSettings({ s, set }: { s: Settings; set: SetFn }) {
                 </div>
               )}
               {stores && (
-                <Field label="Your King Soopers stores" hint="Pick every store you shop at. Prices are checked at each one.">
+                <Field label="Your King Soopers Stores" hint="Pick every store you shop at. Prices are checked at each one.">
                   <div className="col" style={{ gap: 4 }}>
                     {stores.map((st) => {
                       const on = chosen.some((x) => x.id === st.id);
@@ -153,7 +153,7 @@ export function GasStationSettings({ s, set }: { s: Settings; set: SetFn }) {
     <div className="card">
       <div className="row" style={{ marginBottom: 12 }}>
         <Fuel />
-        <h2 className="grow">Gas station prices</h2>
+        <h2 className="grow">Gas Station Prices</h2>
       </div>
       <div className="col gap-l">
         <p className="small ink2" style={{ margin: 0 }}>
@@ -164,7 +164,7 @@ export function GasStationSettings({ s, set }: { s: Settings; set: SetFn }) {
           <li>Turn on “Places API (New)”, then make an API key under Credentials.</li>
           <li>Paste it here. Pebbles refreshes at most every 3 hours, which stays well inside Google’s free monthly allowance.</li>
         </ol>
-        <Field label="Google Maps API key (optional)">
+        <Field label="Google Maps API Key (Optional)">
           <TextInput value={i.googlePlacesKey} onChange={(v) => up({ googlePlacesKey: v.trim() })} placeholder="AIza…" />
         </Field>
         {i.homeAddress && <p className="tiny muted">Home for gas prices: {i.homeAddress}</p>}

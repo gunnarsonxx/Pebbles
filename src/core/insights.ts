@@ -47,7 +47,7 @@ export function generateInsights(i: InsightInput): Insight[] {
     out.push({
       id: 'import-first',
       kind: 'heads_up',
-      title: 'Bring in a bank statement',
+      title: 'Bring In a Bank Statement',
       body: 'Import a CSV, QFX or PDF statement (Budget → Spending), or connect your bank. Pebbles will learn your real grocery, gas and bill costs and tailor every suggestion to you.',
       monthlyImpact: 0,
       priority: 100,
@@ -62,7 +62,7 @@ export function generateInsights(i: InsightInput): Insight[] {
     out.push({
       id: 'subs',
       kind: 'cut',
-      title: `${subs.length} subscriptions cost ${usd(subMonthly)} a month`,
+      title: `${subs.length} Subscriptions Cost ${usd(subMonthly)} a Month`,
       body: `That's ${usd(subMonthly * 12, true)} a year: ${names}${subs.length > 4 ? '…' : ''}. Cancel one you haven't opened in 30 days, or rotate streaming services month to month.`,
       monthlyImpact: round2(subs[subs.length - 1]?.amount ?? 0),
       priority: 70,
@@ -92,7 +92,7 @@ export function generateInsights(i: InsightInput): Insight[] {
       out.push({
         id: 'delivery',
         kind: 'quit',
-        title: 'Delivery apps add up quietly',
+        title: 'Delivery Apps Add Up Quietly',
         body: `About ${Math.round(orders / months.length)} orders a month (${usd(delivery)}). Fees and menu markups usually add 25–40%; picking up the same order saves roughly ${usd(delivery * 0.3)} a month.`,
         monthlyImpact: round2(delivery * 0.3),
         priority: 60,
@@ -108,7 +108,7 @@ export function generateInsights(i: InsightInput): Insight[] {
       out.push({
         id: 'coffee',
         kind: 'quit',
-        title: `Coffee runs: ${Math.round(coffee.length / months.length)} a month`,
+        title: `Coffee Runs: ${Math.round(coffee.length / months.length)} a Month`,
         body: `That's ${usd(monthly)} a month, ${usd(monthly * 12, true)} a year. Brewing at home on workdays could keep about ${usd(monthly * 0.6)} a month in your pocket.`,
         monthlyImpact: round2(monthly * 0.6),
         priority: 50,
@@ -121,7 +121,7 @@ export function generateInsights(i: InsightInput): Insight[] {
       out.push({
         id: 'fees',
         kind: 'quit',
-        title: `Bank fees: ${usd(fees)} a month`,
+        title: `Bank Fees: ${usd(fees)} a Month`,
         body: 'Overdraft, ATM and maintenance fees are the easiest money to win back. Turn on low-balance alerts, use in-network ATMs, and ask your bank to waive a first overdraft.',
         monthlyImpact: fees,
         priority: 75,
@@ -141,7 +141,7 @@ export function generateInsights(i: InsightInput): Insight[] {
           out.push({
             id: `up-${cat}`,
             kind: 'heads_up',
-            title: `${name} rose ${Math.round(change * 100)}% in ${fmtMonth(last)}`,
+            title: `${name} Rose ${Math.round(change * 100)}% in ${fmtMonth(last)}`,
             body: `${usd(now)} vs your usual ${usd(before)}. If it was a one-off, no worries. If not, a weekly cap of ${usd(before / 4.3)} keeps it in line.`,
             monthlyImpact: round2(now - before),
             priority: 45,
@@ -150,7 +150,7 @@ export function generateInsights(i: InsightInput): Insight[] {
           out.push({
             id: `down-${cat}`,
             kind: 'keep',
-            title: `Nice: ${name.toLowerCase()} down ${Math.round(-change * 100)}%`,
+            title: `Nice: ${name} Down ${Math.round(-change * 100)}%`,
             body: `You spent ${usd(before - now)} less than usual in ${fmtMonth(last)}. Keep this habit. Moving that difference to savings each month adds up to ${usd((before - now) * 12, true)} a year.`,
             monthlyImpact: 0,
             priority: 40,
@@ -164,7 +164,7 @@ export function generateInsights(i: InsightInput): Insight[] {
       out.push({
         id: 'overspent',
         kind: 'heads_up',
-        title: `${fmtMonth(last)}: spent ${usd(lastSum.spending - lastSum.income)} more than came in`,
+        title: `${fmtMonth(last)}: Spent ${usd(lastSum.spending - lastSum.income)} More than Came In`,
         body: 'Check Budget → Spending for the biggest categories. The paycheck plan sets aside bills, groceries and gas first, so this is easier to avoid.',
         monthlyImpact: 0,
         priority: 80,
@@ -179,7 +179,7 @@ export function generateInsights(i: InsightInput): Insight[] {
       out.push({
         id: 'groceries-high',
         kind: 'cut',
-        title: 'Groceries are running above your food plan',
+        title: 'Groceries Are Running Above Your Food Plan',
         body: `You average ${usd(groceries2)}; the USDA ${FOOD_PLAN_LABEL[h.foodPlan]} plan for your household is about ${usd(plan)}. Store brands, a weekly meal plan and King Soopers digital coupons can close the gap.`,
         monthlyImpact: round2((groceries2 - plan) * 0.5),
         priority: 55,
@@ -188,7 +188,7 @@ export function generateInsights(i: InsightInput): Insight[] {
       out.push({
         id: 'groceries-good',
         kind: 'keep',
-        title: 'Your grocery spending is right on plan',
+        title: 'Your Grocery Spending Is Right on Plan',
         body: `${usd(groceries2)} a month is at or under the USDA ${FOOD_PLAN_LABEL[h.foodPlan]} plan (${usd(plan)}). Cooking at home is your strongest saving habit, so keep it going.`,
         monthlyImpact: 0,
         priority: 30,
@@ -201,7 +201,7 @@ export function generateInsights(i: InsightInput): Insight[] {
       out.push({
         id: 'bnpl',
         kind: 'quit',
-        title: 'Buy-now-pay-later is stacking up',
+        title: 'Buy-Now-Pay-Later Is Stacking Up',
         body: `${bnpl.length} installment payments recently. They're easy to lose track of; finish the current ones before starting new plans.`,
         monthlyImpact: 0,
         priority: 50,
@@ -231,7 +231,7 @@ export function generateInsights(i: InsightInput): Insight[] {
     out.push({
       id: `triple-${triple[0]}`,
       kind: 'save',
-      title: `${fmtMonth(triple[0])} has three paydays`,
+      title: `${fmtMonth(triple[0])} Has Three Paydays`,
       body: `Bills are usually covered by two checks, so the third one (about ${usd(i.netPerPaycheck)}) can go mostly to savings. That's a big pile of pebbles in one go.`,
       monthlyImpact: 0,
       priority: 62,
@@ -245,7 +245,7 @@ export function generateInsights(i: InsightInput): Insight[] {
     out.push({
       id: 'emergency-start',
       kind: 'save',
-      title: 'Start a Bedrock fund',
+      title: 'Start a Bedrock Fund',
       body: `An emergency fund turns surprises into inconveniences. Aim for ${settings.budget.emergencyMonths} months of bills and essentials. Pebbles fills it first, a little each paycheck.`,
       monthlyImpact: 0,
       priority: 68,
@@ -256,7 +256,7 @@ export function generateInsights(i: InsightInput): Insight[] {
       out.push({
         id: 'emergency-month',
         kind: 'win',
-        title: 'One full month of bills is covered',
+        title: 'One Full Month of Bills Is Covered',
         body: `Your ${emergency.name} holds ${usd(bal, true)}, enough for a month of bills. Pebbles will now share more of your savings with your other goals.`,
         monthlyImpact: 0,
         priority: 35,
@@ -269,7 +269,7 @@ export function generateInsights(i: InsightInput): Insight[] {
     out.push({
       id: 'ot-deduction',
       kind: 'win',
-      title: `Overtime may bring a refund of about ${usd(i.otTaxSaved, true)}`,
+      title: `Overtime May Bring a Refund of About ${usd(i.otTaxSaved, true)}`,
       body: `Under the federal "no tax on overtime" deduction (2025–2028), the extra half-time part of your overtime (about ${usd(i.otPremiumYtd, true)} this year) can be deducted when you file. Paychecks still withhold on it, so expect it back at tax time.`,
       monthlyImpact: 0,
       priority: 52,
@@ -283,7 +283,7 @@ export function generateInsights(i: InsightInput): Insight[] {
       out.push({
         id: 'rate-good',
         kind: 'win',
-        title: `You're saving ${Math.round(rate * 100)}% of take-home`,
+        title: `You're Saving ${Math.round(rate * 100)}% of Take-Home`,
         body: 'That beats the 20% guideline most planners recommend. Every paycheck adds to the pile.',
         monthlyImpact: 0,
         priority: 25,
@@ -293,7 +293,7 @@ export function generateInsights(i: InsightInput): Insight[] {
       out.push({
         id: 'rate-bump',
         kind: 'save',
-        title: 'Nudge savings up by 2%',
+        title: 'Nudge Savings Up by 2%',
         body: `You're saving about ${Math.round(rate * 100)}% now. Two more percent is about ${usd((i.netPerPaycheck * 2) / 100)} a check, ${usd(bump * 12, true)} a year, and it's rarely missed.`,
         monthlyImpact: bump,
         priority: 33,
@@ -309,7 +309,7 @@ export function generateInsights(i: InsightInput): Insight[] {
       out.push({
         id: 'shop-insurance',
         kind: 'cut',
-        title: 'Shop your insurance once a year',
+        title: 'Shop Your Insurance Once a Year',
         body: `You pay ${usd(insurance.reduce((s, b) => s + b.amount, 0))} a month for insurance. Getting two quotes at renewal and raising deductibles (once your Bedrock fund can cover them) often saves 10–20%.`,
         monthlyImpact: round2(insurance.reduce((s, b) => s + b.amount, 0) * 0.12),
         priority: 28,
@@ -320,7 +320,7 @@ export function generateInsights(i: InsightInput): Insight[] {
       out.push({
         id: 'phone-plan',
         kind: 'cut',
-        title: 'Phone & internet look pricey',
+        title: 'Phone & Internet Look Pricey',
         body: `${usd(phoneTotal)} a month. Prepaid carriers on the same networks (Mint, Visible, US Mobile) run $15–$30 a line, and calling your internet provider about current promos often works.`,
         monthlyImpact: round2(Math.max(0, phoneTotal - 75)),
         priority: 38,

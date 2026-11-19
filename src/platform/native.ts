@@ -100,7 +100,7 @@ async function scheduleReminders() {
     dues.slice(0, 20).forEach((b, i) => {
       const remind = at(addDays(b.date, -2), 9);
       if (remind.getTime() > now)
-        list.push({ id: 2000 + i, title: `${b.bill.name} is due in 2 days`, body: `${usd(b.amount)} on ${b.date.slice(5).replace('-', '/')}.`, schedule: { at: remind } });
+        list.push({ id: 2000 + i, title: `${b.bill.name} Is Due in 2 Days`, body: `${usd(b.amount)} on ${b.date.slice(5).replace('-', '/')}.`, schedule: { at: remind } });
     });
     if (list.length) await LocalNotifications.schedule({ notifications: list });
   } catch (e) {

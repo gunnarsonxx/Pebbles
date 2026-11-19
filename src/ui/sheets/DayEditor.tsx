@@ -57,7 +57,7 @@ export function DayEditor({ date, data, onClose }: { date: string; data: AppData
 
   return (
     <Sheet
-      title={overnight ? `${fmtDay(date)} night shift` : fmtDay(date)}
+      title={overnight ? `${fmtDay(date)} Night Shift` : fmtDay(date)}
       onClose={onClose}
       footer={
         <>
@@ -69,7 +69,7 @@ export function DayEditor({ date, data, onClose }: { date: string; data: AppData
                 onClose();
               }}
             >
-              Back to normal
+              Back to Normal
             </button>
           ) : (
             <button className="btn" onClick={onClose}>
@@ -77,7 +77,7 @@ export function DayEditor({ date, data, onClose }: { date: string; data: AppData
             </button>
           )}
           <button className="btn primary" onClick={save}>
-            Save day
+            Save Day
           </button>
         </>
       }
@@ -111,7 +111,7 @@ export function DayEditor({ date, data, onClose }: { date: string; data: AppData
                   <Field label="Hours">
                     <NumberInput value={s.hours} onChange={(v) => setSeg(i, { hours: Math.max(0, v ?? 0) })} suffix="h" ariaLabel="Hours" />
                   </Field>
-                  <Field label="Pay rate">
+                  <Field label="Pay Rate">
                     <select
                       className="input"
                       value={s.rateId ?? 'custom'}
@@ -128,7 +128,7 @@ export function DayEditor({ date, data, onClose }: { date: string; data: AppData
                 </div>
                 {s.rateId == null && (
                   <div className="mt">
-                    <Field label="Custom hourly rate">
+                    <Field label="Custom Hourly Rate">
                       <NumberInput value={s.rate} onChange={(v) => setSeg(i, { rate: v ?? 0 })} prefix="$" suffix="/hr" ariaLabel="Custom rate" />
                     </Field>
                   </div>
@@ -141,11 +141,11 @@ export function DayEditor({ date, data, onClose }: { date: string; data: AppData
               </div>
             ))}
             <button className="btn small" onClick={() => setDay({ ...day, segments: [...day.segments, { hours: 4, rateId: BASE_RATE_ID, rate: null }] })}>
-              <Plus /> Split the day across another rate
+              <Plus /> Split the Day Across Another Rate
             </button>
             {!autoHoliday && (
               <ToggleRow
-                title="Holiday pay for this shift"
+                title="Holiday Pay for This Shift"
                 hint={`For a holiday not on your list: paid ${pay.holidayMultiplier}×`}
                 on={!!day.workedHoliday}
                 onChange={(v) => setDay({ ...day, workedHoliday: v })}
@@ -155,7 +155,7 @@ export function DayEditor({ date, data, onClose }: { date: string; data: AppData
         )}
 
         {(day.status === 'pto' || day.status === 'sick' || day.status === 'holiday') && (
-          <Field label="Paid hours" hint="Paid at your base rate">
+          <Field label="Paid Hours" hint="Paid at your base rate">
             <NumberInput value={day.paidHours} onChange={(v) => setDay({ ...day, paidHours: Math.max(0, v ?? 0) })} suffix="h" />
           </Field>
         )}
@@ -168,7 +168,7 @@ export function DayEditor({ date, data, onClose }: { date: string; data: AppData
           </p>
         )}
 
-        <Field label="Note (optional)">
+        <Field label="Note (Optional)">
           <TextInput value={day.note} onChange={(v) => setDay({ ...day, note: v })} placeholder="e.g. covered for Sam, dentist" />
         </Field>
 
@@ -196,5 +196,5 @@ export function DayEditor({ date, data, onClose }: { date: string; data: AppData
 export function RateGem({ rateId, data }: { rateId: string | null; data: AppData }) {
   const r = rateId ? data.rates.find((x) => x.id === rateId) : null;
   if (!rateId || rateId === BASE_RATE_ID) return null;
-  return <GemIcon gem={r?.gem ?? 'amethyst'} size={12} title={r?.name ?? 'Custom rate'} />;
+  return <GemIcon gem={r?.gem ?? 'amethyst'} size={12} title={r?.name ?? 'Custom Rate'} />;
 }

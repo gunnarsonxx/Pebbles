@@ -14,10 +14,10 @@ import type { GoTo } from '../App';
 import { RetirementView } from './Retirement';
 
 export const MILESTONES: { pct: number; gem: GemName; label: string }[] = [
-  { pct: 0.25, gem: 'quartz', label: 'Quartz · a quarter of the way' },
-  { pct: 0.5, gem: 'amethyst', label: 'Amethyst · halfway' },
-  { pct: 0.75, gem: 'topaz', label: 'Topaz · three quarters' },
-  { pct: 1, gem: 'emerald', label: 'Emerald · goal reached' },
+  { pct: 0.25, gem: 'quartz', label: 'Quartz · a Quarter of the Way' },
+  { pct: 0.5, gem: 'amethyst', label: 'Amethyst · Halfway' },
+  { pct: 0.75, gem: 'topaz', label: 'Topaz · Three Quarters' },
+  { pct: 1, gem: 'emerald', label: 'Emerald · Goal Reached' },
 ];
 
 export function earnedGems(balance: number, target: number): GemName[] {
@@ -55,7 +55,7 @@ function GoalsView({ data }: { data: AppData }) {
   return (
     <div>
       <div className="card center" style={{ paddingTop: 22 }}>
-        <div className="eyebrow">All your savings</div>
+        <div className="eyebrow">All Your Savings</div>
         <div className="hero-number" style={{ marginTop: 6 }}>
           {pebbles(data.saved)}
         </div>
@@ -74,7 +74,7 @@ function GoalsView({ data }: { data: AppData }) {
       <div className="section-title">
         <h2>Goals</h2>
         <button className="btn primary small" onClick={() => setEditing(newGoal({ gem: GEMS[(goals.length + 3) % GEMS.length].id }))}>
-          <Plus /> New goal
+          <Plus /> New Goal
         </button>
       </div>
 
@@ -86,12 +86,12 @@ function GoalsView({ data }: { data: AppData }) {
           <div className="row" style={{ justifyContent: 'center' }}>
             <button
               className="btn"
-              onClick={() => setEditing(newGoal({ name: 'Bedrock fund', isEmergency: true, gem: 'obsidian', priority: 3, target: 3000 }))}
+              onClick={() => setEditing(newGoal({ name: 'Bedrock Fund', isEmergency: true, gem: 'obsidian', priority: 3, target: 3000 }))}
             >
-              <ShieldCheck /> Start a Bedrock fund
+              <ShieldCheck /> Start a Bedrock Fund
             </button>
             <button className="btn primary" onClick={() => setEditing(newGoal())}>
-              <Plus /> Something else
+              <Plus /> Something Else
             </button>
           </div>
         </div>
@@ -170,7 +170,7 @@ function GoalEditor({ goal, onClose }: { goal: Goal; onClose: () => void }) {
   const [busy, setBusy] = useState(false);
   return (
     <Sheet
-      title={goal.name ? 'Edit goal' : 'New savings goal'}
+      title={goal.name ? 'Edit Goal' : 'New Savings Goal'}
       onClose={onClose}
       footer={
         <>
@@ -185,7 +185,7 @@ function GoalEditor({ goal, onClose }: { goal: Goal; onClose: () => void }) {
               onClose();
             }}
           >
-            Save goal
+            Save Goal
           </button>
         </>
       }
@@ -216,17 +216,17 @@ function GoalEditor({ goal, onClose }: { goal: Goal; onClose: () => void }) {
         </button>
         {g.image && (
           <button className="btn ghost small" onClick={() => setG({ ...g, image: null })}>
-            Remove photo
+            Remove Photo
           </button>
         )}
         <Field label="What are you saving for?">
           <TextInput value={g.name} onChange={(v) => setG({ ...g, name: v })} placeholder="Engagement ring, new car, down payment…" autoFocus={!goal.name} />
         </Field>
         <div className="form-grid two">
-          <Field label="Goal amount" hint="1 pebble = $1">
+          <Field label="Goal Amount" hint="1 pebble = $1">
             <NumberInput value={g.target} onChange={(v) => setG({ ...g, target: v ?? 0 })} prefix="$" />
           </Field>
-          <Field label="Target date (optional)" hint="Pebbles paces savings to hit it">
+          <Field label="Target Date (Optional)" hint="Pebbles paces savings to hit it">
             <input className="input" type="date" value={g.targetDate ?? ''} onChange={(e) => setG({ ...g, targetDate: e.target.value || null })} />
           </Field>
         </div>
@@ -250,7 +250,7 @@ function GoalEditor({ goal, onClose }: { goal: Goal; onClose: () => void }) {
             ))}
           </div>
         </Field>
-        <ToggleRow title="This is my emergency fund" hint="Filled first until it covers a month of bills" on={g.isEmergency} onChange={(v) => setG({ ...g, isEmergency: v })} />
+        <ToggleRow title="This Is My Emergency Fund" hint="Filled first until it covers a month of bills" on={g.isEmergency} onChange={(v) => setG({ ...g, isEmergency: v })} />
       </div>
     </Sheet>
   );

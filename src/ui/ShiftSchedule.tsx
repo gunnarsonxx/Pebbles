@@ -13,12 +13,12 @@ export function ShiftSchedule({ pay, onChange }: { pay: PaySettings; onChange: (
   const perCheck = pay.workDays.length * 2 * (overnight ? shiftHours(pay) : pay.hoursPerDay);
   return (
     <div className="col gap-l">
-      <Field label="Your shifts">
+      <Field label="Your Shifts">
         <Segmented
           value={overnight ? 'night' : 'day'}
           options={[
-            { value: 'day', label: 'Day shifts' },
-            { value: 'night', label: 'Overnight shifts' },
+            { value: 'day', label: 'Day Shifts' },
+            { value: 'night', label: 'Overnight Shifts' },
           ]}
           onChange={(v) => update(v === 'night' ? { ...pay, shiftStart: pay.shiftStart ?? '21:30', shiftEnd: pay.shiftEnd ?? '06:00' } : { ...pay, shiftStart: null, shiftEnd: null, hoursPerDay: 8 })}
         />
@@ -26,22 +26,22 @@ export function ShiftSchedule({ pay, onChange }: { pay: PaySettings; onChange: (
       {overnight ? (
         <>
           <div className="form-grid two">
-            <Field label="Shift starts">
+            <Field label="Shift Starts">
               <input className="input" type="time" value={pay.shiftStart ?? '21:30'} onChange={(e) => e.target.value && update({ ...pay, shiftStart: e.target.value })} />
             </Field>
-            <Field label="Shift ends (next morning)">
+            <Field label="Shift Ends (Next Morning)">
               <input className="input" type="time" value={pay.shiftEnd ?? '06:00'} onChange={(e) => e.target.value && update({ ...pay, shiftEnd: e.target.value })} />
             </Field>
           </div>
-          <Field label="Unpaid break">
+          <Field label="Unpaid Break">
             <NumberInput value={pay.breakMinutes} onChange={(v) => update({ ...pay, breakMinutes: Math.max(0, Math.round(v ?? 0)) })} suffix="min" />
           </Field>
-          <Field label="Break is usually">
+          <Field label="Break Is Usually">
               <Segmented
                 value={pay.breakAfterMidnight ? 'after' : 'before'}
                 options={[
-                  { value: 'before', label: 'Before midnight' },
-                  { value: 'after', label: 'After midnight' },
+                  { value: 'before', label: 'Before Midnight' },
+                  { value: 'after', label: 'After Midnight' },
                 ]}
                 onChange={(v) => update({ ...pay, breakAfterMidnight: v === 'after' })}
               />
@@ -52,12 +52,12 @@ export function ShiftSchedule({ pay, onChange }: { pay: PaySettings; onChange: (
           </p>
         </>
       ) : (
-        <Field label="Hours in a normal day">
+        <Field label="Hours in a Normal Day">
           <NumberInput value={pay.hoursPerDay} onChange={(v) => update({ ...pay, hoursPerDay: v ?? 8 })} suffix="h" />
         </Field>
       )}
       <Field
-        label={overnight ? 'Nights your shift starts' : 'Days you normally work'}
+        label={overnight ? 'Nights Your Shift Starts' : 'Days You Normally Work'}
         hint={`${num(perCheck)} hours per paycheck = ${usd(perCheck * pay.baseRate)} base pay`}
       >
         <div className="row wrap" style={{ gap: 6 }}>

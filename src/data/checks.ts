@@ -20,12 +20,12 @@ export interface CheckResult {
 }
 
 export const CHECK_LABELS: Record<CheckId, string> = {
-  plaid: 'Plaid (bank connections)',
-  kroger: 'Kroger (King Soopers prices)',
-  eia: 'EIA (Colorado gas prices)',
-  bls: 'BLS (grocery price trends)',
-  google: 'Google Maps (gas station prices)',
-  github: 'Pebbles updates & tax tables',
+  plaid: 'Plaid (Bank Connections)',
+  kroger: 'Kroger (King Soopers Prices)',
+  eia: 'EIA (Colorado Gas Prices)',
+  bls: 'BLS (Grocery Price Trends)',
+  google: 'Google Maps (Gas Station Prices)',
+  github: 'Pebbles Updates & Tax Tables',
 };
 
 let results: Partial<Record<CheckId, CheckResult>> = {};

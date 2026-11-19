@@ -4,12 +4,12 @@ import { usd } from '../core/money';
 import { dismissInsight } from '../data/actions';
 
 const KIND: Record<InsightKind, { icon: typeof Lightbulb; color: string; label: string }> = {
-  save: { icon: Sprout, color: 'var(--jade)', label: 'Save more' },
-  quit: { icon: Ban, color: 'var(--spend)', label: 'Habit to quit' },
-  keep: { icon: ThumbsUp, color: 'var(--good)', label: 'Habit to keep' },
-  cut: { icon: Scissors, color: 'var(--citrine)', label: 'Cut back' },
-  heads_up: { icon: TriangleAlert, color: 'var(--warn)', label: 'Heads up' },
-  win: { icon: Sparkles, color: 'var(--amethyst)', label: 'Good news' },
+  save: { icon: Sprout, color: 'var(--jade)', label: 'Save More' },
+  quit: { icon: Ban, color: 'var(--spend)', label: 'Habit to Quit' },
+  keep: { icon: ThumbsUp, color: 'var(--good)', label: 'Habit to Keep' },
+  cut: { icon: Scissors, color: 'var(--citrine)', label: 'Cut Back' },
+  heads_up: { icon: TriangleAlert, color: 'var(--warn)', label: 'Heads Up' },
+  win: { icon: Sparkles, color: 'var(--amethyst)', label: 'Good News' },
 };
 
 export function InsightList({ items, limit, dismissable = true }: { items: Insight[]; limit?: number; dismissable?: boolean }) {

@@ -12,14 +12,14 @@ import type { AppData } from '../../data/useData';
 import type { PaystubLine } from '../../core/types';
 
 const KIND_LABEL: Record<PaystubLine['kind'], string> = {
-  federal: 'Federal income tax',
+  federal: 'Federal Income Tax',
   social_security: 'Social Security',
   medicare: 'Medicare',
-  state: 'State income tax',
+  state: 'State Income Tax',
   famli: 'Colorado FAMLI',
-  local: 'Local tax',
-  pretax: 'Before-tax deduction',
-  posttax: 'After-tax deduction',
+  local: 'Local Tax',
+  pretax: 'Before-Tax Deduction',
+  posttax: 'After-Tax Deduction',
   other: 'Other',
 };
 
@@ -67,7 +67,7 @@ export function PaystubSheet({ data, onClose }: { data: AppData; onClose: () => 
 
   return (
     <Sheet
-      title="Upload a pay stub"
+      title="Upload a Pay Stub"
       wide
       onClose={onClose}
       footer={
@@ -86,7 +86,7 @@ export function PaystubSheet({ data, onClose }: { data: AppData; onClose: () => 
                 onClose();
               }}
             >
-              Use these numbers
+              Use These Numbers
             </button>
           </>
         ) : undefined
@@ -123,16 +123,16 @@ export function PaystubSheet({ data, onClose }: { data: AppData; onClose: () => 
             </div>
           ))}
           <div className="form-grid two">
-            <Field label="Gross pay">
+            <Field label="Gross Pay">
               <NumberInput value={stub.gross} allowEmpty onChange={(v) => setStub({ ...stub, gross: v })} prefix="$" />
             </Field>
-            <Field label="Net pay (take-home)">
+            <Field label="Net Pay (Take-Home)">
               <NumberInput value={stub.net} allowEmpty onChange={(v) => setStub({ ...stub, net: v })} prefix="$" />
             </Field>
-            <Field label="Pay date">
+            <Field label="Pay Date">
               <input className="input" type="date" value={stub.payDate ?? ''} onChange={(e) => setStub({ ...stub, payDate: e.target.value || null })} />
             </Field>
-            <Field label="Period start">
+            <Field label="Period Start">
               <input className="input" type="date" value={stub.periodStart ?? ''} onChange={(e) => setStub({ ...stub, periodStart: e.target.value || null })} />
             </Field>
           </div>
@@ -156,8 +156,8 @@ export function PaystubSheet({ data, onClose }: { data: AppData; onClose: () => 
               <thead>
                 <tr>
                   <th>Line</th>
-                  <th className="r">This check</th>
-                  <th className="r">Pebbles estimated</th>
+                  <th className="r">This Check</th>
+                  <th className="r">Pebbles Estimated</th>
                 </tr>
               </thead>
               <tbody>
@@ -185,13 +185,13 @@ export function PaystubSheet({ data, onClose }: { data: AppData; onClose: () => 
             </p>
           )}
           <ToggleRow
-            title={`Copy ${ded.length} deduction${ded.length === 1 ? '' : 's'} into Pebbles`}
+            title={`Copy ${ded.length} Deduction${ded.length === 1 ? '' : 's'} Into Pebbles`}
             hint={ded.map((d) => `${d.name} ${d.mode === 'percent' ? `${d.amount}%` : usd(d.amount)}`).join(' · ') || 'None found on this stub'}
             on={applyDeductions && ded.length > 0}
             onChange={setApplyDeductions}
           />
-          <ToggleRow title="Record this paycheck" hint="Used to fine-tune future estimates" on={recordPaycheck} onChange={setRecordPaycheck} />
-          {newRate && <ToggleRow title={`Update your base rate to ${usd(newRate)}`} hint={`Pebbles has ${usd(data.settings.pay.baseRate)}`} on={useRate} onChange={setUseRate} />}
+          <ToggleRow title="Record This Paycheck" hint="Used to fine-tune future estimates" on={recordPaycheck} onChange={setRecordPaycheck} />
+          {newRate && <ToggleRow title={`Update Your Base Rate to ${usd(newRate)}`} hint={`Pebbles has ${usd(data.settings.pay.baseRate)}`} on={useRate} onChange={setUseRate} />}
         </div>
       )}
     </Sheet>

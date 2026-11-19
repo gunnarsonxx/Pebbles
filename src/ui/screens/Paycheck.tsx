@@ -62,7 +62,7 @@ export function PaycheckScreen({ data }: { data: AppData; go: GoTo }) {
     });
   };
 
-  const label = offset === 0 ? 'Next paycheck' : offset < 0 ? (offset === -1 ? 'Previous paycheck' : `${-offset} paychecks ago`) : offset === 1 ? 'The one after' : `${offset} paychecks ahead`;
+  const label = offset === 0 ? 'Next Paycheck' : offset < 0 ? (offset === -1 ? 'Previous Paycheck' : `${-offset} Paychecks Ago`) : offset === 1 ? 'The One After' : `${offset} Paychecks Ahead`;
 
   return (
     <div>
@@ -86,7 +86,7 @@ export function PaycheckScreen({ data }: { data: AppData; go: GoTo }) {
           <div className="card">
             <div className="row between" style={{ alignItems: 'flex-end' }}>
               <div>
-                <div className="eyebrow">Estimated take-home</div>
+                <div className="eyebrow">Estimated Take-Home</div>
                 <div className="hero-number">{usd(est.net)}</div>
               </div>
               <div style={{ textAlign: 'right' }}>
@@ -120,7 +120,7 @@ export function PaycheckScreen({ data }: { data: AppData; go: GoTo }) {
 
           <div className="card">
             <div className="card-head">
-              <div className="eyebrow">{overnight ? 'Your shifts' : 'Your two weeks'}</div>
+              <div className="eyebrow">{overnight ? 'Your Shifts' : 'Your Two Weeks'}</div>
               <div className="row gap-s">
                 {edits.length > 0 && (
                   <button className="btn ghost small" onClick={() => void resetPeriod()}>
@@ -199,9 +199,9 @@ export function PaycheckScreen({ data }: { data: AppData; go: GoTo }) {
 
           <div className="card">
             <div className="card-head">
-              <div className="eyebrow">Pay rates</div>
+              <div className="eyebrow">Pay Rates</div>
               <button className="btn small" onClick={() => setRateEdit({ id: uid('rate_'), name: '', rate: settings.pay.baseRate + 2, gem: 'amethyst' })}>
-                <Plus /> Add rate
+                <Plus /> Add Rate
               </button>
             </div>
             <div className="list">
@@ -219,7 +219,7 @@ export function PaycheckScreen({ data }: { data: AppData; go: GoTo }) {
           <div className="card">
             <div className="card-head">
               <div>
-                <div className="eyebrow">Pay stubs</div>
+                <div className="eyebrow">Pay Stubs</div>
                 <div className="small muted">
                   {data.paystubs[0] ? `Last: ${data.paystubs[0].payDate ? fmtDay(data.paystubs[0].payDate) : 'no date'}${data.paystubs[0].net != null ? ` · ${usd(data.paystubs[0].net)} take-home` : ''}` : 'Pebbles learns your real taxes and deductions from them'}
                 </div>
@@ -233,14 +233,14 @@ export function PaycheckScreen({ data }: { data: AppData; go: GoTo }) {
 
         <div className="card">
           <div className="eyebrow" style={{ marginBottom: 10 }}>
-            How we got there
+            How We Got There
           </div>
-          <Line label={`Base pay`} detail={`${num(g.scheduledHours)} h × ${usd(settings.pay.baseRate)}`} value={usd(g.basePay)} strong />
+          <Line label={`Base Pay`} detail={`${num(g.scheduledHours)} h × ${usd(settings.pay.baseRate)}`} value={usd(g.basePay)} strong />
           {g.adjustments.map((a, i) => (
             <Line key={i} label={a.label} detail={a.detail} value={signedUsd(a.amount)} tone={a.amount >= 0 ? 'good' : 'bad'} indent />
           ))}
           <div className="divider" />
-          <Line label="Gross pay" value={usd(g.gross)} strong />
+          <Line label="Gross Pay" value={usd(g.gross)} strong />
           {w.preTax.map((d) => (
             <Line key={d.id} label={d.name} detail="before tax" value={signedUsd(-d.amount)} indent />
           ))}
@@ -250,9 +250,9 @@ export function PaycheckScreen({ data }: { data: AppData; go: GoTo }) {
           {w.postTax.map((d) => (
             <Line key={d.id} label={d.name} detail="after tax" value={signedUsd(-d.amount)} indent />
           ))}
-          {data.calibration !== 0 && <Line label="Matched to your real paychecks" detail="learned from recent deposits" value={signedUsd(data.calibration)} indent />}
+          {data.calibration !== 0 && <Line label="Matched to Your Real Paychecks" detail="learned from recent deposits" value={signedUsd(data.calibration)} indent />}
           <div className="divider" />
-          <Line label="Take-home" value={usd(est.net)} strong big />
+          <Line label="Take-Home" value={usd(est.net)} strong big />
           <div className="divider" />
           <div className="row small muted" style={{ alignItems: 'flex-start' }}>
             <Info size={16} style={{ flexShrink: 0, marginTop: 2 }} />
@@ -301,7 +301,7 @@ function History({ data }: { data: AppData }) {
   return (
     <div className="card mt">
       <div className="eyebrow" style={{ marginBottom: 6 }}>
-        Recent paychecks
+        Recent Paychecks
       </div>
       <div className="scroll-x">
         <table className="table">
@@ -334,7 +334,7 @@ function RateSheet({ rate, onClose }: { rate: PayRate; onClose: () => void }) {
   const exists = !!store.get('rates', rate.id);
   return (
     <Sheet
-      title={exists ? 'Edit pay rate' : 'New pay rate'}
+      title={exists ? 'Edit Pay Rate' : 'New Pay Rate'}
       onClose={onClose}
       footer={
         <>
@@ -366,10 +366,10 @@ function RateSheet({ rate, onClose }: { rate: PayRate; onClose: () => void }) {
         <Field label="Name" hint="e.g. Lead shift, Training, Weekend, Forklift">
           <TextInput value={r.name} onChange={(v) => setR({ ...r, name: v })} autoFocus />
         </Field>
-        <Field label="Hourly rate">
+        <Field label="Hourly Rate">
           <NumberInput value={r.rate} onChange={(v) => setR({ ...r, rate: v ?? 0 })} prefix="$" suffix="/hr" />
         </Field>
-        <Field label="Gem marker">
+        <Field label="Gem Marker">
           <div className="row wrap">
             {GEMS.map((gm) => (
               <button key={gm.id} className={`chip${r.gem === gm.id ? ' on' : ''}`} onClick={() => setR({ ...r, gem: gm.id })}>
@@ -387,7 +387,7 @@ function ShiftsSheet({ pay, onClose }: { pay: PaySettings; onClose: () => void }
   const [p, setP] = useState(pay);
   return (
     <Sheet
-      title="Your shifts"
+      title="Your Shifts"
       onClose={onClose}
       footer={
         <>

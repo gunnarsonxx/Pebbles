@@ -20,7 +20,7 @@ const PER_PERSON = {
 
 export const FOOD_PLAN_LABEL: Record<HouseholdSettings['foodPlan'], string> = {
   thrifty: 'Thrifty',
-  low: 'Low-cost',
+  low: 'Low-Cost',
   moderate: 'Moderate',
   liberal: 'Liberal',
 };

@@ -39,7 +39,7 @@ export function AccountsView({ data, openSettings }: { data: AppData; openSettin
       <div className="card">
         <div className="card-head">
           <div>
-            <div className="eyebrow">Connected banks</div>
+            <div className="eyebrow">Connected Banks</div>
             <div className="small muted">Transactions and balances update on their own, a few times a day.</div>
           </div>
           {hasKeys && (
@@ -63,7 +63,7 @@ export function AccountsView({ data, openSettings }: { data: AppData; openSettin
               Connect your checking account and Marcus so Pebbles sees every purchase, your paycheck and your savings balance automatically. It uses Plaid’s free Trial plan; setup takes about five minutes, once.
             </p>
             <button className="btn primary" style={{ alignSelf: 'flex-start' }} onClick={openSettings}>
-              <Link2 /> Set up bank connections
+              <Link2 /> Set Up Bank Connections
             </button>
           </div>
         ) : (
@@ -97,7 +97,7 @@ export function AccountsView({ data, openSettings }: { data: AppData; openSettin
                   <div className="row mt">
                     <span className="small warn grow">{l.error}</span>
                     <button className="btn small" onClick={() => void connect(l)}>
-                      Sign in again
+                      Sign In Again
                     </button>
                   </div>
                 )}
@@ -114,7 +114,7 @@ export function AccountsView({ data, openSettings }: { data: AppData; openSettin
               </div>
             ) : (
               <button className="btn primary" style={{ alignSelf: 'flex-start' }} onClick={() => void connect()}>
-                <Plus /> Connect a bank
+                <Plus /> Connect a Bank
               </button>
             )}
           </div>
@@ -124,7 +124,7 @@ export function AccountsView({ data, openSettings }: { data: AppData; openSettin
       {hasKeys && (
         <div className="card mt">
           <div className="eyebrow" style={{ marginBottom: 6 }}>
-            Connection status
+            Connection Status
           </div>
           {entries.length ? (
             <div className="list">
@@ -146,7 +146,7 @@ export function AccountsView({ data, openSettings }: { data: AppData; openSettin
       {(byLink.get('manual') ?? []).length > 0 && (
         <div className="card mt">
           <div className="eyebrow" style={{ marginBottom: 6 }}>
-            From imported statements
+            From Imported Statements
           </div>
           <AccountRows accounts={byLink.get('manual') ?? []} onEdit={setEditing} />
         </div>
@@ -212,19 +212,19 @@ function AccountSheet({ account, onClose }: { account: Account; onClose: () => v
         </Field>
         {a.type === 'savings' && (
           <>
-            <ToggleRow title="My savings goals live here" hint="Pebbles keeps your goals in step with this account’s balance and adds its interest to them" on={!!a.holdsGoals} onChange={(v) => setA({ ...a, holdsGoals: v })} />
-            <Field label="Interest rate (APY)" hint="It’s on your Marcus app or statement. Pebbles projects your monthly interest from it.">
+            <ToggleRow title="My Savings Goals Live Here" hint="Pebbles keeps your goals in step with this account’s balance and adds its interest to them" on={!!a.holdsGoals} onChange={(v) => setA({ ...a, holdsGoals: v })} />
+            <Field label="Interest Rate (APY)" hint="It’s on your Marcus app or statement. Pebbles projects your monthly interest from it.">
               <NumberInput value={a.apy ?? null} allowEmpty onChange={(v) => setA({ ...a, apy: v })} suffix="%" />
             </Field>
           </>
         )}
         {a.source !== 'plaid' && (
-          <Field label="Current balance (optional)" hint="Connected banks fill this in automatically">
+          <Field label="Current Balance (Optional)" hint="Connected banks fill this in automatically">
             <NumberInput value={a.balance ?? null} allowEmpty onChange={(v) => setA({ ...a, balance: v, balanceDate: new Date().toISOString().slice(0, 10) })} prefix="$" />
           </Field>
         )}
         {a.type !== 'savings' && (
-          <Field label="Account type">
+          <Field label="Account Type">
             <select className="input" value={a.type} onChange={(e) => setA({ ...a, type: e.target.value as Account['type'] })}>
               <option value="checking">Checking</option>
               <option value="savings">Savings</option>

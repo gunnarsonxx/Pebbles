@@ -33,7 +33,7 @@ export const HOLIDAYS: HolidayDef[] = [
   { id: 'thanksgiving', name: 'Thanksgiving', federal: true, date: (y) => nthWeekday(y, 11, 4, 4) },
   { id: 'christmas', name: 'Christmas Day', federal: true, date: (y) => makeDate(y, 12, 25) },
   // common employer holidays that aren't federal
-  { id: 'black_friday', name: 'Day after Thanksgiving', federal: false, date: (y) => addDays(nthWeekday(y, 11, 4, 4), 1) },
+  { id: 'black_friday', name: 'Day After Thanksgiving', federal: false, date: (y) => addDays(nthWeekday(y, 11, 4, 4), 1) },
   { id: 'christmas_eve', name: 'Christmas Eve', federal: false, date: (y) => makeDate(y, 12, 24) },
   { id: 'new_years_eve', name: 'New Year’s Eve', federal: false, date: (y) => makeDate(y, 12, 31) },
   { id: 'easter', name: 'Easter Sunday', federal: false, date: (y) => easter(y) },

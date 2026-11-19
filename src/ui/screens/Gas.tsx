@@ -66,12 +66,12 @@ export function GasView({ data, go }: { data: AppData; go: GoTo }) {
       <div className="card">
         <div className="grid two" style={{ gap: 12 }}>
           <div>
-            <div className="eyebrow">You last paid</div>
+            <div className="eyebrow">You Last Paid</div>
             <div className="big-number">{lastPaid ? ppg(lastPaid.perGallon) : '—'}</div>
             <div className="tiny muted">{lastPaid ? `${lastPaid.station} · ${fmtShort(lastPaid.date)}` : 'Upload a gas receipt or tap a price below'}</div>
           </div>
           <div>
-            <div className="eyebrow">Colorado average</div>
+            <div className="eyebrow">Colorado Average</div>
             <div className="big-number">{data.market?.gas ? ppg(data.market.gas.price) : avg ? ppg(avg.price) : '—'}</div>
             <div className="tiny muted">{data.market?.gas ? `Regular, week of ${fmtShort(data.market.gas.asOf)}` : 'Loads when you’re online'}</div>
           </div>
@@ -87,15 +87,15 @@ export function GasView({ data, go }: { data: AppData; go: GoTo }) {
       <Segmented
         value={where}
         options={[
-          { value: 'home', label: 'Near home' },
-          { value: 'here', label: 'Near me now' },
+          { value: 'home', label: 'Near Home' },
+          { value: 'here', label: 'Near Me Now' },
         ]}
         onChange={setWhere}
       />
 
       {where === 'home' && (editHome || !hasHome) && (
         <div className="card">
-          <Field label="Your home address" hint="Used only to find stations near home. The U.S. Census map service turns it into a map position.">
+          <Field label="Your Home Address" hint="Used only to find stations near home. The U.S. Census map service turns it into a map position.">
             <TextInput value={address} onChange={setAddress} placeholder="Street, city, ZIP" />
           </Field>
           <div className="row mt">
@@ -116,7 +116,7 @@ export function GasView({ data, go }: { data: AppData; go: GoTo }) {
                 }
               }}
             >
-              <House /> {busy ? 'Finding…' : 'Save home'}
+              <House /> {busy ? 'Finding…' : 'Save Home'}
             </button>
             {hasHome && (
               <button className="btn" onClick={() => setEditHome(false)}>
@@ -133,7 +133,7 @@ export function GasView({ data, go }: { data: AppData; go: GoTo }) {
             See the stations around wherever you are right now.
           </p>
           <button className="btn primary" disabled={busy} onClick={() => void load()}>
-            <LocateFixed /> {busy ? 'Finding you…' : 'Use my location'}
+            <LocateFixed /> {busy ? 'Finding You…' : 'Use My Location'}
           </button>
         </div>
       )}
@@ -144,7 +144,7 @@ export function GasView({ data, go }: { data: AppData; go: GoTo }) {
         <div className="card">
           <div className="card-head">
             <div>
-              <div className="eyebrow">{where === 'home' ? 'Stations near home' : 'Stations near you'}</div>
+              <div className="eyebrow">{where === 'home' ? 'Stations Near Home' : 'Stations Near You'}</div>
               <div className="tiny muted">
                 {stations.length} within 5 miles · {cache.source === 'google' ? 'live prices from Google Maps' : 'prices from your receipts and taps'}
               </div>
@@ -202,7 +202,7 @@ export function GasView({ data, go }: { data: AppData; go: GoTo }) {
             <p className="tiny muted mt">
               Station prices aren’t public for free. Pebbles uses your gas receipts and the prices you tap in. For live posted prices,{' '}
               <button className="link-btn" onClick={() => go('settings', 'connections')}>
-                add a Google Maps key
+                Add a Google Maps Key
               </button>
               .
             </p>
@@ -234,12 +234,12 @@ function PriceSheet({ station, onClose }: { station: Station; onClose: () => voi
               onClose();
             }}
           >
-            Save price
+            Save Price
           </button>
         </>
       }
     >
-      <Field label="Regular, per gallon" hint="What the sign says today">
+      <Field label="Regular, per Gallon" hint="What the sign says today">
         <NumberInput value={v} onChange={setV} prefix="$" allowEmpty autoFocus placeholder="3.299" />
       </Field>
     </Sheet>

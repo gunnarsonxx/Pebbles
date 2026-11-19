@@ -19,7 +19,7 @@ export function MovesCard({ data }: { data: AppData }) {
   const { period, plan, moves, isPast } = m;
   const daysTo = Math.round((Date.parse(period.payday) - Date.parse(data.today)) / 86_400_000);
   const allDone = moves.filter((x) => x.checkable).every((x) => x.done);
-  const header = isPast || daysTo <= 0 ? `Payday moves · ${fmtDay(period.payday)}` : `On payday (${fmtDay(period.payday)}), do this`;
+  const header = isPast || daysTo <= 0 ? `Payday Moves · ${fmtDay(period.payday)}` : `On Payday (${fmtDay(period.payday)}), Do This`;
   return (
     <div className="card mt">
       <div className="card-head">
@@ -129,7 +129,7 @@ export function SavingsAccountCard({ data }: { data: AppData }) {
               : `Matching your goals to ${acct.name}…`}
           </p>
           <button className="btn small" onClick={() => setSplitting(true)}>
-            <SlidersHorizontal /> Adjust split
+            <SlidersHorizontal /> Adjust Split
           </button>
         </div>
       )}
@@ -223,9 +223,9 @@ function Projection({ points }: { points: number[] }) {
 }
 
 const STANDING: Record<Standing, { icon: typeof Check; color: string; label: string }> = {
-  good: { icon: CircleCheck, color: 'var(--good)', label: 'On track' },
-  close: { icon: CircleDot, color: 'var(--warn)', label: 'Getting there' },
-  off: { icon: TriangleAlert, color: 'var(--bad)', label: 'Needs attention' },
+  good: { icon: CircleCheck, color: 'var(--good)', label: 'On Track' },
+  close: { icon: CircleDot, color: 'var(--warn)', label: 'Getting There' },
+  off: { icon: TriangleAlert, color: 'var(--bad)', label: 'Needs Attention' },
 };
 
 /** Plan: how your split compares to what the experts broadly agree on. */
@@ -234,7 +234,7 @@ export function GuidelinesCard({ data }: { data: AppData }) {
     <div className="card mt">
       <div className="card-head">
         <div>
-          <div className="eyebrow">How you compare to the experts</div>
+          <div className="eyebrow">How You Compare to the Experts</div>
           <div className="small muted">Pebbles follows these automatically when it plans each paycheck</div>
         </div>
       </div>

@@ -26,7 +26,7 @@ export function ChecksCard() {
             setBusy(null);
           }}
         >
-          <RefreshCw /> {busy === 'all' ? 'Testing…' : 'Test all'}
+          <RefreshCw /> {busy === 'all' ? 'Testing…' : 'Test All'}
         </button>
       </div>
       <div className="list">

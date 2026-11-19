@@ -124,7 +124,7 @@ export function ImportSheet({ data, onClose }: { data: AppData; onClose: () => v
 
   return (
     <Sheet
-      title="Import statements"
+      title="Import Statements"
       wide
       onClose={onClose}
       footer={
@@ -172,7 +172,7 @@ export function ImportSheet({ data, onClose }: { data: AppData; onClose: () => v
               </select>
             </Field>
             {accountId === 'new' && (
-              <Field label="Account name">
+              <Field label="Account Name">
                 <TextInput value={newName} onChange={setNewName} placeholder="e.g. Ent Checking, Visa card" />
               </Field>
             )}
@@ -183,7 +183,7 @@ export function ImportSheet({ data, onClose }: { data: AppData; onClose: () => v
                   options={[
                     { value: 'checking', label: 'Checking' },
                     { value: 'savings', label: 'Savings' },
-                    { value: 'credit', label: 'Credit card' },
+                    { value: 'credit', label: 'Credit Card' },
                   ]}
                   onChange={setNewType}
                 />
@@ -211,7 +211,7 @@ export function ImportSheet({ data, onClose }: { data: AppData; onClose: () => v
                 </div>
                 <div className="row">
                   <button className="btn small" onClick={() => flip(fi)} title="Swap money in and money out">
-                    <ArrowLeftRight /> Flip signs
+                    <ArrowLeftRight /> Flip Signs
                   </button>
                   <button className="icon-btn" aria-label="Remove file" onClick={() => setFiles(files.filter((_, k) => k !== fi))}>
                     <X />
@@ -299,10 +299,10 @@ function MappingEditor({ headers, mapping, onChange }: { headers: string[]; mapp
     );
   return (
     <div className="form-grid two mt">
-      <Field label="Date column">{opt(mapping.date, 'date')}</Field>
-      <Field label="Description column">{opt(mapping.description, 'description')}</Field>
-      <Field label="Amount column">{opt(mapping.amount, 'amount', true)}</Field>
-      <Field label="Or: money out / money in">
+      <Field label="Date Column">{opt(mapping.date, 'date')}</Field>
+      <Field label="Description Column">{opt(mapping.description, 'description')}</Field>
+      <Field label="Amount Column">{opt(mapping.amount, 'amount', true)}</Field>
+      <Field label="Or: Money Out / Money In">
         <div className="row">
           {opt(mapping.debit, 'debit', true)}
           {opt(mapping.credit, 'credit', true)}

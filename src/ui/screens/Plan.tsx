@@ -30,7 +30,7 @@ export function PlanScreen({ data, go }: { data: AppData; go: GoTo }) {
       <div className="card">
         <div className="card-head">
           <div>
-            <div className="eyebrow">Paycheck plan · {fmtDay(upcoming.period.payday)}</div>
+            <div className="eyebrow">Paycheck Plan · {fmtDay(upcoming.period.payday)}</div>
             <div className="small muted">{usd(plan.net)} expected take-home</div>
           </div>
         </div>
@@ -40,7 +40,7 @@ export function PlanScreen({ data, go }: { data: AppData; go: GoTo }) {
             { key: 'bills', label: 'Bills', value: plan.bills, color: 'var(--sapphire)', hint: data.settings.budget.billsMode === 'due_dates' ? `Due by ${fmtShort(addDays(data.afterUpcoming.payday, -1))}` : 'Even share of monthly bills' },
             {
               key: 'you',
-              label: 'Your money',
+              label: 'Your Money',
               value: plan.essentials + Math.max(0, plan.personal),
               color: 'var(--amethyst)',
               hint: `${usd(plan.essentials, true)} groceries, gas & basics · ${usd(Math.max(0, plan.personal), true)} to enjoy (${usd(plan.personalPerDay)}/day)`,
@@ -51,7 +51,7 @@ export function PlanScreen({ data, go }: { data: AppData; go: GoTo }) {
         {plan.available > 0 && (
           <div className="mt-l">
             <div className="row between small">
-              <span className="strong">Savings this check</span>
+              <span className="strong">Savings This Check</span>
               <span className="num">
                 {usd(plan.savings, true)}
                 {override != null && (
@@ -85,7 +85,7 @@ export function PlanScreen({ data, go }: { data: AppData; go: GoTo }) {
         {plan.allocations.length > 0 && (
           <div className="mt">
             <div className="eyebrow" style={{ marginBottom: 4 }}>
-              Savings goes to
+              Savings Goes To
             </div>
             {plan.allocations.map((a) => {
               const g = data.goals.find((x) => x.id === a.goalId);
@@ -107,7 +107,7 @@ export function PlanScreen({ data, go }: { data: AppData; go: GoTo }) {
         <div className="card">
           <div className="card-head">
             <div>
-              <div className="eyebrow">Monthly bills</div>
+              <div className="eyebrow">Monthly Bills</div>
               <div className="small muted">
                 {usd(monthly)} a month · about {usd((monthly * 12) / 26)} per paycheck
               </div>
@@ -139,7 +139,7 @@ export function PlanScreen({ data, go }: { data: AppData; go: GoTo }) {
           {recurring.length > 0 && (
             <div className="mt">
               <div className="eyebrow" style={{ marginBottom: 4 }}>
-                Found in your statements
+                Found in Your Statements
               </div>
               {recurring.map((r) => (
                 <div key={r.key} className="row" style={{ padding: '6px 0' }}>
@@ -179,7 +179,7 @@ export function PlanScreen({ data, go }: { data: AppData; go: GoTo }) {
         <div className="card">
           <div className="card-head">
             <div>
-              <div className="eyebrow">Groceries, gas & basics</div>
+              <div className="eyebrow">Groceries, Gas & Basics</div>
               <div className="small muted">
                 Part of your money · {usd(essentials.totalMonthly)} a month, {usd(essentials.perPaycheck)} per paycheck
               </div>
@@ -213,7 +213,7 @@ export function PlanScreen({ data, go }: { data: AppData; go: GoTo }) {
             <div className="list-item">
               <CategoryIcon id="household" size={34} />
               <div className="grow">
-                <div className="strong">Other basics</div>
+                <div className="strong">Other Basics</div>
                 <div className="tiny muted">Toiletries, cleaning, pet food… (Settings → Budget)</div>
               </div>
               <div className="amount">{usd(essentials.otherMonthly, true)}</div>
@@ -262,7 +262,7 @@ function BillSheet({ bill, onClose }: { bill: Bill; onClose: () => void }) {
   const billCats = CATEGORIES.filter((c) => c.group === 'bills' || ['transport', 'health', 'pets', 'household'].includes(c.id));
   return (
     <Sheet
-      title={isNew ? 'New bill' : 'Edit bill'}
+      title={isNew ? 'New Bill' : 'Edit Bill'}
       onClose={onClose}
       footer={
         <>
@@ -298,7 +298,7 @@ function BillSheet({ bill, onClose }: { bill: Bill; onClose: () => void }) {
           <Field label="Amount">
             <NumberInput value={b.amount} onChange={(v) => setB({ ...b, amount: v ?? 0 })} prefix="$" />
           </Field>
-          <Field label="How often">
+          <Field label="How Often">
             <select className="input" value={b.frequency} onChange={(e) => setB({ ...b, frequency: e.target.value as BillFrequency })}>
               <option value="monthly">Monthly</option>
               <option value="yearly">Yearly</option>
@@ -308,12 +308,12 @@ function BillSheet({ bill, onClose }: { bill: Bill; onClose: () => void }) {
             </select>
           </Field>
           {(b.frequency === 'monthly' || b.frequency === 'quarterly' || b.frequency === 'yearly') && (
-            <Field label="Due day of the month">
+            <Field label="Due Day of the Month">
               <NumberInput value={b.dueDay} onChange={(v) => setB({ ...b, dueDay: Math.min(31, Math.max(1, Math.round(v ?? 1))) })} />
             </Field>
           )}
           {(b.frequency === 'yearly' || b.frequency === 'quarterly') && (
-            <Field label={b.frequency === 'yearly' ? 'Month' : 'First month'}>
+            <Field label={b.frequency === 'yearly' ? 'Month' : 'First Month'}>
               <select className="input" value={b.dueMonth ?? 1} onChange={(e) => setB({ ...b, dueMonth: Number(e.target.value) })}>
                 {['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'].map((m, i) => (
                   <option key={m} value={i + 1}>
@@ -324,7 +324,7 @@ function BillSheet({ bill, onClose }: { bill: Bill; onClose: () => void }) {
             </Field>
           )}
           {(b.frequency === 'weekly' || b.frequency === 'biweekly') && (
-            <Field label="A recent due date">
+            <Field label="A Recent Due Date">
               <input className="input" type="date" value={b.anchorDate ?? ''} onChange={(e) => setB({ ...b, anchorDate: e.target.value || null })} />
             </Field>
           )}
@@ -338,7 +338,7 @@ function BillSheet({ bill, onClose }: { bill: Bill; onClose: () => void }) {
             ))}
           </div>
         </Field>
-        <Field label="Shows up on statements as (optional)" hint="Helps Pebbles recognize the payment">
+        <Field label="Shows Up on Statements As (Optional)" hint="Helps Pebbles recognize the payment">
           <TextInput value={b.matchPattern} onChange={(v) => setB({ ...b, matchPattern: v })} placeholder="e.g. CSU, T-MOBILE" />
         </Field>
         <ToggleRow title="Autopay" hint="No reminder needed" on={b.autopay} onChange={(v) => setB({ ...b, autopay: v })} />

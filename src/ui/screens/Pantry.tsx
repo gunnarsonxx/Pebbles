@@ -49,7 +49,7 @@ export function ShoppingListView({ data, openPantry, openTrips }: { data: AppDat
       <div className="card">
         <div className="row between" style={{ alignItems: 'flex-start' }}>
           <div>
-            <div className="eyebrow">Next trip</div>
+            <div className="eyebrow">Next Trip</div>
             <div className="hero-number" style={{ fontSize: 40 }}>
               {need.length ? `≈ ${usd(trip.total)}` : usd(0)}
             </div>
@@ -96,7 +96,7 @@ export function ShoppingListView({ data, openPantry, openTrips }: { data: AppDat
         {!data.pantry.length && (
           <div className="center mt">
             <button className="btn" onClick={openPantry}>
-              <ListPlus /> Set up your pantry
+              <ListPlus /> Set Up Your Pantry
             </button>
           </div>
         )}
@@ -104,7 +104,7 @@ export function ShoppingListView({ data, openPantry, openTrips }: { data: AppDat
 
       {maybe.length > 0 && (
         <div className="card">
-          <div className="eyebrow">Maybe running low</div>
+          <div className="eyebrow">Maybe Running Low</div>
           <div className="small muted" style={{ marginBottom: 6 }}>
             You usually rebuy these about now.
           </div>
@@ -136,7 +136,7 @@ export function ShoppingListView({ data, openPantry, openTrips }: { data: AppDat
             <Camera />
           </span>
           <div className="grow">
-            <div className="strong">Upload your first grocery receipt</div>
+            <div className="strong">Upload Your First Grocery Receipt</div>
             <div className="small muted">Pebbles learns your prices and what you really spend on groceries each month.</div>
           </div>
         </button>
@@ -198,7 +198,7 @@ export function PantryView({ data }: { data: AppData }) {
         </Empty>
         <div className="row" style={{ justifyContent: 'center' }}>
           <button className="btn primary" onClick={() => setBulk(true)}>
-            <ListPlus /> Add what you have
+            <ListPlus /> Add What You Have
           </button>
           {usual.length > 0 && (
             <button
@@ -208,7 +208,7 @@ export function PantryView({ data }: { data: AppData }) {
                 toast(`Added ${usual.length} items you usually buy`);
               }}
             >
-              <Sparkles /> From my receipts
+              <Sparkles /> From My Receipts
             </button>
           )}
         </div>
@@ -225,7 +225,7 @@ export function PantryView({ data }: { data: AppData }) {
             value={filter}
             options={[
               { value: 'all', label: `All (${data.pantry.length})` },
-              { value: 'low', label: `Low & out (${lowCount})` },
+              { value: 'low', label: `Low & Out (${lowCount})` },
             ]}
             onChange={setFilter}
           />
@@ -304,7 +304,7 @@ function BulkAdd({ data, onClose }: { data: AppData; onClose: () => void }) {
   const parsed = parseQuickAdd(text, data.itemRules);
   return (
     <Sheet
-      title="Add to your pantry"
+      title="Add to Your Pantry"
       onClose={onClose}
       footer={
         <>
@@ -381,7 +381,7 @@ function PantryEditor({ item, onClose }: { item: PantryItem; onClose: () => void
         <Field label="Name">
           <TextInput value={p.name} onChange={(v) => setP({ ...p, name: v })} />
         </Field>
-        <Field label="Keep track by">
+        <Field label="Keep Track By">
           <Segmented
             value={p.mode}
             options={[
@@ -393,13 +393,13 @@ function PantryEditor({ item, onClose }: { item: PantryItem; onClose: () => void
           />
         </Field>
         {p.mode === 'level' ? (
-          <Field label="How much is left">
+          <Field label="How Much Is Left">
             <Segmented value={p.level} options={LEVELS.map((l) => ({ value: l, label: LEVEL_LABEL[l] }))} onChange={(v) => setP({ ...p, level: v })} />
           </Field>
         ) : (
           <>
             <div className="form-grid two">
-              <Field label="On hand">
+              <Field label="On Hand">
                 <NumberInput value={p.qty} onChange={(v) => setP({ ...p, qty: Math.max(0, v ?? 0) })} />
               </Field>
               <Field label="Unit">
@@ -411,10 +411,10 @@ function PantryEditor({ item, onClose }: { item: PantryItem; onClose: () => void
               </Field>
             </div>
             <div className="form-grid two">
-              <Field label="One purchase adds" hint="A dozen eggs = 12">
+              <Field label="One Purchase Adds" hint="A dozen eggs = 12">
                 <NumberInput value={p.perBuy} onChange={(v) => setP({ ...p, perBuy: Math.max(0, v ?? 1) })} />
               </Field>
-              <Field label="On the list at" hint="When you’re down to this">
+              <Field label="On the List At" hint="When you’re down to this">
                 <NumberInput value={p.lowAt} onChange={(v) => setP({ ...p, lowAt: Math.max(0, v ?? 0) })} />
               </Field>
             </div>

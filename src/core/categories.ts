@@ -13,38 +13,38 @@ export interface Category {
 
 export const CATEGORIES: Category[] = [
   { id: 'paycheck', name: 'Paycheck', group: 'income', color: 'moss', icon: 'briefcase' },
-  { id: 'income_other', name: 'Other income', group: 'income', color: 'moss', icon: 'plus-circle' },
+  { id: 'income_other', name: 'Other Income', group: 'income', color: 'moss', icon: 'plus-circle' },
   { id: 'refund', name: 'Refunds', group: 'income', color: 'moss', icon: 'rotate-ccw' },
 
-  { id: 'housing', name: 'Rent & mortgage', group: 'bills', color: 'slate', icon: 'home' },
+  { id: 'housing', name: 'Rent & Mortgage', group: 'bills', color: 'slate', icon: 'home' },
   { id: 'utilities', name: 'Utilities', group: 'bills', color: 'slate', icon: 'zap' },
-  { id: 'phone_internet', name: 'Phone & internet', group: 'bills', color: 'slate', icon: 'wifi' },
+  { id: 'phone_internet', name: 'Phone & Internet', group: 'bills', color: 'slate', icon: 'wifi' },
   { id: 'insurance', name: 'Insurance', group: 'bills', color: 'slate', icon: 'shield' },
-  { id: 'loans', name: 'Loans & debt', group: 'bills', color: 'slate', icon: 'landmark' },
+  { id: 'loans', name: 'Loans & Debt', group: 'bills', color: 'slate', icon: 'landmark' },
   { id: 'subscriptions', name: 'Subscriptions', group: 'bills', color: 'slate', icon: 'repeat' },
-  { id: 'childcare', name: 'Childcare & school', group: 'bills', color: 'slate', icon: 'baby' },
+  { id: 'childcare', name: 'Childcare & School', group: 'bills', color: 'slate', icon: 'baby' },
 
   { id: 'groceries', name: 'Groceries', group: 'essentials', color: 'sand', icon: 'shopping-basket' },
-  { id: 'gas', name: 'Gas & fuel', group: 'essentials', color: 'sand', icon: 'fuel' },
-  { id: 'transport', name: 'Car & transit', group: 'essentials', color: 'sand', icon: 'car' },
-  { id: 'health', name: 'Health & pharmacy', group: 'essentials', color: 'sand', icon: 'heart-pulse' },
-  { id: 'household', name: 'Household & care', group: 'essentials', color: 'sand', icon: 'spray-can' },
+  { id: 'gas', name: 'Gas & Fuel', group: 'essentials', color: 'sand', icon: 'fuel' },
+  { id: 'transport', name: 'Car & Transit', group: 'essentials', color: 'sand', icon: 'car' },
+  { id: 'health', name: 'Health & Pharmacy', group: 'essentials', color: 'sand', icon: 'heart-pulse' },
+  { id: 'household', name: 'Household & Care', group: 'essentials', color: 'sand', icon: 'spray-can' },
   { id: 'pets', name: 'Pets', group: 'essentials', color: 'sand', icon: 'paw-print' },
 
-  { id: 'dining', name: 'Dining & coffee', group: 'personal', color: 'clay', icon: 'coffee' },
-  { id: 'delivery', name: 'Food delivery', group: 'personal', color: 'clay', icon: 'bike' },
+  { id: 'dining', name: 'Dining & Coffee', group: 'personal', color: 'clay', icon: 'coffee' },
+  { id: 'delivery', name: 'Food Delivery', group: 'personal', color: 'clay', icon: 'bike' },
   { id: 'shopping', name: 'Shopping', group: 'personal', color: 'clay', icon: 'shopping-bag' },
-  { id: 'entertainment', name: 'Fun & entertainment', group: 'personal', color: 'clay', icon: 'ticket' },
+  { id: 'entertainment', name: 'Fun & Entertainment', group: 'personal', color: 'clay', icon: 'ticket' },
   { id: 'travel', name: 'Travel', group: 'personal', color: 'clay', icon: 'plane' },
-  { id: 'gifts', name: 'Gifts & giving', group: 'personal', color: 'clay', icon: 'gift' },
-  { id: 'p2p', name: 'Sent to people', group: 'personal', color: 'clay', icon: 'send' },
+  { id: 'gifts', name: 'Gifts & Giving', group: 'personal', color: 'clay', icon: 'gift' },
+  { id: 'p2p', name: 'Sent to People', group: 'personal', color: 'clay', icon: 'send' },
   { id: 'cash', name: 'Cash & ATM', group: 'personal', color: 'clay', icon: 'banknote' },
-  { id: 'fees', name: 'Bank fees', group: 'personal', color: 'clay', icon: 'alert-triangle' },
+  { id: 'fees', name: 'Bank Fees', group: 'personal', color: 'clay', icon: 'alert-triangle' },
   { id: 'uncategorized', name: 'Uncategorized', group: 'personal', color: 'stone', icon: 'circle-dashed' },
 
-  { id: 'savings', name: 'Moved to savings', group: 'savings', color: 'jade', icon: 'piggy-bank' },
+  { id: 'savings', name: 'Moved to Savings', group: 'savings', color: 'jade', icon: 'piggy-bank' },
   { id: 'transfer', name: 'Transfers', group: 'transfer', color: 'stone', icon: 'arrow-left-right' },
-  { id: 'cc_payment', name: 'Card payments', group: 'transfer', color: 'stone', icon: 'credit-card' },
+  { id: 'cc_payment', name: 'Card Payments', group: 'transfer', color: 'stone', icon: 'credit-card' },
 ];
 
 export const CATEGORY_BY_ID: Record<string, Category> = Object.fromEntries(CATEGORIES.map((c) => [c.id, c]));
@@ -57,7 +57,7 @@ export const GROUP_LABEL: Record<CategoryGroup, string> = {
   income: 'Income',
   bills: 'Bills',
   essentials: 'Essentials',
-  personal: 'Wants & everyday',
+  personal: 'Wants & Everyday',
   savings: 'Savings',
   transfer: 'Transfers',
 };
@@ -77,7 +77,7 @@ export const GEMS: { id: GemName; name: string; color: string; meaning: string }
   { id: 'alexandrite', name: 'Alexandrite', color: 'var(--gem-alexandrite)', meaning: 'joy and luck (June birthstone)' },
   { id: 'aquamarine', name: 'Aquamarine', color: '#4FA3B8', meaning: 'courage (March birthstone)' },
   { id: 'peridot', name: 'Peridot', color: '#8DA637', meaning: 'strength (August birthstone)' },
-  { id: 'rose_quartz', name: 'Rose quartz', color: '#D18FA6', meaning: 'love' },
+  { id: 'rose_quartz', name: 'Rose Quartz', color: '#D18FA6', meaning: 'love' },
   { id: 'ruby', name: 'Ruby', color: '#B3243F', meaning: 'passion (July birthstone)' },
 ];
 

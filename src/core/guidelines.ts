@@ -58,7 +58,7 @@ export function checkGuidelines(opts: {
   const needs = ((plan.bills + plan.essentials) / net) * 100;
   out.push({
     id: 'needs',
-    label: 'Needs (bills + essentials)',
+    label: 'Needs (Bills + Essentials)',
     yours: pct(needs),
     target: `≤ ${t.needsMaxPctOfNet}%`,
     standing: needs <= t.needsMaxPctOfNet ? 'good' : needs <= t.needsMaxPctOfNet + 10 ? 'close' : 'off',
@@ -78,7 +78,7 @@ export function checkGuidelines(opts: {
   const wants = (Math.max(0, plan.personal) / net) * 100;
   out.push({
     id: 'wants',
-    label: 'Yours to spend',
+    label: 'Yours to Spend',
     yours: pct(wants),
     target: `≤ ${t.wantsMaxPctOfNet}%`,
     standing: wants <= t.wantsMaxPctOfNet + 2 ? 'good' : 'close',
@@ -90,7 +90,7 @@ export function checkGuidelines(opts: {
     const months = emergencyBalance / monthlyNeeds;
     out.push({
       id: 'emergency',
-      label: 'Emergency fund',
+      label: 'Emergency Fund',
       yours: `${months.toFixed(1)} months`,
       target: `${t.emergencyMinMonths}–${t.emergencyMaxMonths} months`,
       standing: months >= t.emergencyMinMonths ? 'good' : months >= t.emergencyStarterMonths ? 'close' : 'off',
@@ -102,7 +102,7 @@ export function checkGuidelines(opts: {
     const ret = (retirementPerCheck / grossPerCheck) * 100;
     out.push({
       id: 'retirement',
-      label: 'Retirement (from your paycheck)',
+      label: 'Retirement (From Your Paycheck)',
       yours: pct(ret),
       target: `${t.retirementPctOfGross}% incl. match`,
       standing: ret >= t.retirementPctOfGross ? 'good' : ret > 0 ? 'close' : 'off',

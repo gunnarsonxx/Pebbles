@@ -95,19 +95,19 @@ export function yearsToFiFromSavingsRate(ratePct: number, realPct = 5, withdrawa
 
 /** Where each next dollar should go: the order most of the FI / personal finance community agrees on. */
 export const ACCOUNT_ORDER = [
-  { step: 'Starter emergency fund', detail: 'About one month of expenses in high-yield savings (your Bedrock fund at Marcus).' },
-  { step: 'Full employer 401(k) match', detail: 'Contribute at least enough to get every dollar of match. It’s an instant 50–100% return.' },
-  { step: 'Pay off high-interest debt', detail: 'Credit cards and anything above roughly 7–8% interest.' },
-  { step: 'Full emergency fund', detail: '3–6 months of expenses.' },
+  { step: 'Starter Emergency Fund', detail: 'About one month of expenses in high-yield savings (your Bedrock fund at Marcus).' },
+  { step: 'Full Employer 401(k) Match', detail: 'Contribute at least enough to get every dollar of match. It’s an instant 50–100% return.' },
+  { step: 'Pay Off High-Interest Debt', detail: 'Credit cards and anything above roughly 7–8% interest.' },
+  { step: 'Full Emergency Fund', detail: '3–6 months of expenses.' },
   { step: 'Roth IRA', detail: 'Up to the yearly limit. Grows tax-free; good fit while your tax bracket is low.' },
-  { step: 'HSA (if you have a high-deductible plan)', detail: 'Triple tax advantage: in, growth, and out for medical costs.' },
+  { step: 'HSA (If You Have a High-Deductible Plan)', detail: 'Triple tax advantage: in, growth, and out for medical costs.' },
   { step: 'More 401(k)', detail: 'Work toward 15% of gross pay or more, up to the yearly limit.' },
-  { step: 'Taxable brokerage', detail: 'Low-cost index funds for anything beyond that, and for retiring before 59½.' },
+  { step: 'Taxable Brokerage', detail: 'Low-cost index funds for anything beyond that, and for retiring before 59½.' },
 ];
 
 export const SIMPLE_PORTFOLIO = [
-  { name: 'Target-date index fund', detail: 'One fund that holds everything and gets more conservative as you near the date. The simplest good choice.' },
-  { name: 'Or a "three-fund portfolio"', detail: 'U.S. total stock market + international stock + U.S. bonds, in proportions you rebalance once a year.' },
-  { name: 'Keep costs low', detail: 'Expense ratios under 0.1% are easy to find. Fees compound against you just like returns compound for you.' },
-  { name: 'Stay the course', detail: 'Keep investing every paycheck through ups and downs. Time in the market beats timing the market.' },
+  { name: 'Target-Date Index Fund', detail: 'One fund that holds everything and gets more conservative as you near the date. The simplest good choice.' },
+  { name: 'Or a "Three-Fund Portfolio"', detail: 'U.S. total stock market + international stock + U.S. bonds, in proportions you rebalance once a year.' },
+  { name: 'Keep Costs Low', detail: 'Expense ratios under 0.1% are easy to find. Fees compound against you just like returns compound for you.' },
+  { name: 'Stay the Course', detail: 'Keep investing every paycheck through ups and downs. Time in the market beats timing the market.' },
 ];

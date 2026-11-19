@@ -121,7 +121,7 @@ export function computeWithholding(
 
   // Federal income tax
   const fed = federalWithholding(federalTaxable, settings, rules);
-  taxes.push({ key: 'federal', label: 'Federal income tax', amount: fed.amount, detail: fed.detail });
+  taxes.push({ key: 'federal', label: 'Federal Income Tax', amount: fed.amount, detail: fed.detail });
 
   // Social Security + Medicare
   const f = rules.fica;
@@ -137,7 +137,7 @@ export function computeWithholding(
   const stateRules = rules.states[st.state];
   if (st.customFlatRate != null && st.customFlatRate > 0 && (!stateRules || stateRules.type !== 'brackets')) {
     const amt = round2((stateTaxable * st.customFlatRate) / 100 + (st.extraWithholding || 0));
-    taxes.push({ key: 'state', label: `${st.state} income tax`, amount: amt, detail: `${st.customFlatRate}% (your custom rate)` });
+    taxes.push({ key: 'state', label: `${st.state} Income Tax`, amount: amt, detail: `${st.customFlatRate}% (your custom rate)` });
   } else if (stateRules?.type === 'brackets' && stateRules.brackets) {
     const annual = stateTaxable * PERIODS_PER_YEAR;
     const allowanceTable = stateRules.withholdingAllowance ?? { default: 0 };
@@ -154,7 +154,7 @@ export function computeWithholding(
     const rate = flat ? stateRules.brackets[0][1] : marginalRate(taxable, stateRules.brackets);
     taxes.push({
       key: 'state',
-      label: `${stateRules.name} income tax`,
+      label: `${stateRules.name} Income Tax`,
       amount: amt,
       detail: `${(rate * 100).toFixed(rate * 100 % 1 ? 1 : 0)}%${flat ? ' flat' : ' bracket'} · $${allowance.toLocaleString()} allowance`,
     });

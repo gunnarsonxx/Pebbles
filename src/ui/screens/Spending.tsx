@@ -23,7 +23,7 @@ function ReceiptBreakdown({ data, month }: { data: AppData; month: string }) {
   const total = rows.reduce((s, r) => s + r.total, 0);
   return (
     <div className="card mt">
-      <div className="eyebrow">What you bought</div>
+      <div className="eyebrow">What You Bought</div>
       <div className="small muted" style={{ marginBottom: 8 }}>
         From {data.receipts.filter((r) => r.date.slice(0, 7) === month).length} receipts this month · {usd(total)}
       </div>
@@ -109,7 +109,7 @@ export function TransactionsView({ data }: { data: AppData }) {
           </Empty>
           <div className="center">
             <button className="btn primary" onClick={() => setImporting(true)}>
-              <Upload /> Import statements
+              <Upload /> Import Statements
             </button>
           </div>
         </div>
@@ -136,8 +136,8 @@ export function TransactionsView({ data }: { data: AppData }) {
       </div>
 
       <div className="grid three">
-        <Stat label="Money in" value={usd(sum.income, true)} />
-        <Stat label="Money out" value={usd(sum.spending, true)} />
+        <Stat label="Money In" value={usd(sum.income, true)} />
+        <Stat label="Money Out" value={usd(sum.spending, true)} />
         <Stat
           label={sum.net >= 0 ? 'Kept' : 'Overspent'}
           value={usd(Math.abs(sum.net), true)}
@@ -149,13 +149,13 @@ export function TransactionsView({ data }: { data: AppData }) {
       <div className="grid two mt">
         <div className="card">
           <div className="eyebrow" style={{ marginBottom: 8 }}>
-            Last 6 months
+            Last 6 Months
           </div>
           <MonthBars data={series} selected={month} onSelect={setMonth} />
         </div>
         <div className="card">
           <div className="card-head">
-            <div className="eyebrow">Where it went</div>
+            <div className="eyebrow">Where It Went</div>
             {catFilter && (
               <button className="chip on" onClick={() => setCatFilter(null)}>
                 {categoryOf(catFilter).name} ✕
@@ -179,7 +179,7 @@ export function TransactionsView({ data }: { data: AppData }) {
       {merchants.length > 0 && (
         <div className="card mt">
           <div className="eyebrow" style={{ marginBottom: 6 }}>
-            Top places this month
+            Top Places This Month
           </div>
           <div className="row wrap" style={{ gap: 8 }}>
             {merchants.map((m) => (
@@ -228,7 +228,7 @@ export function TransactionsView({ data }: { data: AppData }) {
       {data.imports.length > 0 && (
         <div className="card mt">
           <div className="eyebrow" style={{ marginBottom: 6 }}>
-            Imported files
+            Imported Files
           </div>
           <div className="list">
             {data.imports.slice(0, 12).map((i) => (
@@ -326,7 +326,7 @@ function TxnSheet({ txn, onClose }: { txn: Transaction; onClose: () => void }) {
         {category !== txn.category && (
           <ToggleRow title={`Always use this for “${txn.merchant}”`} hint="Applies to past and future imports" on={remember} onChange={setRemember} />
         )}
-        <ToggleRow title="Don’t count this" hint="For moving money between your own accounts" on={excluded} onChange={setExcluded} />
+        <ToggleRow title="Don’t Count This" hint="For moving money between your own accounts" on={excluded} onChange={setExcluded} />
         <Field label="Note">
           <TextInput value={note} onChange={setNote} placeholder="Optional" />
         </Field>

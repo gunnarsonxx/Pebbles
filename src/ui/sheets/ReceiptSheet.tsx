@@ -45,7 +45,7 @@ export function ReceiptSheet({ data, existing, onClose }: { data: AppData; exist
 
   return (
     <Sheet
-      title={existing ? 'Receipt' : 'Add a receipt'}
+      title={existing ? 'Receipt' : 'Add a Receipt'}
       wide
       onClose={onClose}
       footer={
@@ -64,7 +64,7 @@ export function ReceiptSheet({ data, existing, onClose }: { data: AppData; exist
                 onClose();
               }}
             >
-              Save receipt
+              Save Receipt
             </button>
           </>
         ) : undefined
@@ -93,7 +93,7 @@ export function ReceiptSheet({ data, existing, onClose }: { data: AppData; exist
           {error && <p className="small bad">{error}</p>}
           <p className="small ink2">For the best read: lay the receipt flat, fill the frame, and use good light. Long receipts can be photographed in two parts and saved separately.</p>
           <button className="btn ghost small" style={{ alignSelf: 'flex-start' }} onClick={() => setR({ store: 'King Soopers', date: data.today, items: [], subtotal: null, tax: null, total: null, savings: null, warnings: [], itemsTotal: 0 })}>
-            Or type it in by hand
+            Or Type It in by Hand
           </button>
         </div>
       )}
@@ -181,7 +181,7 @@ export function ReceiptSheet({ data, existing, onClose }: { data: AppData; exist
             style={{ alignSelf: 'flex-start' }}
             onClick={() => setR({ ...r, items: [...r.items, { raw: '', name: '', key: '', price: 0, qty: 1, dept: 'other', lowConfidence: true }] })}
           >
-            <Plus /> Add an item
+            <Plus /> Add an Item
           </button>
           <div className="form-grid two">
             <Field label="Subtotal">
@@ -193,7 +193,7 @@ export function ReceiptSheet({ data, existing, onClose }: { data: AppData; exist
             <Field label="Total">
               <NumberInput value={r.total} allowEmpty onChange={(v) => setR({ ...r, total: v })} prefix="$" />
             </Field>
-            <Field label="Store savings">
+            <Field label="Store Savings">
               <NumberInput value={r.savings} allowEmpty onChange={(v) => setR({ ...r, savings: v })} prefix="$" />
             </Field>
           </div>
@@ -203,7 +203,7 @@ export function ReceiptSheet({ data, existing, onClose }: { data: AppData; exist
           </p>
           {!existing && (
             <button className="btn ghost small" style={{ alignSelf: 'flex-start' }} onClick={() => fileRef.current?.click()}>
-              <Camera /> Read a different file
+              <Camera /> Read a Different File
             </button>
           )}
         </div>
