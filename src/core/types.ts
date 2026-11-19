@@ -70,6 +70,7 @@ export interface HouseholdSettings {
 
 export interface BudgetSettings {
   savingsTargetPct: number; // aim, e.g. 20
+  wantsMaxPct: number; // keep spending money near this share once bills are known, e.g. 30
   minSavingsPct: number; // keep making progress, e.g. 5
   personalFloorPct: number; // always keep at least this % for you, e.g. 10
   billsMode: 'due_dates' | 'even';
@@ -81,6 +82,14 @@ export interface IntegrationSettings {
   eiaApiKey: string;
   taxRulesUrl: string;
   autoUpdate: boolean;
+  plaidClientId: string;
+  plaidSecret: string;
+  plaidEnv: 'production' | 'sandbox';
+  krogerClientId: string;
+  krogerSecret: string;
+  krogerLocationId: string;
+  krogerLocationName: string;
+  zip: string;
 }
 
 export interface Settings {
@@ -152,6 +161,113 @@ export interface Account {
   id: string;
   name: string;
   type: 'checking' | 'savings' | 'credit' | 'other';
+  institution?: string;
+  mask?: string;
+  balance?: number | null; // current balance, when known
+  available?: number | null;
+  balanceDate?: ISODate | null;
+  apy?: number | null; // savings interest rate, e.g. 3.65 (%)
+  holdsGoals?: boolean; // this savings account is where your goals live (e.g. Marcus)
+  source?: 'import' | 'plaid';
+  plaidAccountId?: string;
+  linkId?: string;
+}
+
+/** A bank connected through Plaid. */
+export interface BankLink {
+  id: string; // Plaid item_id
+  institution: string;
+  institutionId: string;
+  accessToken: string;
+  cursor: string | null;
+  createdAt: number;
+  lastSync: number | null;
+  error: string | null;
+}
+
+export type GroceryDept =
+  | 'produce'
+  | 'meat'
+  | 'dairy'
+  | 'bakery'
+  | 'pantry'
+  | 'frozen'
+  | 'snacks'
+  | 'drinks'
+  | 'alcohol'
+  | 'household'
+  | 'personal'
+  | 'baby'
+  | 'pet'
+  | 'other';
+
+export interface ReceiptItem {
+  raw: string; // as printed
+  name: string; // cleaned
+  key: string; // for matching the same product across trips
+  price: number; // after any discount on that line
+  qty: number;
+  dept: GroceryDept;
+  lowConfidence?: boolean;
+}
+
+export interface Receipt {
+  id: string;
+  store: string;
+  date: ISODate;
+  items: ReceiptItem[];
+  subtotal: number | null;
+  tax: number | null;
+  total: number | null;
+  savings: number | null; // store discounts printed on the receipt
+  source: 'photo' | 'pdf' | 'text';
+  createdAt: number;
+}
+
+export interface ItemRule {
+  id: string; // item key
+  name: string;
+  dept: GroceryDept;
+}
+
+export interface PaystubLine {
+  label: string;
+  kind: 'federal' | 'social_security' | 'medicare' | 'state' | 'famli' | 'local' | 'pretax' | 'posttax' | 'other';
+  current: number;
+  ytd: number | null;
+  lowConfidence?: boolean;
+}
+
+export interface Paystub {
+  id: string;
+  payDate: ISODate | null;
+  periodStart: ISODate | null;
+  periodEnd: ISODate | null;
+  gross: number | null;
+  net: number | null;
+  lines: PaystubLine[];
+  hours: { label: string; hours: number; rate: number | null; amount: number }[];
+  ytdGross: number | null;
+  createdAt: number;
+}
+
+/** A store price for one of your usual grocery items. */
+export interface StorePrice {
+  id: string; // item key
+  store: string;
+  description: string;
+  regular: number | null;
+  promo: number | null;
+  size: string;
+  fetchedAt: number;
+}
+
+/** Payday checklist state ("move $280 to Marcus"). */
+export interface MoveState {
+  id: string; // `${periodStart}:${move}`
+  done: boolean;
+  at: number;
+  auto: boolean; // checked off automatically from bank data
 }
 
 export interface Transaction {
@@ -165,6 +281,8 @@ export interface Transaction {
   importId: string | null;
   excluded: boolean; // transfers between own accounts etc.
   note: string;
+  pending?: boolean;
+  source?: 'import' | 'plaid';
 }
 
 export interface ImportBatch {
@@ -234,6 +352,7 @@ export interface Contribution {
   date: ISODate;
   note: string;
   paycheckId: string | null;
+  kind?: 'deposit' | 'interest' | 'withdrawal';
 }
 
 export interface MarketData {
@@ -266,6 +385,13 @@ export interface CollectionMap {
   market: MarketData;
   taxrules: { id: string; json: string; version: string; fetchedAt: number };
   dismissed: { id: string; at: number };
+  links: BankLink;
+  receipts: Receipt;
+  itemrules: ItemRule;
+  paystubs: Paystub;
+  prices: StorePrice;
+  moves: MoveState;
+  guidelines: { id: string; json: string; version: string; fetchedAt: number };
 }
 
 export type CollectionName = keyof CollectionMap;
@@ -285,6 +411,13 @@ export const COLLECTIONS: CollectionName[] = [
   'market',
   'taxrules',
   'dismissed',
+  'links',
+  'receipts',
+  'itemrules',
+  'paystubs',
+  'prices',
+  'moves',
+  'guidelines',
 ];
 
 /** A record as stored and synced. */

@@ -140,6 +140,17 @@ export class Store {
     for (const l of this.changeListeners) l();
   }
 
+  /** Mark every record as unsynced (e.g. pairing with a new computer). */
+  async markAllDirty(): Promise<void> {
+    const all = [...this.recs.values()];
+    for (const r of all) r.dirty = true;
+    if (this.db && all.length) {
+      const tx = this.db.transaction('records', 'readwrite');
+      for (const r of all) tx.store.put(r);
+      await tx.done;
+    }
+  }
+
   dirty(): SyncRecord[] {
     return [...this.recs.values()].filter((r) => r.dirty).map(({ dirty: _d, ...r }) => r);
   }

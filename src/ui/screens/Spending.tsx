@@ -2,7 +2,9 @@ import { useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight, Search, Upload, Undo2 } from 'lucide-react';
 import type { AppData } from '../../data/useData';
 import { CategoryBars, MonthBars } from '../charts';
-import { CategoryIcon, Empty, Field, Sheet, ToggleRow, TextInput, useToast } from '../components';
+import { CategoryIcon, Empty, Field, Segmented, Sheet, ToggleRow, TextInput, useToast } from '../components';
+import { GroceriesView } from './Groceries';
+import { AccountsView } from './Accounts';
 import { ImportSheet } from '../sheets/ImportSheet';
 import { summarizeMonth, monthsWithData } from '../../core/analytics';
 import { addMonths, fmtDay, fmtMonth, fmtShort, monthKey } from '../../core/dates';
@@ -13,7 +15,29 @@ import { recategorize, undoImport, updateTransaction } from '../../data/actions'
 import { GROUP_COLOR } from '../components';
 import type { Transaction } from '../../core/types';
 
-export function SpendingScreen({ data }: { data: AppData }) {
+export function SpendingScreen({ data, openSettings }: { data: AppData; openSettings: () => void }) {
+  const [view, setView] = useState<'txns' | 'groceries' | 'accounts'>('txns');
+  return (
+    <div>
+      <div style={{ marginBottom: 14, maxWidth: 520 }}>
+        <Segmented
+          value={view}
+          options={[
+            { value: 'txns', label: 'Transactions' },
+            { value: 'groceries', label: 'Groceries' },
+            { value: 'accounts', label: 'Accounts' },
+          ]}
+          onChange={setView}
+        />
+      </div>
+      {view === 'txns' && <TransactionsView data={data} />}
+      {view === 'groceries' && <GroceriesView data={data} openSettings={openSettings} />}
+      {view === 'accounts' && <AccountsView data={data} openSettings={openSettings} />}
+    </div>
+  );
+}
+
+function TransactionsView({ data }: { data: AppData }) {
   const months = monthsWithData(data.txns);
   const latest = months[months.length - 1] ?? monthKey(data.today);
   const [month, setMonth] = useState<string>(latest);

@@ -12,3 +12,4 @@ android/app/src/main/assets/public/
 android/capacitor-cordova-android-plugins/
 android/.idea/
 coverage/
+public/ocr/

@@ -1,0 +1,30 @@
+{
+  "schema": 1,
+  "version": "2026.11.19",
+  "about": "Where the experts broadly agree on splitting a paycheck. Pebbles uses these targets automatically and checks this file online for updates.",
+  "targets": {
+    "needsMaxPctOfNet": 50,
+    "wantsMaxPctOfNet": 30,
+    "savingsTargetPctOfNet": 20,
+    "savingsMinPctOfNet": 5,
+    "retirementPctOfGross": 15,
+    "emergencyStarterMonths": 1,
+    "emergencyMinMonths": 3,
+    "emergencyMaxMonths": 6,
+    "housingMaxPctOfGross": 30
+  },
+  "consensus": [
+    "Cover needs first, and try to keep them at or under half of take-home pay.",
+    "Save about 20% of take-home. If money is tight, keep saving something (at least 5%) so the habit and the cushion keep growing.",
+    "Build an emergency fund before other goals: one month of needs to start, then 3 to 6 months.",
+    "Aim for 15% of pre-tax pay toward retirement over time, counting any employer match. Always take the full match.",
+    "Keep housing at or below about 30% of gross income.",
+    "Whatever is left after needs and savings is yours to spend without guilt."
+  ],
+  "sources": [
+    { "name": "50/30/20 rule", "by": "Elizabeth Warren & Amelia Warren Tyagi, All Your Worth", "summary": "50% needs, 30% wants, 20% savings and debt payoff, of after-tax income." },
+    { "name": "50/15/5 rule", "by": "Fidelity Investments", "summary": "Essentials at most 50% of take-home, 15% of pre-tax income to retirement (including employer match), 5% of take-home to short-term savings." },
+    { "name": "Emergency savings", "by": "Fidelity, Vanguard, CFPB", "summary": "Three to six months of essential expenses set aside for emergencies." },
+    { "name": "Housing cost burden", "by": "U.S. Department of Housing and Urban Development", "summary": "Households paying more than 30% of income for housing are considered cost-burdened." }
+  ]
+}

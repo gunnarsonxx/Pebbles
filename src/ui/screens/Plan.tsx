@@ -5,6 +5,7 @@ import type { Tab } from '../App';
 import { SplitBar } from '../charts';
 import { CategoryIcon, Field, GemIcon, NumberInput, Sheet, TextInput, ToggleRow, useToast } from '../components';
 import { InsightList } from '../InsightList';
+import { GuidelinesCard } from '../AutopilotCards';
 import { monthlyBillsTotal, monthlyEquivalent } from '../../core/budget';
 import { detectRecurring } from '../../core/analytics';
 import { CATEGORIES, categoryOf } from '../../core/categories';
@@ -282,10 +283,9 @@ export function PlanScreen({ data, go }: { data: AppData; go: (t: Tab) => void }
           </div>
         </div>
         {data.market?.errors?.length ? <p className="tiny warn mt">{data.market.errors.join(' · ')}</p> : null}
-        {!data.settings.integrations.eiaApiKey && (
-          <p className="tiny muted mt">Tip: add a free EIA key in Settings → Prices to get weekly Colorado gas prices instead of the national average.</p>
-        )}
       </div>
+
+      <GuidelinesCard data={data} />
 
       <div className="section-title">
         <h2>

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { CalendarDays, Compass, Gem, House, Receipt, Settings as SettingsIcon, ChevronLeft } from 'lucide-react';
+import { CalendarDays, Compass, Gem, House, Moon, Receipt, Settings as SettingsIcon, ChevronLeft, Sun } from 'lucide-react';
+import { saveSettings } from '../data/actions';
 import { useData, useSync } from '../data/useData';
 import { PebbleLogo, ToastProvider } from './components';
 import { HomeScreen } from './screens/Home';
@@ -134,6 +135,7 @@ export function App() {
               </span>
             )}
             <div className="title">{TITLES[tab]}</div>
+            <ThemeToggle theme={data.settings.theme} />
             <button className="icon-btn" title={sync.message || syncLabel} aria-label={syncLabel} onClick={() => go('settings')}>
               <span className={`sync-dot ${sync.status}`} />
             </button>
@@ -147,7 +149,7 @@ export function App() {
           <main className="content">
             {tab === 'home' && <HomeScreen data={data} go={go} />}
             {tab === 'paycheck' && <PaycheckScreen data={data} />}
-            {tab === 'spending' && <SpendingScreen data={data} />}
+            {tab === 'spending' && <SpendingScreen data={data} openSettings={() => go('settings')} />}
             {tab === 'savings' && <SavingsScreen data={data} />}
             {tab === 'plan' && <PlanScreen data={data} go={go} />}
             {tab === 'settings' && <SettingsScreen data={data} />}
@@ -182,4 +184,24 @@ function PairListener() {
     return () => pairEvents.removeEventListener('paired', fn);
   }, [toast]);
   return null;
+}
+
+function isDark(theme: 'auto' | 'light' | 'dark'): boolean {
+  if (theme === 'auto') return window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false;
+  return theme === 'dark';
+}
+
+/** One tap switches between Limestone (light) and Basalt (dark). */
+function ThemeToggle({ theme }: { theme: 'auto' | 'light' | 'dark' }) {
+  const dark = isDark(theme);
+  return (
+    <button
+      className="icon-btn"
+      aria-label={dark ? 'Switch to light mode' : 'Switch to dark mode'}
+      title={dark ? 'Light mode' : 'Dark mode'}
+      onClick={() => void saveSettings({ theme: dark ? 'light' : 'dark' })}
+    >
+      {dark ? <Sun /> : <Moon />}
+    </button>
+  );
 }

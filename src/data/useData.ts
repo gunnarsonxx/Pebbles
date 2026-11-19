@@ -9,7 +9,13 @@ import { BUNDLED_RULES, isValidRulesFile, newerVersion, rulesForYear, type TaxRu
 import { buildPlan, estimateEssentials, goalBalance, totalSaved, type EssentialsEstimate, type PaycheckPlan } from '../core/budget';
 import { generateInsights, type Insight } from '../core/insights';
 import { overtimeDeductionEstimate } from '../core/tax';
-import type { Bill, Contribution, Goal, ISODate, MarketData, PaycheckRecord, PayRate, Settings, Transaction, WorkDay, Account, CategoryRule, ImportBatch } from '../core/types';
+import type { Bill, Contribution, Goal, ISODate, MarketData, PaycheckRecord, PayRate, Settings, Transaction, WorkDay, Account, CategoryRule, ImportBatch, BankLink, Receipt, ItemRule, Paystub, StorePrice } from '../core/types';
+import { analyzeGroceries, monthlyGroceryNeed, type GroceryStats } from '../core/groceries';
+import { BUNDLED_GUIDELINES, checkGuidelines, isValidGuidelines, type GuidelineCheck, type GuidelinesFile } from '../core/guidelines';
+import { goalsAccount, interestNextMonth, reconcile, type Reconcile } from '../core/savingsAccount';
+import { paydayMoves, type Move } from '../core/moves';
+import { threePaycheckMonths } from '../core/budget';
+import { usd } from '../core/money';
 
 export function useVersion(): number {
   return useSyncExternalStore(store.subscribe, store.getVersion);
@@ -47,6 +53,18 @@ export interface AppData {
   otPremiumYtd: number;
   otTaxSaved: number;
   dismissed: Set<string>;
+  links: BankLink[];
+  receipts: Receipt[];
+  itemRules: ItemRule[];
+  paystubs: Paystub[];
+  prices: Map<string, StorePrice>;
+  groceries: GroceryStats | null;
+  guidelines: GuidelinesFile;
+  guidelineChecks: GuidelineCheck[];
+  goalsAccount: Account | null;
+  interestMonthly: number;
+  reconcile: Reconcile | null;
+  movesFor: { period: Period; estimate: PaycheckEstimate; plan: PaycheckPlan; moves: Move[]; isPast: boolean } | null;
 }
 
 export function effectiveRules(): TaxRulesFile {
@@ -62,6 +80,19 @@ export function effectiveRules(): TaxRulesFile {
   return BUNDLED_RULES;
 }
 
+
+export function effectiveGuidelines(): GuidelinesFile {
+  const rec = store.get('guidelines', 'current');
+  if (rec) {
+    try {
+      const parsed = JSON.parse(rec.json);
+      if (isValidGuidelines(parsed) && !newerVersion(BUNDLED_GUIDELINES.version, parsed.version)) return parsed;
+    } catch {
+      /* fall back */
+    }
+  }
+  return BUNDLED_GUIDELINES;
+}
 
 export function useData(): AppData {
   const version = useVersion();
@@ -91,7 +122,21 @@ export function computeData(version: number, today: ISODate): AppData {
   const upcoming = estimatePaycheck(upPeriod, settings, rates, workdays, rulesFile, calibration);
   const afterUpcoming = periodByIndex(settings.pay, upPeriod.index + 1);
   const current = periodContaining(settings.pay, today);
-  const essentials = estimateEssentials(settings, txns, market, today);
+  const receipts = store.list('receipts').sort((a, b) => b.date.localeCompare(a.date));
+  const groceries = analyzeGroceries(receipts, today);
+  const need = monthlyGroceryNeed(groceries);
+  const essentials = estimateEssentials(
+    settings,
+    txns,
+    market,
+    today,
+    need && groceries
+      ? {
+          monthly: need,
+          reason: `Your usual trip from receipts (${usd(groceries.usualTrip, true)} × ${groceries.tripsPerMonth.toFixed(1)} trips/mo${groceries.taxRate ? `, ${(groceries.taxRate * 100).toFixed(1)}% tax` : ''})`,
+        }
+      : null,
+  );
   const override = paychecks.get(upPeriod.start)?.savingsOverride ?? null;
   const plan = buildPlan({
     settings,
@@ -137,6 +182,65 @@ export function computeData(version: number, today: ISODate): AppData {
     otTaxSaved: ot.taxSaved,
   }).filter((n) => !dismissed.has(n.id));
 
+  // savings account (e.g. Marcus) and guidelines
+  const gAcct = goalsAccount(accounts);
+  const guidelines = effectiveGuidelines();
+  const emergency = goals.find((g) => g.isEmergency && !g.archived);
+  const retirementPerCheck = upcoming.withholding.preTax
+    .filter((d) => d.kind === 'traditional_401k')
+    .concat(upcoming.withholding.postTax.filter((d) => d.kind === 'roth_401k'))
+    .reduce((x, d) => x + d.amount, 0);
+  const guidelineChecks = checkGuidelines({
+    g: guidelines,
+    plan,
+    grossPerCheck: upcoming.gross.gross,
+    retirementPerCheck,
+    emergencyBalance: emergency ? (balances.get(emergency.id) ?? 0) : null,
+    essentials,
+    bills,
+  });
+
+  // payday moves: the most recent payday (for ~10 days after it), else the next one
+  const movesState = new Map(store.list('moves').map((m) => [m.id, m]));
+  let movesFor: AppData['movesFor'] = null;
+  const prevPeriod = periodByIndex(settings.pay, upPeriod.index - 1);
+  const daysSincePrev = Math.round((Date.parse(today) - Date.parse(prevPeriod.payday)) / 86_400_000);
+  // only revisit a past payday Pebbles actually tracked (recorded by you or seen in your bank)
+  const usePrev = daysSincePrev >= 0 && daysSincePrev <= 10 && paychecks.has(prevPeriod.start) && !movesState.get(`${prevPeriod.start}:save`)?.done;
+  const mPeriod = usePrev ? prevPeriod : upPeriod;
+  const mEstimate = usePrev ? estimatePaycheck(prevPeriod, settings, rates, workdays, rulesFile, calibration) : upcoming;
+  const mRecord = paychecks.get(mPeriod.start);
+  const mPlan = usePrev
+    ? buildPlan({
+        settings,
+        net: mRecord?.actualNet ?? mEstimate.net,
+        payday: mPeriod.payday,
+        nextPayday: upPeriod.payday,
+        bills,
+        essentials,
+        goals,
+        contributions: contributions.filter((c) => c.paycheckId !== mPeriod.start),
+        savingsOverride: mRecord?.savingsOverride ?? null,
+      })
+    : mRecord?.actualNet != null
+      ? buildPlan({ settings, net: mRecord.actualNet, payday: mPeriod.payday, nextPayday: afterUpcoming.payday, bills, essentials, goals, contributions: contributions.filter((c) => c.paycheckId !== mPeriod.start), savingsOverride: mRecord.savingsOverride })
+      : plan;
+  const bonusMonth = threePaycheckMonths(Array.from({ length: 4 }, (_, k) => periodByIndex(settings.pay, mPeriod.index - 1 + k).payday)).includes(mPeriod.payday.slice(0, 7));
+  movesFor = {
+    period: mPeriod,
+    estimate: mEstimate,
+    plan: mPlan,
+    isPast: usePrev,
+    moves: paydayMoves({
+      period: mPeriod,
+      plan: mPlan,
+      goals,
+      savingsName: gAcct ? (gAcct.institution && /marcus|goldman/i.test(gAcct.institution + gAcct.name) ? 'Marcus' : gAcct.name) : 'savings',
+      states: movesState,
+      bonusMonth,
+    }),
+  };
+
   return {
     version,
     today,
@@ -165,5 +269,17 @@ export function computeData(version: number, today: ISODate): AppData {
     otPremiumYtd,
     otTaxSaved: ot.taxSaved,
     dismissed,
+    links: store.list('links'),
+    receipts,
+    itemRules: store.list('itemrules'),
+    paystubs: store.list('paystubs').sort((a, b) => (b.payDate ?? '').localeCompare(a.payDate ?? '')),
+    prices: new Map(store.list('prices').map((p) => [p.id, p])),
+    groceries,
+    guidelines,
+    guidelineChecks,
+    goalsAccount: gAcct,
+    interestMonthly: interestNextMonth(gAcct?.balance ?? saved, gAcct?.apy),
+    reconcile: reconcile(gAcct, saved),
+    movesFor,
   };
 }

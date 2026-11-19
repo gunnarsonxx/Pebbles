@@ -8,6 +8,7 @@ import { fmtLong, fmtShort, diffDays, today } from '../../core/dates';
 import { pebbles, usd, uid } from '../../core/money';
 import { projectGoalDate } from '../../core/budget';
 import { addContribution, deleteContribution, deleteGoal, newGoal, saveGoal } from '../../data/actions';
+import { SavingsAccountCard } from '../AutopilotCards';
 import type { Goal, GemName } from '../../core/types';
 
 export const MILESTONES: { pct: number; gem: GemName; label: string }[] = [
@@ -46,6 +47,8 @@ export function SavingsScreen({ data }: { data: AppData }) {
           {data.plan.savings > 0 && ` · about ${pebbles(data.plan.savings)} more planned next payday`}
         </div>
       </div>
+
+      <SavingsAccountCard data={data} />
 
       <div className="section-title">
         <h2>Goals</h2>

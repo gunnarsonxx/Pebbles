@@ -6,6 +6,8 @@ import { categorize, categoryOf } from '../../core/categories';
 import { fmtShort } from '../../core/dates';
 import { usd } from '../../core/money';
 import { ensureAccount, importTransactions } from '../../data/actions';
+import { store } from '../../data/store';
+import { apyFromText } from '../../core/savingsAccount';
 import type { AppData } from '../../data/useData';
 import type { Account } from '../../core/types';
 
@@ -13,6 +15,7 @@ interface Loaded {
   name: string;
   result: ParseResult;
   txns: ParsedTxn[];
+  apy?: number | null;
 }
 
 export function ImportSheet({ data, onClose }: { data: AppData; onClose: () => void }) {
@@ -30,25 +33,39 @@ export function ImportSheet({ data, onClose }: { data: AppData; onClose: () => v
     setBusy(true);
     setError('');
     const out: Loaded[] = [];
+    const hints: { savings?: boolean; apy?: number | null } = {};
     for (const f of Array.from(list)) {
       try {
         let result: ParseResult;
         if (f.name.toLowerCase().endsWith('.pdf') || f.type === 'application/pdf') {
           const { pdfToLines } = await import('../pdfText');
-          result = parsePdfLines(await pdfToLines(f));
+          const lines = await pdfToLines(f);
+          result = parsePdfLines(lines);
+          if (/MARCUS|GOLDMAN SACHS/i.test(lines.slice(0, 40).join(' '))) {
+            hints.savings = true;
+            hints.apy = apyFromText(lines);
+          }
         } else {
           const text = await f.text();
           const fmt = detectFormat(f.name, text);
           result = fmt === 'ofx' ? parseOfx(text) : parseCsv(text);
         }
-        out.push({ name: f.name, result, txns: result.transactions });
+        out.push({ name: f.name, result, txns: result.transactions, apy: hints.apy ?? null });
         if (result.accountHint && !newName) setNewName(result.accountHint);
       } catch (e) {
         setError(`${f.name}: ${(e as Error).message}`);
       }
     }
     setFiles((cur) => [...cur, ...out]);
-    if (!data.accounts.length) setAccountId('new');
+    if (hints.savings) {
+      const marcus = data.accounts.find((a) => /marcus/i.test(a.name));
+      if (marcus) setAccountId(marcus.id);
+      else {
+        setAccountId('new');
+        setNewName('Marcus Online Savings');
+        setNewType('savings');
+      }
+    } else if (!data.accounts.length) setAccountId('new');
     setBusy(false);
   };
 
@@ -83,7 +100,12 @@ export function ImportSheet({ data, onClose }: { data: AppData; onClose: () => v
   const doImport = async () => {
     setBusy(true);
     try {
-      const acct = accountId === 'new' ? await ensureAccount(newName.trim() || 'Checking', newType) : data.accounts.find((a) => a.id === accountId)!;
+      let acct = accountId === 'new' ? await ensureAccount(newName.trim() || 'Checking', newType) : data.accounts.find((a) => a.id === accountId)!;
+      const apy = files.map((f) => f.apy).find((x) => x != null);
+      if (acct.type === 'savings' && (apy || /marcus/i.test(acct.name))) {
+        acct = { ...acct, apy: apy ?? acct.apy ?? null, holdsGoals: acct.holdsGoals ?? !data.accounts.some((a) => a.holdsGoals && a.id !== acct.id) };
+        await store.put('accounts', acct);
+      }
       let added = 0;
       let dupes = 0;
       for (const f of files) {

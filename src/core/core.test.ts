@@ -175,6 +175,8 @@ describe('budget', () => {
     expect(plan2.savings).toBeGreaterThan(0);
     expect(plan2.savings % 5).toBe(0);
     expect(plan2.personal).toBeGreaterThanOrEqual(1400 * 0.1 - 0.01);
+    // with bills known and needs low, spending money is capped near 30% and the rest is saved
+    expect(plan2.personal).toBeLessThanOrEqual(1400 * 0.3 + 5);
     expect(plan2.bills + plan2.essentials + plan2.savings + plan2.personal).toBeCloseTo(1400, 2);
   });
 

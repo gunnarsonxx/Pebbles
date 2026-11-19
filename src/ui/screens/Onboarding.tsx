@@ -9,7 +9,7 @@ import { STATE_NAMES } from '../../core/taxrules';
 import { statusLabel } from '../../core/tax';
 import { usd } from '../../core/money';
 import { platformKind } from '../../platform';
-import { PhoneSync } from './Settings';
+import { DesktopSync, PhoneSync } from './Settings';
 import type { Settings } from '../../core/types';
 
 export function Onboarding({ data }: { data: AppData }) {
@@ -61,6 +61,19 @@ export function Onboarding({ data }: { data: AppData }) {
               ) : (
                 <button className="btn ghost" style={{ alignSelf: 'flex-start' }} onClick={() => setPairFirst(true)}>
                   I already set up Pebbles on my computer
+                </button>
+              ))}
+            {platformKind === 'desktop' &&
+              (pairFirst ? (
+                <div className="col">
+                  <p className="small ink2">
+                    Click <strong>Pair a phone</strong>, then on your phone open <strong>Settings → Sync</strong> and enter the address and code (or scan the QR code). Everything from your phone appears here in a few seconds.
+                  </p>
+                  <DesktopSync />
+                </div>
+              ) : (
+                <button className="btn ghost" style={{ alignSelf: 'flex-start' }} onClick={() => setPairFirst(true)}>
+                  I already set up Pebbles on my phone
                 </button>
               ))}
           </div>

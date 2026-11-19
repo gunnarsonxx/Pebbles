@@ -1,5 +1,8 @@
 import type { PayRate, Settings } from './types';
 
+// Free U.S. EIA open-data key (read-only public gas prices). Your own key in Settings overrides it.
+export const BUILTIN_EIA_KEY = 'CNMWTKhfFBG8krrGRmjrcrmLnQhdWt8RdJR6wRQn';
+
 export const TAX_RULES_URL = 'https://raw.githubusercontent.com/gunnarsonxx/Pebbles/main/data/tax-rules.json';
 
 export function defaultSettings(): Settings {
@@ -48,6 +51,7 @@ export function defaultSettings(): Settings {
     },
     budget: {
       savingsTargetPct: 20,
+      wantsMaxPct: 30,
       minSavingsPct: 5,
       personalFloorPct: 10,
       billsMode: 'even',
@@ -58,6 +62,14 @@ export function defaultSettings(): Settings {
       eiaApiKey: '',
       taxRulesUrl: TAX_RULES_URL,
       autoUpdate: true,
+      plaidClientId: '',
+      plaidSecret: '',
+      plaidEnv: 'production',
+      krogerClientId: '',
+      krogerSecret: '',
+      krogerLocationId: '',
+      krogerLocationName: '',
+      zip: '80903',
     },
     theme: 'auto',
     notifications: true,

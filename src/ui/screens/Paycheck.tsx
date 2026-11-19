@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, Plus, RotateCcw, Sprout, Info } from 'lucide-react';
+import { ChevronLeft, ChevronRight, FileText, Plus, RotateCcw, Sprout, Info } from 'lucide-react';
 import type { AppData } from '../../data/useData';
 import { DayEditor } from '../sheets/DayEditor';
 import { ReceiveSheet } from '../sheets/ReceiveSheet';
+import { PaystubSheet } from '../sheets/PaystubSheet';
 import { Field, GemIcon, NumberInput, Sheet, TextInput, useToast } from '../components';
 import { periodByIndex, allRates } from '../../core/pay';
 import { estimatePaycheck } from '../../core/paycheck';
@@ -20,6 +21,7 @@ export function PaycheckScreen({ data }: { data: AppData }) {
   const [editing, setEditing] = useState<string | null>(null);
   const [receiving, setReceiving] = useState(false);
   const [rateEdit, setRateEdit] = useState<PayRate | null>(null);
+  const [stubOpen, setStubOpen] = useState(false);
   const { settings } = data;
   const period = periodByIndex(settings.pay, data.upcoming.period.index + offset);
   const est = useMemo(
@@ -74,6 +76,9 @@ export function PaycheckScreen({ data }: { data: AppData }) {
               </div>
             )}
             <div className="row wrap mt">
+              <button className="btn" onClick={() => setStubOpen(true)}>
+                <FileText /> Upload pay stub
+              </button>
               {diffDays(period.payday, data.today) <= 1 && (
                 <button className="btn primary" onClick={() => setReceiving(true)}>
                   <Sprout /> {record?.received ? 'Edit payday split' : 'I got paid'}
@@ -211,6 +216,7 @@ export function PaycheckScreen({ data }: { data: AppData }) {
       {editing && <DayEditor date={editing} data={data} onClose={() => setEditing(null)} />}
       {receiving && <ReceiveSheet data={data} estimate={est} onClose={() => setReceiving(false)} />}
       {rateEdit && <RateSheet rate={rateEdit} onClose={() => setRateEdit(null)} />}
+      {stubOpen && <PaystubSheet data={data} onClose={() => setStubOpen(false)} />}
     </div>
   );
 }

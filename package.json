@@ -9,8 +9,8 @@
   "type": "module",
   "main": "desktop-dist/main.cjs",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
+    "dev": "node scripts/copy-ocr.mjs && vite",
+    "build": "node scripts/copy-ocr.mjs && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
@@ -22,18 +22,22 @@
   "dependencies": {
     "@capacitor/android": "8.6.2",
     "@capacitor/app": "8.1.2",
+    "@capacitor/browser": "^8.0.5",
     "@capacitor/core": "8.6.2",
     "@capacitor/local-notifications": "8.3.1",
     "@capacitor/status-bar": "8.0.4",
     "@fontsource-variable/fraunces": "5.3.0",
     "@fontsource-variable/inter": "5.3.0",
+    "@tesseract.js-data/eng": "^1.0.0",
     "idb": "8.0.4",
     "lucide-react": "1.76.0",
     "papaparse": "5.7.1",
     "pdfjs-dist": "6.5.438",
     "qrcode": "1.5.4",
     "react": "19.3.1",
-    "react-dom": "19.3.1"
+    "react-dom": "19.3.1",
+    "tesseract.js": "^7.0.0",
+    "tesseract.js-core": "^6.1.2"
   },
   "devDependencies": {
     "@capacitor/cli": "8.6.2",

@@ -24,12 +24,22 @@ function Section({ title, children, id }: { title: string; children: ReactNode; 
   );
 }
 
+import { UpdateCard } from '../UpdateCard';
+import { BankSettings, GroceryPriceSettings } from './ConnectionsSettings';
+
 export function SettingsScreen({ data }: { data: AppData }) {
   const s = data.settings;
   const set = (patch: (s: Settings) => Settings) => void saveSettings(patch);
   return (
     <div className="col" style={{ gap: 14 }}>
-      <SyncSection />
+      <div className="grid two">
+        <SyncSection />
+        <UpdateCard />
+      </div>
+      <div className="grid two">
+        <BankSettings s={s} set={set} />
+        <GroceryPriceSettings s={s} set={set} />
+      </div>
       <div className="grid two">
         <PaySection s={s} set={set} />
         <TaxSection data={data} set={set} />
@@ -374,6 +384,9 @@ function BudgetSection({ s, set }: { s: Settings; set: (f: (s: Settings) => Sett
       <Field label={`Always save at least: ${b.minSavingsPct}% when possible`}>
         <input className="range" type="range" min={0} max={20} value={b.minSavingsPct} onChange={(e) => up({ minSavingsPct: Number(e.target.value) })} />
       </Field>
+      <Field label={`Spending money: about ${b.wantsMaxPct}% of take-home`} hint="Once your bills are in, anything beyond this goes to savings (experts suggest 30%)">
+        <input className="range" type="range" min={15} max={60} step={5} value={b.wantsMaxPct} onChange={(e) => up({ wantsMaxPct: Number(e.target.value) })} />
+      </Field>
       <Field label={`Always keep for you: at least ${b.personalFloorPct}%`} hint="Your comfort floor. Savings never eat into it">
         <input className="range" type="range" min={0} max={40} value={b.personalFloorPct} onChange={(e) => up({ personalFloorPct: Number(e.target.value) })} />
       </Field>
@@ -407,8 +420,8 @@ function PricesSection({ s, set }: { s: Settings; set: (f: (s: Settings) => Sett
       <p className="small ink2">
         Pebbles checks grocery inflation and staple prices from the U.S. Bureau of Labor Statistics, and gas prices from the U.S. Energy Information Administration, then adjusts your essentials so you’re always covered.
       </p>
-      <Field label="EIA API key (free, optional)" hint={<span>Gets weekly Colorado gas prices. Register at eia.gov/opendata, then paste the key here.</span>}>
-        <TextInput value={s.integrations.eiaApiKey} onChange={(v) => set((x) => ({ ...x, integrations: { ...x.integrations, eiaApiKey: v.trim() } }))} placeholder="paste key" />
+      <Field label="EIA API key" hint="A key is built in for weekly Colorado gas prices. Paste your own only if you want to use a different one.">
+        <TextInput value={s.integrations.eiaApiKey} onChange={(v) => set((x) => ({ ...x, integrations: { ...x.integrations, eiaApiKey: v.trim() } }))} placeholder="Built-in key in use" />
       </Field>
       <Field label="Tax table update address">
         <TextInput value={s.integrations.taxRulesUrl} onChange={(v) => set((x) => ({ ...x, integrations: { ...x.integrations, taxRulesUrl: v.trim() } }))} />
@@ -599,7 +612,7 @@ export function PhoneSync() {
   );
 }
 
-function DesktopSync() {
+export function DesktopSync() {
   const sync = useSync();
   const toast = useToast();
   const [info, setInfo] = useState<DesktopInfo | null>(null);

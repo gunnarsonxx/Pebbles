@@ -62,7 +62,10 @@ export function calibrationFrom(paychecks: PaycheckRecord[]): number {
     .sort((a, b) => b.payday.localeCompare(a.payday))
     .slice(0, 3)
     .map((p) => (p.actualNet as number) - (p.estimatedNetRaw ?? p.estimatedNet));
-  if (recent.length < 2) return 0;
+  const fromStub = paychecks
+    .filter((p) => p.received && p.actualNet != null)
+    .sort((a, b) => b.payday.localeCompare(a.payday))[0]?.note === 'From pay stub';
+  if (recent.length < 2 && !(recent.length === 1 && fromStub)) return 0;
   const avg = recent.reduce((s, x) => s + x, 0) / recent.length;
   const spread = Math.max(...recent) - Math.min(...recent);
   // only when it's consistent (e.g. a deduction Pebbles doesn't know about)

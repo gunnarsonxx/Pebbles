@@ -79,7 +79,13 @@ export interface EssentialsEstimate {
   perPaycheck: number;
 }
 
-export function estimateEssentials(settings: Settings, txns: Transaction[], market: MarketData | null, asOf: ISODate): EssentialsEstimate {
+export function estimateEssentials(
+  settings: Settings,
+  txns: Transaction[],
+  market: MarketData | null,
+  asOf: ISODate,
+  receiptNeed: { monthly: number; reason: string } | null = null,
+): EssentialsEstimate {
   const h = settings.household;
   const months = recentFullMonths(txns, asOf.slice(0, 7), 3);
   const infl = inflationSinceReference(market);
@@ -88,7 +94,11 @@ export function estimateEssentials(settings: Settings, txns: Transaction[], mark
   const actualGroceries = averageCategory(txns, ['groceries'], months);
   let groceries: number;
   let groceriesReason: string;
-  if (actualGroceries > 0) {
+  if (receiptNeed && receiptNeed.monthly > 0) {
+    // your usual needs-based trips from receipts, at today's prices with tax
+    groceries = Math.max(receiptNeed.monthly, thrifty);
+    groceriesReason = receiptNeed.monthly >= thrifty ? receiptNeed.reason : 'Raised to the USDA Thrifty minimum so your home is always fed';
+  } else if (actualGroceries > 0) {
     // what you really spend, nudged for food inflation, but never below the USDA thrifty floor
     const yoy = market?.foodCpi?.yoyPct ?? 0;
     const adjusted = actualGroceries * (1 + Math.max(0, yoy) / 100 / 4);
@@ -290,6 +300,11 @@ export function buildPlan(opts: {
       }, 0);
     const room = Math.max(0, available - floor);
     suggested = Math.min(Math.max(ideal, Math.min(deadlineNeed, room)), room);
+    // experts suggest keeping wants near 30%: once your bills are entered, extra beyond that grows your savings
+    if (b.wantsMaxPct > 0 && monthlyBillsTotal(bills) > 0) {
+      const beyondWants = available - (net * b.wantsMaxPct) / 100;
+      if (beyondWants > suggested) suggested = Math.min(beyondWants, room);
+    }
     if (suggested < minimum && available > minimum * 2) suggested = Math.min(minimum, available * 0.5);
     if (suggested <= 0 && available > 0) suggested = Math.min(available * 0.25, minimum || available * 0.1);
     suggested = floorTo(suggested, step);

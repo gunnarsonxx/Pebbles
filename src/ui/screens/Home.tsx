@@ -6,6 +6,8 @@ import { SplitBar } from '../charts';
 import { PebblePile } from '../PebblePile';
 import { CategoryIcon, GemIcon, Progress } from '../components';
 import { InsightList } from '../InsightList';
+import { UpdateBanner } from '../UpdateCard';
+import { MovesCard } from '../AutopilotCards';
 import { ReceiveSheet } from '../sheets/ReceiveSheet';
 import { fmtDay, fmtShort, relativeDays, addDays, diffDays } from '../../core/dates';
 import { billsDueBetween } from '../../core/budget';
@@ -51,6 +53,7 @@ export function HomeScreen({ data, go }: { data: AppData; go: (t: Tab) => void }
         </h1>
         <p className="muted">{fmtDay(data.today)}</p>
       </div>
+      <UpdateBanner />
 
       <div className="grid two-wide">
         <div className="card" style={{ overflow: 'hidden', paddingBottom: 26 }}>
@@ -94,7 +97,13 @@ export function HomeScreen({ data, go }: { data: AppData; go: (t: Tab) => void }
               <ArrowRight />
             </button>
           </div>
-          <PebblePile amount={data.saved} seed="all-savings" height={data.saved > 0 ? 130 : 64} gems={completedGems} />
+          {data.saved > 0 ? (
+            <PebblePile amount={data.saved} seed="all-savings" height={130} gems={completedGems} />
+          ) : (
+            <p className="small muted" style={{ margin: '6px 0 4px' }}>
+              Your first pebbles land on payday.
+            </p>
+          )}
           {activeGoals.slice(0, 2).map((g) => {
             const bal = data.balances.get(g.id) ?? 0;
             return (
@@ -120,6 +129,8 @@ export function HomeScreen({ data, go }: { data: AppData; go: (t: Tab) => void }
           )}
         </div>
       </div>
+
+      <MovesCard data={data} />
 
       <div className="card mt">
         <div className="card-head">

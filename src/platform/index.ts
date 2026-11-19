@@ -39,6 +39,8 @@ export interface DesktopBridge {
   info(): Promise<DesktopInfo>;
   setPrefs(p: { startWithWindows?: boolean; closeToTray?: boolean }): Promise<void>;
   openDataFolder(): Promise<void>;
+  installUpdate(url: string, sha256: string | null): Promise<void>;
+  openExternal(url: string): Promise<void>;
   onRemoteChange(cb: () => void): () => void;
 }
 
@@ -57,6 +59,9 @@ export const platformKind: PlatformKind = desktop ? 'desktop' : Capacitor.isNati
 /** Native HTTP serializes JSON bodies itself, so pass objects rather than strings. */
 function nativeData(init: { headers?: Record<string, string>; body?: string }): unknown {
   const ct = Object.entries(init.headers ?? {}).find(([k]) => k.toLowerCase() === 'content-type')?.[1] ?? '';
+  if (init.body && ct.includes('application/x-www-form-urlencoded')) {
+    return Object.fromEntries(new URLSearchParams(init.body));
+  }
   if (init.body && ct.includes('application/json')) {
     try {
       return JSON.parse(init.body);

@@ -184,12 +184,22 @@ export class Hub {
   }
 
   private async handle(req: IncomingMessage, res: ServerResponse) {
+    const cors = {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Headers': 'Content-Type, X-Pebbles-Token',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+      'Access-Control-Allow-Private-Network': 'true',
+    };
     const send = (status: number, json?: unknown) => {
-      res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+      res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', ...cors });
       res.end(JSON.stringify(json ?? { ok: status < 400, status }));
     };
     try {
       const url = (req.url ?? '/').split('?')[0];
+      if (req.method === 'OPTIONS') {
+        res.writeHead(204, cors);
+        return res.end();
+      }
       if (req.method === 'GET' && url === '/hello') return send(200, { app: 'pebbles', hubId: this.data.hubId, name: this.data.hubName, version: 1 });
       if (req.method !== 'POST') return send(404);
       const raw = await readBody(req);

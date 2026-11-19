@@ -97,6 +97,7 @@ class SyncClient {
         if (hubKnown && hubKnown !== res.hubId) {
           // a different hub (e.g. reinstalled desktop): send everything again
           await store.setMeta('lastSeq', 0);
+          await store.markAllDirty();
         }
         await store.setMeta('hubId', res.hubId);
         await store.setMeta('lastSeq', res.seq);
@@ -166,8 +167,14 @@ class SyncClient {
     if (!(await verifyOffer(cleanCode, reply, pubRaw))) throw new Error('The computer’s reply could not be verified.');
     const token = await deriveToken(keys.privateKey, reply.pub);
     const link: HubLink = { host, port, token, tokenId: await tokenId(token), hubId: reply.hubId, hubName: reply.hubName, pairedAt: Date.now() };
+    const previousHub = await store.getMeta<string>('hubId');
     await store.setMeta('hub', link);
     await store.setMeta('lastSeq', 0);
+    if (previousHub !== reply.hubId) {
+      // first time with this computer: send it everything this phone has
+      await store.markAllDirty();
+      await store.setMeta('hubId', reply.hubId);
+    }
     this.set({ hub: link, status: 'idle', message: '' });
     await this.syncNow();
     return link;

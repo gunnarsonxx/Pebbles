@@ -1,7 +1,7 @@
 import { store } from './store';
 import { effectiveRules } from './useData';
 import { http } from '../platform';
-import { normalizeSettings } from '../core/defaults';
+import { BUILTIN_EIA_KEY, normalizeSettings } from '../core/defaults';
 import { categorize } from '../core/categories';
 import { cleanMerchant, transactionIds, type ParsedTxn } from '../core/statements';
 import { refreshMarket } from '../core/market';
@@ -190,8 +190,9 @@ export async function receivePaycheck(opts: {
   const date = period.payday <= today() ? period.payday : today();
   const contribs: Contribution[] = opts.allocations
     .filter((a) => a.amount > 0)
-    .map((a) => ({ id: uid('c_'), goalId: a.goalId, amount: a.amount, date, note: 'From paycheck', paycheckId: period.start }));
+    .map((a) => ({ id: `pc|${period.start}|${a.goalId}`, goalId: a.goalId, amount: a.amount, date, note: 'From paycheck', paycheckId: period.start, kind: 'deposit' as const }));
   if (contribs.length) await store.putMany('contributions', contribs);
+  await store.put('moves', { id: `${period.start}:save`, done: contribs.length > 0, at: Date.now(), auto: false });
   await store.put('paychecks', {
     id: period.start,
     periodStart: period.start,
@@ -231,7 +232,7 @@ export async function updateMarket(force = false): Promise<string[]> {
   if (!force && cur && Date.now() - cur.fetchedAt < 12 * 3600_000) return [];
   marketBusy = true;
   try {
-    const next = await refreshMarket(http, getSettings().integrations.eiaApiKey.trim(), cur);
+    const next = await refreshMarket(http, getSettings().integrations.eiaApiKey.trim() || BUILTIN_EIA_KEY, cur);
     const gotSomething = next.gas !== cur?.gas || next.foodCpi !== cur?.foodCpi;
     if (gotSomething || force || next.errors.length === 0) await store.put('market', next);
     return next.errors;

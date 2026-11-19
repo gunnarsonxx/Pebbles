@@ -10,6 +10,8 @@ contextBridge.exposeInMainWorld('pebblesDesktop', {
   info: () => ipcRenderer.invoke('pebbles:info'),
   setPrefs: (p: unknown) => ipcRenderer.invoke('pebbles:set-prefs', p),
   openDataFolder: () => ipcRenderer.invoke('pebbles:open-data'),
+  installUpdate: (url: string, sha256: string | null) => ipcRenderer.invoke('pebbles:install-update', url, sha256),
+  openExternal: (url: string) => ipcRenderer.invoke('pebbles:open-external', url),
   onRemoteChange: (cb: () => void) => {
     const fn = () => cb();
     ipcRenderer.on('pebbles:remote-change', fn);

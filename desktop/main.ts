@@ -1,6 +1,8 @@
 // Pebbles for Windows: the app window plus the hub your phone syncs with.
 import { app, BrowserWindow, ipcMain, Menu, nativeImage, net, protocol, shell, Tray, type MenuItemConstructorOptions } from 'electron';
 import { promises as fs } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { spawn } from 'node:child_process';
 import { join, normalize, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { Hub } from './hub';
@@ -176,6 +178,30 @@ function registerIpc() {
     await savePrefs();
   });
   ipcMain.handle('pebbles:open-data', () => shell.openPath(dataDir()));
+  ipcMain.handle('pebbles:open-external', (_e, url: string) => {
+    if (typeof url === 'string' && url.startsWith('https://')) return shell.openExternal(url);
+  });
+  ipcMain.handle('pebbles:install-update', async (_e, url: string, sha256: string | null) => {
+    if (typeof url !== 'string' || !url.startsWith('https://github.com/')) throw new Error('Unexpected update address');
+    if (process.platform !== 'win32' || !app.isPackaged) {
+      await shell.openExternal(url);
+      return;
+    }
+    const res = await net.fetch(url);
+    if (!res.ok) throw new Error(`Download failed (${res.status})`);
+    const buf = Buffer.from(await res.arrayBuffer());
+    if (sha256) {
+      const got = createHash('sha256').update(buf).digest('hex');
+      if (got.toLowerCase() !== sha256.toLowerCase()) throw new Error('The download did not match its checksum, so it was not installed.');
+    }
+    const file = join(app.getPath('temp'), `Pebbles-Setup-${Date.now()}.exe`);
+    await fs.writeFile(file, buf);
+    await hub.saveNow();
+    // silent install over the current copy, then start Pebbles again
+    spawn(file, ['--updated', '/S', '--force-run'], { detached: true, stdio: 'ignore' }).unref();
+    quitting = true;
+    setTimeout(() => app.quit(), 300);
+  });
 }
 
 app.on('before-quit', () => {

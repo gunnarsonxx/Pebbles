@@ -1,3 +1,6 @@
+// A small 3D heap of river stones, seen from slightly above.
+// Each stone sits on a dome; stones further back are drawn first and partly
+// hidden by the ones in front, and each is shaded like a rounded pebble.
 import { useMemo, useRef } from 'react';
 import type { GemName } from '../core/types';
 import { GEM_BY_ID } from '../core/categories';
@@ -24,31 +27,48 @@ export function pebbleCount(amount: number): number {
   return Math.max(3, Math.min(170, Math.round(3 + Math.sqrt(amount) * 1.6)));
 }
 
-interface Pebble {
+// river-stone colors: [base, light, shadow]
+const STONES: [string, string, string][] = [
+  ['#9a9488', '#c9c4b8', '#6b665d'], // warm grey
+  ['#b8ae9c', '#ddd5c6', '#857b69'], // sandstone
+  ['#7e8389', '#b3b8bd', '#565a5f'], // slate
+  ['#a8957c', '#d2c2a9', '#776650'], // tan
+  ['#8c7b6b', '#b9a898', '#5f5045'], // brown
+  ['#c9c2b6', '#ece8e0', '#958e82'], // quartz
+  ['#6f6a64', '#9d9891', '#4a4642'], // basalt
+  ['#a9836a', '#d0ae96', '#77584a'], // rust
+  ['#8f9a8a', '#bcc5b8', '#636c5f'], // sage
+];
+
+export interface Stone {
+  gen: number; // creation order (for the drop-in animation)
   d: string;
-  hi: { cx: number; cy: number; rx: number; ry: number; rot: number };
-  fill: string;
+  cx: number;
+  cy: number;
+  rx: number;
+  ry: number;
+  rot: number;
+  color: number;
+  depth: number;
   speck: { cx: number; cy: number; r: number }[];
 }
 
 const W = 320;
-const H = 170;
-const GROUND = 164;
-const FILLS = ['var(--pebble-1)', 'var(--pebble-2)', 'var(--pebble-3)', 'var(--pebble-4)', 'var(--pebble-5)'];
+const GROUND = 176;
+const TILT = 0.34; // how much depth shows up as height on screen (camera ~20° above)
 
-function pebblePath(cx: number, cy: number, rx: number, ry: number, rot: number, rnd: () => number): string {
+function stonePath(cx: number, cy: number, rx: number, ry: number, rot: number, rnd: () => number): string {
+  const N = 9;
   const pts: [number, number][] = [];
-  const N = 8;
   for (let i = 0; i < N; i++) {
     const a = (i / N) * Math.PI * 2;
-    const j = 0.92 + rnd() * 0.14;
+    const j = 0.93 + rnd() * 0.12;
     const x = Math.cos(a) * rx * j;
-    const y = Math.sin(a) * ry * j * (Math.sin(a) > 0 ? 0.92 : 1.04); // flatter bottom
+    const y = Math.sin(a) * ry * j * (Math.sin(a) > 0 ? 0.9 : 1.05);
     const c = Math.cos(rot);
     const s = Math.sin(rot);
     pts.push([cx + x * c - y * s, cy + x * s + y * c]);
   }
-  // Catmull-Rom to cubic Bezier, closed
   let d = `M${pts[0][0].toFixed(1)},${pts[0][1].toFixed(1)}`;
   for (let i = 0; i < N; i++) {
     const p0 = pts[(i - 1 + N) % N];
@@ -62,65 +82,54 @@ function pebblePath(cx: number, cy: number, rx: number, ry: number, rot: number,
   return d + 'Z';
 }
 
-export function buildPile(n: number, seed: string): { pebbles: Pebble[]; top: number; peakX: number } {
-  const rnd = mulberry32(seedOf(seed));
-  const heights = new Float32Array(W);
-  const avg = Math.max(6.5, Math.min(14, Math.sqrt(14000 / (Math.max(n, 1) * 2.1))));
-  const pebbles: Pebble[] = [];
-  const gauss = () => (rnd() + rnd() + rnd() - 1.5) / 1.5;
+export function buildPile(n: number, seed: string): { stones: Stone[]; top: number; peakX: number; radius: number } {
+  const base = seedOf(seed);
+  // dome size grows with the number of stones
+  const R = Math.max(24, Math.min(132, 18 + Math.sqrt(n) * 9.5));
+  const H = R * 0.82;
+  const area = 2 * R * (H + R * TILT) * 0.7;
+  const avg = Math.max(7, Math.min(17, Math.sqrt((2.7 * area) / (2.3 * Math.max(n, 1)))));
+  const stones: Stone[] = [];
   for (let i = 0; i < n; i++) {
-    const rx = avg * (0.75 + rnd() * 0.55);
-    const ry = rx * (0.56 + rnd() * 0.2);
-    // drop near the middle, then let it roll downhill until it rests, like a real pile
-    const lo = rx + 6;
-    const hi = W - rx - 6;
-    const baseAt = (x: number) => {
-      let b = 0;
-      for (let c = Math.floor(x - rx * 0.7); c <= Math.ceil(x + rx * 0.7); c++) b = Math.max(b, heights[c] ?? 0);
-      return b;
-    };
-    let bestX = Math.max(lo, Math.min(hi, W / 2 + gauss() * W * 0.18));
-    const hAt = (x: number) => heights[Math.max(0, Math.min(W - 1, Math.round(x)))];
-    const reach = rx * 1.5;
-    const repose = ry * 0.9; // how steep a slope a pebble can rest on (over 1.5 radii)
-    for (let step = 0; step < 80; step++) {
-      const c = baseAt(bestX);
-      const l = bestX - reach > lo ? hAt(bestX - reach) : Infinity;
-      const r = bestX + reach < hi ? hAt(bestX + reach) : Infinity;
-      const goLeft = c - l > repose && (l < r || (l === r && rnd() < 0.5));
-      const goRight = !goLeft && c - r > repose;
-      if (goLeft) bestX -= rx * 0.5;
-      else if (goRight) bestX += rx * 0.5;
-      else break;
-    }
-    const bestBase = baseAt(bestX);
-    const cy = GROUND - bestBase - ry * 0.78;
-    for (let c = Math.floor(bestX - rx); c <= Math.ceil(bestX + rx); c++) {
-      if (c < 0 || c >= W) continue;
-      const dx = (c - bestX) / rx;
-      if (Math.abs(dx) > 1) continue;
-      const h = GROUND - cy + ry * Math.sqrt(1 - dx * dx) * 0.8;
-      heights[c] = Math.max(heights[c], h);
-    }
-    const rot = (rnd() - 0.5) * 0.7;
-    const fill = FILLS[Math.floor(rnd() * FILLS.length)];
-    const speck = rnd() < 0.35 ? Array.from({ length: 2 + Math.floor(rnd() * 3) }, () => ({ cx: bestX + (rnd() - 0.5) * rx, cy: cy + (rnd() - 0.3) * ry * 0.8, r: 0.6 + rnd() * 0.7 })) : [];
-    pebbles.push({
-      d: pebblePath(bestX, cy, rx, ry, rot, rnd),
-      hi: { cx: bestX - rx * 0.28, cy: cy - ry * 0.38, rx: rx * 0.42, ry: ry * 0.22, rot: (rot * 180) / Math.PI - 8 },
-      fill,
+    const rnd = mulberry32(base + i * 7919);
+    // place on the dome; most stones face the viewer, a few have rolled off the base
+    const front = rnd() < 0.7;
+    const theta = front ? Math.PI + rnd() * Math.PI : rnd() * Math.PI; // sin<0 = front
+    const rolled = rnd() < 0.07;
+    const r = rolled ? R * (0.95 + rnd() * 0.22) : R * Math.sqrt(0.02 + rnd() * 0.86);
+    const x = r * Math.cos(theta);
+    const z = r * Math.sin(theta);
+    const rx = avg * (0.72 + rnd() * 0.6);
+    const ry = rx * (0.6 + rnd() * 0.16);
+    const surface = H * Math.pow(Math.max(0, 1 - (r / R) ** 2), 0.55);
+    const h = Math.max(ry * 0.55, surface - rnd() * ry * 0.35);
+    const cx = W / 2 + x;
+    const cy = GROUND - h - z * TILT;
+    const rot = (rnd() - 0.5) * 0.8;
+    const pick = rnd();
+    const color = pick < 0.82 ? [0, 1, 2, 3, 5, 6][Math.floor(rnd() * 6)] : [4, 7, 8][Math.floor(rnd() * 3)];
+    const speck =
+      rnd() < 0.3
+        ? Array.from({ length: 2 + Math.floor(rnd() * 3) }, () => ({ cx: cx + (rnd() - 0.5) * rx, cy: cy + (rnd() - 0.3) * ry * 0.7, r: 0.5 + rnd() * 0.6 }))
+        : [];
+    stones.push({
+      gen: i,
+      d: stonePath(cx, cy, rx, ry, rot, rnd),
+      cx,
+      cy,
+      rx,
+      ry,
+      rot,
+      color,
+      depth: z * 0.94 - h * 0.34,
       speck,
     });
   }
-  let top = 0;
-  let peakX = W / 2;
-  heights.forEach((h, i) => {
-    if (h > top) {
-      top = h;
-      peakX = i;
-    }
-  });
-  return { pebbles, top, peakX };
+  // painter's order: farthest first
+  stones.sort((a, b) => b.depth - a.depth);
+  const top = stones.length ? Math.max(...stones.map((s) => GROUND - (s.cy - s.ry))) : 0;
+  const peak = stones.reduce((best, s) => (s.cy - s.ry < best.cy - best.ry ? s : best), stones[0] ?? { cx: W / 2, cy: GROUND, ry: 0 } as Stone);
+  return { stones, top, peakX: peak?.cx ?? W / 2, radius: R };
 }
 
 export function PebblePile({
@@ -135,36 +144,67 @@ export function PebblePile({
   seed: string;
   gems?: GemName[];
   height?: number;
-  animateFrom?: number; // previous amount: pebbles above it drop in
+  animateFrom?: number; // previous amount: stones above it drop in
   label?: string;
 }) {
   const n = pebbleCount(amount);
-  const { pebbles, top, peakX } = useMemo(() => buildPile(n, seed), [n, seed]);
+  const { stones, top, peakX, radius } = useMemo(() => buildPile(n, seed), [n, seed]);
   const firstNew = animateFrom != null ? pebbleCount(animateFrom) : n;
   const mounted = useRef(false);
   const animate = mounted.current || animateFrom != null;
   mounted.current = true;
-  const vbTop = Math.min(0, GROUND - top - 30);
+  const vbTop = Math.min(GROUND - 118, GROUND - top - 34);
+  const vbH = GROUND + radius * TILT + 14 - vbTop;
+  const gid = `pp${seedOf(seed).toString(36)}`;
   return (
-    <svg className="pile" viewBox={`0 ${vbTop} ${W} ${H - vbTop}`} style={{ height }} role="img" aria-label={label ?? `${n} pebbles`}>
-      <ellipse cx={W / 2} cy={GROUND + 2} rx={W * 0.44} ry={6} fill="var(--line)" opacity="0.7" />
-      {n === 0 && (
-        <g opacity="0.55">
-          <ellipse cx={W / 2} cy={GROUND - 6} rx={16} ry={9} fill="none" stroke="var(--line-2)" strokeWidth="2" strokeDasharray="4 4" />
+    <svg className="pile" viewBox={`0 ${vbTop} ${W} ${vbH}`} style={{ height }} role="img" aria-label={label ?? `${n} pebbles`}>
+      <defs>
+        {STONES.map(([b, l, s], i) => (
+          <radialGradient key={i} id={`${gid}-s${i}`} cx="0.36" cy="0.3" r="0.85">
+            <stop offset="0" stopColor={l} />
+            <stop offset="0.45" stopColor={b} />
+            <stop offset="1" stopColor={s} />
+          </radialGradient>
+        ))}
+        <radialGradient id={`${gid}-ground`} cx="0.5" cy="0.5" r="0.5">
+          <stop offset="0" stopColor="#000" stopOpacity="0.22" />
+          <stop offset="0.7" stopColor="#000" stopOpacity="0.08" />
+          <stop offset="1" stopColor="#000" stopOpacity="0" />
+        </radialGradient>
+      </defs>
+      {n > 0 ? (
+        <ellipse cx={W / 2} cy={GROUND + 2} rx={radius * 1.18 + 10} ry={radius * TILT * 1.25 + 7} fill={`url(#${gid}-ground)`} />
+      ) : (
+        <g opacity="0.6">
+          <ellipse cx={W / 2} cy={GROUND - 4} rx={22} ry={8} fill={`url(#${gid}-ground)`} />
+          <ellipse cx={W / 2} cy={GROUND - 9} rx={14} ry={8} fill="none" stroke="var(--line-2)" strokeWidth="1.5" strokeDasharray="3 4" />
         </g>
       )}
-      {pebbles.map((p, i) => (
-        <g key={i} className={`pebble${animate && i >= firstNew ? ' drop' : ''}`} style={animate && i >= firstNew ? { animationDelay: `${(i - firstNew) * 45}ms` } : undefined}>
-          <path d={p.d} fill={p.fill} stroke="var(--card)" strokeWidth="1.2" />
-          <ellipse cx={p.hi.cx} cy={p.hi.cy} rx={p.hi.rx} ry={p.hi.ry} fill="var(--pebble-hi)" transform={`rotate(${p.hi.rot} ${p.hi.cx} ${p.hi.cy})`} />
-          {p.speck.map((s, k) => (
-            <circle key={k} cx={s.cx} cy={s.cy} r={s.r} fill="var(--ink)" opacity="0.18" />
-          ))}
-        </g>
-      ))}
+      {stones.map((p) => {
+        const drop = animate && p.gen >= firstNew;
+        return (
+          <g key={p.gen} className={`pebble${drop ? ' drop' : ''}`} style={drop ? { animationDelay: `${(p.gen - firstNew) * 40}ms` } : undefined}>
+            {/* contact shadow */}
+            <ellipse cx={p.cx + p.rx * 0.12} cy={p.cy + p.ry * 0.62} rx={p.rx * 0.95} ry={p.ry * 0.45} fill="#000" opacity="0.16" />
+            <path d={p.d} fill={`url(#${gid}-s${p.color})`} />
+            <ellipse
+              cx={p.cx - p.rx * 0.32}
+              cy={p.cy - p.ry * 0.42}
+              rx={p.rx * 0.32}
+              ry={p.ry * 0.16}
+              fill="#fff"
+              opacity="0.32"
+              transform={`rotate(${(p.rot * 180) / Math.PI - 10} ${p.cx - p.rx * 0.32} ${p.cy - p.ry * 0.42})`}
+            />
+            {p.speck.map((s, k) => (
+              <circle key={k} cx={s.cx} cy={s.cy} r={s.r} fill="#2a2724" opacity="0.22" />
+            ))}
+          </g>
+        );
+      })}
       {gems.map((g, i) => {
         const gx = peakX + (i - (gems.length - 1) / 2) * 20;
-        const gy = GROUND - top - 12 + Math.abs(i - (gems.length - 1) / 2) * 6;
+        const gy = GROUND - top - 10 + Math.abs(i - (gems.length - 1) / 2) * 6;
         const c = GEM_BY_ID[g]?.color ?? '#ccc';
         return (
           <g key={g + i} transform={`translate(${gx - 9} ${gy - 9}) scale(0.75)`}>

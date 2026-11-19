@@ -7,6 +7,10 @@ import { store } from './data/store';
 import { syncClient } from './data/syncClient';
 import { checkTaxUpdates, getSettings, updateMarket } from './data/actions';
 import { setupNative } from './platform/native';
+import { checkForUpdate } from './platform/updater';
+import { startAutopilot } from './data/autopilot';
+import { syncAllBanks } from './data/bank';
+import { checkGuidelineUpdates, refreshStorePrices } from './data/groceryActions';
 
 async function boot() {
   await store.init();
@@ -14,14 +18,22 @@ async function boot() {
   root.render(<App />);
   void syncClient.start();
   void setupNative();
+  startAutopilot();
   // background refreshes: tax tables (daily) and prices (twice a day)
   const refresh = () => {
     const s = getSettings();
     if (!s.onboarded) return;
-    if (s.integrations.autoUpdate) void checkTaxUpdates();
+    if (s.integrations.autoUpdate) {
+      void checkTaxUpdates();
+      void checkGuidelineUpdates();
+    }
     void updateMarket();
+    void syncAllBanks();
+    void refreshStorePrices();
   };
   setTimeout(refresh, 4000);
+  setTimeout(() => void checkForUpdate(), 8000);
+  setInterval(() => void checkForUpdate(), 24 * 3600_000);
   setInterval(refresh, 3 * 3600_000);
 }
 
