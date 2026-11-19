@@ -170,6 +170,13 @@ export async function ocrImage(file: File, progress?: Progress, retry?: (lines: 
 export async function linesFromFile(file: File, progress?: Progress, retry?: (lines: OcrLine[]) => boolean, layout: OcrLayout = 'column'): Promise<{ lines: OcrLine[]; source: 'photo' | 'pdf' | 'text' }> {
   const name = file.name.toLowerCase();
   if (name.endsWith('.pdf') || file.type === 'application/pdf') {
+    if (layout === 'table') {
+      // tables (pay stubs): keep each word's position so columns like "This period" and "YTD" stay apart
+      const { pdfToWords } = await import('./pdfText');
+      const words = await withTimeout(pdfToWords(file), 60_000, 'That PDF took too long to open.');
+      const rows = rowsFromWords(words);
+      if (rows.length && (!retry || !retry(rows))) return { lines: rows, source: 'pdf' };
+    }
     const { pdfToLines } = await import('./pdfText');
     const lines = await withTimeout(pdfToLines(file), 60_000, 'That PDF took too long to open.');
     return { lines: lines.map((text) => ({ text, confidence: 100 })), source: 'pdf' };

@@ -7,6 +7,10 @@ import type { ItemRule, Receipt, ReceiptItem } from './types';
 export interface OcrLine {
   text: string;
   confidence: number; // 0–100 (100 for PDFs and typed text)
+  /** Where each word sits across the page, when known (table reading and PDFs). */
+  words?: { text: string; x0: number; x1: number; col?: 'cur' | 'ytd' | null; gap?: boolean }[];
+  /** For a piece of a row: which column each space-separated token came from. */
+  cols?: ('cur' | 'ytd' | null)[];
 }
 
 const STORES: [RegExp, string][] = [

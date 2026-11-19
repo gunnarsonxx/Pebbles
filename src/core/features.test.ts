@@ -422,3 +422,61 @@ YTD   43933.03   43933.03   43933.03   8559.94   1325.79   3422848
     expect(p.hours.some((h) => h.amount === 19.81)).toBe(false);
   });
 });
+
+describe('pay stub columns: this period vs. year to date', async () => {
+  const { rowsFromWords } = await import('./layout');
+  // words placed where they sit on a real stub (x in px, one row every 18 px)
+  let y = 0;
+  const words: { text: string; confidence: number; x0: number; x1: number; y0: number; y1: number }[] = [];
+  const row = (...cells: [string, number][]) => {
+    y += 18;
+    for (const [text, x] of cells) {
+      let at = x;
+      for (const part of text.split(' ')) {
+        words.push({ text: part, confidence: 95, x0: at, x1: at + part.length * 6, y0: y, y1: y + 10 });
+        at += part.length * 6 + 5;
+      }
+    }
+  };
+  row(['Pay Period: 11/1/2026 THRU 11/14/2026', 700]);
+  row(['CURRENT', 290], ['YTD', 455], ['This', 690], ['This', 935]);
+  row(['Description', 40], ['Rate', 245], ['Hours', 290], ['Earnings', 340], ['Hours', 410], ['Earnings', 480], ['Description', 545], ['Period', 690], ['YTD', 760], ['Description', 800], ['Period', 935], ['YTD', 1010]);
+  row(['Regular', 40], ['22.500', 245], ['58.50', 300], ['1316.25', 355], ['1667.00', 430], ['38447.54', 495], ['Reimbursement', 545], ['181.18', 760], ['Federal W/H', 800], ['119.84', 935], ['3298.76', 1010]);
+  row(['Regular', 40], ['24.500', 245], ['14.50', 300], ['355.25', 360], ['FICA', 800], ['103.64', 935], ['2723.85', 1010]);
+  row(['Holiday', 40], ['32.00', 430], ['1096.52', 495], ['Medicare', 800], ['24.24', 940], ['637.02', 1010]);
+  row(['Overtime', 40], ['53.25', 430], ['1909.69', 495], ['CO W/H', 800], ['65.00', 940], ['1707.00', 1010]);
+  row(['CO PFML EE', 800], ['7.36', 945], ['193.31', 1010]);
+  row(['CURRENT', 290], ['YTD', 455]);
+  row(['Blended OT', 40], ['19.81', 500]);
+  row(['Bonus', 40], ['275.27', 495]);
+  row(['This', 690]);
+  row(['Description', 545], ['Period', 690], ['YTD', 760]);
+  row(['CO IRA Roth', 545], ['1325.79', 760]);
+  row(['Gross', 100], ['FICA', 170], ['Federal', 250], ['Other', 400]);
+  row(['Wages', 100], ['Taxable', 170], ['Taxable', 250], ['Taxes', 330], ['Deducts', 400], ['Net Pay', 480]);
+  row(['Current', 40], ['1671.50', 100], ['1671.50', 170], ['1671.50', 250], ['320.08', 330], ['0.00', 400], ['1351.42', 480]);
+  row(['YTD', 40], ['43933.03', 100], ['43933.03', 170], ['43933.03', 250], ['8559.94', 330], ['1325.79', 400], ['34228.48', 480]);
+
+  const lines = rowsFromWords(words);
+  const p = parsePaystub(lines, [22.5, 24.5]);
+
+  it('takes this period’s amounts, not year to date', () => {
+    expect(p.gross).toBe(1671.5);
+    expect(p.net).toBe(1351.42);
+    const tax = (k: string) => p.lines.find((l) => l.kind === k);
+    expect(tax('federal')).toMatchObject({ current: 119.84, ytd: 3298.76 });
+    expect(tax('social_security')).toMatchObject({ current: 103.64, ytd: 2723.85 });
+    expect(tax('medicare')).toMatchObject({ current: 24.24, ytd: 637.02 });
+    expect(tax('famli')).toMatchObject({ current: 7.36, ytd: 193.31 });
+    expect(p.warnings).toEqual([]);
+  });
+
+  it('a number only in the YTD column means nothing this period', () => {
+    expect(p.lines.find((l) => /ROTH/i.test(l.label))).toMatchObject({ current: 0, ytd: 1325.79 });
+    // holiday, overtime, blended OT and bonus only have year-to-date amounts
+    expect(p.hours.map((h) => [h.hours, h.rate, h.amount])).toEqual([
+      [58.5, 22.5, 1316.25],
+      [14.5, 24.5, 355.25],
+    ]);
+  });
+});

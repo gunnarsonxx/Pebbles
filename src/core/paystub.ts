@@ -3,7 +3,7 @@ import { addDays, parseLooseDate } from './dates';
 import { round2 } from './money';
 import type { DeductionKind, Paystub, PaystubLine, PayrollDeduction } from './types';
 import type { OcrLine } from './receipts';
-import { chunkRow } from './layout';
+import { chunkLine, chunkRow } from './layout';
 
 const MONEY = /-?\$?\(?(?:\d{1,3}(?:,\d{3})+|\d+)\.\d{2,4}\)?/g;
 
@@ -56,6 +56,33 @@ export function cleanOcrMoney(text: string): string {
 }
 
 const ONE_MONEY = /-?\$?\(?(?:\d{1,3}(?:,\d{3})+|\d+)\.\d{2,4}\)?/;
+/** Clean a positioned chunk token by token, so each number keeps its column tag. */
+function cleanChunk(c: OcrLine): OcrLine {
+  const toks = c.text.split(' ');
+  const hasDec = toks.some((t) => /\d\.\d{2}\b/.test(t));
+  const fixed = toks.map((t) => {
+    let x = t.replace(/^[S§](?=\d)/, '$');
+    if (hasDec && /^\d{3,6}$/.test(x)) x = `${x.slice(0, -2)}.${x.slice(-2)}`;
+    return x;
+  });
+  return { ...c, text: fixed.join(' ') };
+}
+
+/** Each amount on a line, with the column it came from when the layout is known. */
+export function amountsOf(l: OcrLine): { v: number; col: 'cur' | 'ytd' | null }[] {
+  if (l.cols && l.cols.length === l.text.split(' ').length) {
+    const out: { v: number; col: 'cur' | 'ytd' | null }[] = [];
+    l.text.split(' ').forEach((t, i) => {
+      if (!/^-?\$?\(?(?:\d{1,3}(?:,\d{3})+|\d+)\.\d{2,4}\)?$/.test(t)) return;
+      const neg = t.startsWith('-') || t.startsWith('(');
+      const v = parseFloat(t.replace(/[$,()\-]/g, ''));
+      if (!Number.isNaN(v)) out.push({ v: neg ? -v : v, col: l.cols![i] });
+    });
+    return out;
+  }
+  return nums(l.text).map((v) => ({ v, col: null }));
+}
+
 /** Next to other amounts, a bare "2424" is almost always "24.24" with the point lost. */
 function restoreDecimals(chunk: string): string {
   if (!/\d\.\d{2}\b/.test(chunk)) return chunk;
@@ -74,7 +101,12 @@ export function joinSplitLines(lines: OcrLine[]): OcrLine[] {
     .filter((l) => l.text)
     // a grid row holds several "label numbers" pieces side by side: read each on its own,
     // except header rows (no numbers), which stay whole for the header-over-amounts case
-    .flatMap((l) => (ONE_MONEY.test(l.text) ? chunkRow(l.text).map((text) => ({ ...l, text: restoreDecimals(text) })) : [l]));
+    .flatMap((l) => {
+      if (!ONE_MONEY.test(l.text)) return [l];
+      // with word positions, keep track of which column (this period / YTD) each number came from
+      if (l.words?.length) return chunkLine(l).map((c) => cleanChunk(c));
+      return chunkRow(l.text).map((text) => ({ ...l, words: undefined, text: restoreDecimals(text) }));
+    });
   const out: OcrLine[] = [];
   const used = new Set<number>();
   for (let i = 0; i < L.length; i++) {
@@ -137,25 +169,36 @@ export function parsePaystub(rawLines: OcrLine[], knownRates: number[] = []): Pa
 
   for (const l of lines) {
     const text = l.text.replace(/\s+/g, ' ').trim();
-    const values = nums(text).filter((v) => !Number.isNaN(v));
-    if (!values.length) continue;
+    const amounts = amountsOf(l).filter((a) => !Number.isNaN(a.v));
+    if (!amounts.length) continue;
+    // when the page layout tells us, "this period" and "year to date" numbers are kept apart
+    const hasCols = amounts.some((a) => a.col);
+    const cur = amounts.filter((a) => a.col === 'cur').map((a) => a.v);
+    const ytdOnly = amounts.filter((a) => a.col === 'ytd').map((a) => a.v);
+    const values = hasCols ? amounts.filter((a) => a.col !== 'ytd').map((a) => a.v) : amounts.map((a) => a.v);
     const label = labelOf(text);
     if (!label || /date|period|check\s*#|employee|ssn|address/i.test(label)) continue;
     const kind = lineKind(label);
     if (!kind) continue;
     const low = l.confidence < 70;
     if (kind === 'gross') {
-      if (out.gross == null) {
+      if (hasCols) {
+        if (out.gross == null && cur.length) out.gross = Math.abs(cur[cur.length - 1]);
+        if (out.ytdGross == null && ytdOnly.length) out.ytdGross = Math.abs(ytdOnly[ytdOnly.length - 1]);
+      } else if (out.gross == null) {
         out.gross = Math.abs(values[values.length > 2 ? values.length - 2 : 0]);
         if (values.length >= 2) out.ytdGross = Math.abs(values[values.length - 1]);
       }
       continue;
     }
     if (kind === 'net') {
-      if (out.net == null) out.net = Math.abs(values[values.length >= 2 ? values.length - 2 : 0]);
+      if (hasCols) {
+        if (out.net == null && cur.length) out.net = Math.abs(cur[cur.length - 1]);
+      } else if (out.net == null) out.net = Math.abs(values[values.length >= 2 ? values.length - 2 : 0]);
       continue;
     }
     if (kind === 'earning') {
+      if (!values.length) continue; // only year-to-date numbers: nothing earned this period
       // [rate, hours, current, ytd] in some order: find rate × hours ≈ amount
       let found = false;
       const near = (v: number) => knownRates.some((r) => Math.abs(r - v) < 0.01);
@@ -191,8 +234,16 @@ export function parsePaystub(rawLines: OcrLine[], knownRates: number[] = []): Pa
     const key = `${kind}:${label.toUpperCase()}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    const current = Math.abs(values[0]);
-    const ytd = values.length > 1 ? Math.abs(values[values.length - 1]) : null;
+    let current: number;
+    let ytd: number | null;
+    if (hasCols) {
+      // nothing under "this period" but a year-to-date total: nothing was taken this check
+      current = cur.length ? Math.abs(cur[0]) : values.length ? Math.abs(values[0]) : 0;
+      ytd = ytdOnly.length ? Math.abs(ytdOnly[ytdOnly.length - 1]) : null;
+    } else {
+      current = Math.abs(values[0]);
+      ytd = values.length > 1 ? Math.abs(values[values.length - 1]) : null;
+    }
     if (/^total/i.test(label)) continue;
     out.lines.push({ label, kind, current: round2(current), ytd: ytd != null ? round2(ytd) : null, lowConfidence: low });
   }

@@ -36,3 +36,32 @@ export async function pdfToLines(file: File): Promise<string[]> {
   }
   return lines;
 }
+
+/** Every word in a PDF with its position (pages stacked top to bottom), for reading tables. */
+export async function pdfToWords(file: File): Promise<import('../core/layout').OcrWord[]> {
+  const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
+  pdfjs.GlobalWorkerOptions.workerSrc = new URL('./pdf/pdf.worker.min.js', window.location.href).href;
+  const doc = await pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
+  const words: import('../core/layout').OcrWord[] = [];
+  let offset = 0;
+  for (let p = 1; p <= doc.numPages; p++) {
+    const page = await doc.getPage(p);
+    const vp = page.getViewport({ scale: 1 });
+    const content = await page.getTextContent();
+    for (const it of content.items as { str: string; transform: number[]; width: number; height: number }[]) {
+      if (typeof it.str !== 'string' || !it.str.trim()) continue;
+      const size = Math.abs(it.transform[3]) || it.height || 10;
+      const x = it.transform[4];
+      const top = offset + (vp.height - it.transform[5] - size);
+      // split a text run into words, spacing them by character count
+      const per = it.str.length ? it.width / it.str.length : 0;
+      let i = 0;
+      for (const part of it.str.split(/(\s+)/)) {
+        if (part.trim()) words.push({ text: part, confidence: 100, x0: x + i * per, x1: x + (i + part.length) * per, y0: top, y1: top + size });
+        i += part.length;
+      }
+    }
+    offset += vp.height + 20;
+  }
+  return words;
+}
