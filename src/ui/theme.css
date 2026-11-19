@@ -775,9 +775,9 @@ textarea.input {
 }
 
 .segmented button.on {
-  background: var(--card);
-  color: var(--ink);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+  background: var(--moss-soft);
+  color: var(--moss-strong);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--moss) 35%, transparent);
 }
 
 .toggle {
