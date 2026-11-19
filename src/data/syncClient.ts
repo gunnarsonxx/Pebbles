@@ -169,7 +169,7 @@ class SyncClient {
       throw new Error(
         refused
           ? `Your computer answered but Pebbles isn’t listening. Make sure Pebbles is open on it, then try again.`
-          : `Couldn’t reach your computer at ${hosts.join(' or ')}. Check that: 1) your phone is on the same Wi-Fi as the computer (not mobile data or a guest network), 2) on the computer, Pebbles → Settings → Sync & Devices says phones are allowed through Windows Firewall, 3) the address matches what the computer shows.`,
+          : `Couldn’t reach your computer at ${hosts.join(' or ')}. Check that: 1) your phone is on the same Wi-Fi as the computer (not mobile data or a guest network), 2) on the computer, Pebbles → Settings → Sync & Devices says phones are allowed through Windows Firewall, 3) the address matches what the computer shows. (Details: ${lastErr})`,
       );
     }
     const { keys, pubRaw } = await pairKeys();

@@ -697,8 +697,8 @@ export function PhoneSync() {
       ) : (
         <div className="col gap-l">
           <ol className="small ink2" style={{ margin: 0, paddingLeft: 18 }}>
-            <li>Open Pebbles on your computer and go to Settings → Sync & devices.</li>
-            <li>Click “Pair a phone” and type the address and 6-digit code here.</li>
+            <li>Open Pebbles on your computer and go to Settings → Sync & Devices.</li>
+            <li>Click “Pair a Phone” and type the address and 6-digit code here.</li>
           </ol>
           <div className="form-grid two">
             <Field label="Computer Address">
