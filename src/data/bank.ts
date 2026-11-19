@@ -152,7 +152,7 @@ async function doRecover(): Promise<string[]> {
 /** Open Plaid's sign-in page and wait for you to finish connecting a bank. */
 export async function connectBank(onStatus: (msg: string) => void, reconnect?: BankLink): Promise<string[]> {
   const creds = plaidCreds();
-  if (!creds) throw new Error('Add your Plaid keys first (Settings → Bank connections).');
+  if (!creds) throw new Error('Add your Plaid keys first (Settings → Connections).');
   cancelFlag = false;
   onStatus('Opening a secure sign-in page…');
   let link;

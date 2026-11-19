@@ -1622,3 +1622,96 @@ ol.steps li.now strong {
 :root[data-accent='rose_quartz'][data-mode='dark'] { --moss: #e095ae; --moss-strong: #eab0c3; --moss-soft: #3a2229; --on-moss: #1f0f14; --focus: #eab0c3; }
 :root[data-accent='ruby'] { --moss: #a8233c; --moss-strong: #8a1c31; --moss-soft: #f6dde2; --on-moss: #ffffff; --focus: #a8233c; }
 :root[data-accent='ruby'][data-mode='dark'] { --moss: #e0697f; --moss-strong: #ea8a9c; --moss-soft: #3a1c22; --on-moss: #1f0a0f; --focus: #ea8a9c; }
+
+/* ---------- pantry & list ---------- */
+.check-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 2px solid var(--line-2);
+  background: var(--card);
+  color: transparent;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+.check-btn:active,
+.check-btn:hover {
+  border-color: var(--moss);
+  color: var(--moss);
+}
+.pantry-row {
+  gap: 8px;
+}
+.pantry-name {
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  padding: 0;
+  cursor: pointer;
+  min-width: 0;
+}
+.stepper {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+.stepper .num {
+  min-width: 34px;
+  text-align: center;
+}
+.level-pills {
+  display: flex;
+  gap: 3px;
+  flex-shrink: 0;
+}
+.level-pill {
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--ink-3);
+  border-radius: 999px;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 5px 8px;
+  cursor: pointer;
+}
+.level-pill.on.full {
+  background: var(--good-soft);
+  color: var(--good);
+  border-color: transparent;
+}
+.level-pill.on.half {
+  background: var(--moss-soft);
+  color: var(--moss-strong);
+  border-color: transparent;
+}
+.level-pill.on.low {
+  background: var(--warn-soft);
+  color: var(--warn);
+  border-color: transparent;
+}
+.level-pill.on.out {
+  background: var(--bad-soft);
+  color: var(--bad);
+  border-color: transparent;
+}
+.warn {
+  color: var(--warn);
+}
+.bad {
+  color: var(--bad);
+}
+.link-btn {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: var(--moss-strong);
+  text-decoration: underline;
+  cursor: pointer;
+}

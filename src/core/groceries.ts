@@ -17,11 +17,19 @@ export const DEPT_LABEL: Record<GroceryDept, string> = {
   personal: 'Personal care',
   baby: 'Baby',
   pet: 'Pet',
+  fuel: 'Gas',
+  tobacco: 'Nicotine & tobacco',
+  prepared: 'Hot food & fountain drinks',
+  lottery: 'Lottery',
+  auto: 'Car care',
   other: 'Other',
 };
 
 /** Departments that are usually wants rather than needs. */
-export const WANT_DEPTS: GroceryDept[] = ['snacks', 'alcohol', 'drinks'];
+export const WANT_DEPTS: GroceryDept[] = ['snacks', 'alcohol', 'drinks', 'tobacco', 'prepared', 'lottery'];
+
+/** Not groceries at all: kept out of the grocery budget and the pantry. */
+export const NON_GROCERY_DEPTS: GroceryDept[] = ['fuel', 'tobacco', 'lottery', 'auto'];
 
 // Receipt abbreviations (Kroger/King Soopers, Walmart, Safeway...)
 const ABBR: [RegExp, string][] = [
@@ -96,6 +104,11 @@ export function cleanItemName(raw: string): { name: string; key: string } {
 }
 
 const DEPTS: [RegExp, GroceryDept][] = [
+  [/\bUNLEADED\b|\bUNL\b|\bUNLD\b|REG(ULAR)? UNL|\bPREMIUM UNL|\bPLUS UNL|\bMIDGRADE\b|\bDIESEL\b|\bFUEL\b|\bGASOLINE\b|\bPUMP\b|\bE ?85\b|^GAS\b|\bGAS SALE|\bPREPAY\b/, 'fuel'],
+  [/MARLBORO|NEWPORT|CAMEL|PALL MALL|WINSTON|AMERICAN SPIRIT|\bCIG(S|ARETTE|ARETTES|AR|ARS)?\b|\bZYN\b|\bVELO\b|\bROGUE\b|\bON NICOTINE|NICOTINE|\bPOUCH(ES)?\b|\bVUSE\b|\bJUUL\b|\bVAPE\b|\bNJOY\b|GEEK ?BAR|ELF ?BAR|BREEZE|\bSKOAL\b|COPENHAGEN|GRIZZLY|\bKODIAK\b|\bSNUFF\b|\bDIP\b|BLACK ?N ?MILD|SWISHER|\bBACKWOODS\b|\bTOBACCO\b|\bLUCY\b|\bSESH\b/, 'tobacco'],
+  [/LOTTERY|LOTTO|POWERBALL|MEGA ?MILLIONS|SCRATCH|SCRATCHER|\bQUICK ?PICK\b|CASH ?5\b|PICK ?3\b/, 'lottery'],
+  [/MOTOR OIL|\b5W ?\d0\b|\b10W ?\d0\b|WASHER FLUID|WIPER|ANTIFREEZE|COOLANT|CAR WASH|AIR FRESHENER|\bWASH\b.*\bCAR\b|TIRE/, 'auto'],
+  [/FOUNTAIN|\bPOLAR POP\b|\bBIG GULP\b|SLURPEE|FROZEN DRINK|HOT DOG ROLLER|\bROLLER\b|TAQUITO|PIZZA SLICE|\bSLICE\b|\bBURRITO\b|HOT FOOD|\bDELI SAND|\bSANDWICH\b|\bCOFFEE CUP\b|\bHOT COFFEE\b|\bCAPPUCCINO\b|\bFRAPPE\b|\bNACHOS\b|\bCHICKEN TENDER|\bFRIED CHICKEN\b|\bEMPANADA/, 'prepared'],
   [/BEER|WINE|VODKA|WHISK|TEQUILA|RUM\b|SELTZER HARD|IPA\b|LAGER|BUD LIGHT|COORS|MICHELOB|CORONA|MODELO|WHITE CLAW|TRULY|LIQUOR|CABERNET|MERLOT|CHARDONNAY|PINOT/, 'alcohol'],
   [/DIAPER|WIPES|BABY|FORMULA|PULL UPS|HUGGIES|PAMPERS/, 'baby'],
   [/DOG|CAT\b|PET\b|KIBBLE|LITTER|PURINA|MEOW|BLUE BUFFALO/, 'pet'],
@@ -103,7 +116,7 @@ const DEPTS: [RegExp, GroceryDept][] = [
   [/TOILET PAPER|PAPER TOWELS|NAPKIN|DETERGENT|DISH|BLEACH|CLEANER|LYSOL|CLOROX|TRASH BAG|GARBAGE BAG|FOIL|PLASTIC WRAP|ZIPLOC|SPONGE|BATTER(Y|IES)|LIGHT BULB|TIDE|DAWN|GAIN\b|SWIFFER|KLEENEX|TISSUE/, 'household'],
   [/CHIPS|DORITOS|CHEETOS|LAYS|PRINGLES|COOKIE|OREO|CANDY|CHOCOLATE|SNICKERS|M&M|REESE|GUMMY|GUM\b|ICE CREAM|POPCORN|PRETZEL|CRACKER|DONUT|CAKE|BROWNIE|PIE\b|SNACK|JERKY|TRAIL MIX|SKITTLES|KIT KAT|TWIX|HERSHEY/, 'snacks'],
   [/SODA|COKE|PEPSI|SPRITE|DR PEPPER|MOUNTAIN DEW|ENERGY|MONSTER|RED BULL|CELSIUS|GATORADE|POWERADE|JUICE|WATER|SPARKLING|LA CROIX|COFFEE|TEA\b|KOMBUCHA|LEMONADE/, 'drinks'],
-  [/FROZEN|FRZ|ICE\b|TOTINO|STOUFFER|HOT POCKET|LEAN CUISINE|EGGO|WAFFLES|TATER TOTS|FRIES/, 'frozen'],
+  [/FROZEN|FRZ|\bICE\b|TOTINO|STOUFFER|HOT POCKET|LEAN CUISINE|EGGO|WAFFLES|TATER TOTS|FRIES/, 'frozen'],
   [/BREAD|BUN|BUNS|BAGEL|TORTILLA|ROLLS|MUFFIN|CROISSANT|BAGUETTE|PITA|ENGLISH MUFFIN/, 'bakery'],
   [/MILK|CHEESE|YOGURT|BUTTER|EGGS|EGG\b|CREAM|SOUR CREAM|COTTAGE|HALF & HALF|CREAMER|MARGARINE|DOZEN/, 'dairy'],
   [/CHICKEN|BEEF|PORK|TURKEY|HAM\b|BACON|SAUSAGE|STEAK|GROUND|FISH|SALMON|TILAPIA|SHRIMP|TUNA\b|HOT DOG|BRATS|DELI|SALAMI|PEPPERONI|LUNCH MEAT|RIBS|ROAST|WINGS|THIGHS|BREAST/, 'meat'],
@@ -140,6 +153,7 @@ export interface GroceryStats {
   avgTrip: number;
   usual: ItemStat[];
   usualTrip: number; // what a needs-based trip costs (before tax)
+  needsPerMonth: number; // groceries you need, per month, from all trips (before tax)
   extrasPerTrip: number;
   extrasByDept: { dept: GroceryDept; perTrip: number }[];
   taxRate: number | null; // learned from your receipts
@@ -153,14 +167,21 @@ export function receiptItemsTotal(r: Receipt): number {
   return round2(r.items.reduce((s, i) => s + i.price, 0));
 }
 
+/** A grocery trip has at least one grocery item (a gas-station stop for just gas and a vape isn't one). */
+export function isGroceryTrip(r: Receipt): boolean {
+  return r.items.some((i) => i.price > 0 && !NON_GROCERY_DEPTS.includes(i.dept) && i.dept !== 'prepared');
+}
+
 export function analyzeGroceries(receipts: Receipt[], asOf: ISODate): GroceryStats | null {
-  const recent = receipts.filter((r) => diffDays(asOf, r.date) <= WINDOW_DAYS && diffDays(asOf, r.date) >= -1).sort((a, b) => a.date.localeCompare(b.date));
+  const recent = receipts
+    .filter((r) => diffDays(asOf, r.date) <= WINDOW_DAYS && diffDays(asOf, r.date) >= -1 && isGroceryTrip(r))
+    .sort((a, b) => a.date.localeCompare(b.date));
   if (!recent.length) return null;
   const map = new Map<string, ItemStat & { sum: number; count: number }>();
   for (const r of recent) {
     const seen = new Set<string>();
     for (const it of r.items) {
-      if (!it.key || it.price <= 0) continue;
+      if (!it.key || it.price <= 0 || NON_GROCERY_DEPTS.includes(it.dept)) continue;
       const cur =
         map.get(it.key) ??
         ({ key: it.key, name: it.name, dept: it.dept, trips: 0, share: 0, avgPrice: 0, lastPrice: 0, lastStore: r.store, byStore: {}, sum: 0, count: 0 } as ItemStat & { sum: number; count: number });
@@ -193,7 +214,7 @@ export function analyzeGroceries(receipts: Receipt[], asOf: ISODate): GrocerySta
   let extrasTotal = 0;
   for (const r of recent)
     for (const it of r.items) {
-      if (usualKeys.has(it.key) || it.price <= 0) continue;
+      if (usualKeys.has(it.key) || it.price <= 0 || NON_GROCERY_DEPTS.includes(it.dept)) continue;
       extrasTotal += it.price;
       extrasDept.set(it.dept, (extrasDept.get(it.dept) ?? 0) + it.price);
     }
@@ -212,9 +233,13 @@ export function analyzeGroceries(receipts: Receipt[], asOf: ISODate): GrocerySta
     s.sum += r.total ?? receiptItemsTotal(r);
     storeMap.set(r.store, s);
   }
+  // what needs cost per month, counting every trip, big or small
+  let needs = 0;
+  for (const r of recent) for (const it of r.items) if (it.price > 0 && !NON_GROCERY_DEPTS.includes(it.dept) && !WANT_DEPTS.includes(it.dept)) needs += it.price;
   return {
     trips,
     spanDays,
+    needsPerMonth: round2((needs / spanDays) * 30.4),
     tripsPerMonth: round2(tripsPerMonth),
     avgTrip: round2(recent.reduce((s, r) => s + (r.total ?? receiptItemsTotal(r)), 0) / trips),
     usual,
@@ -236,6 +261,24 @@ export function extrasOn(receipt: Receipt, stats: GroceryStats | null): ReceiptI
 
 /** Monthly grocery need from receipts: usual trips, with tax. */
 export function monthlyGroceryNeed(stats: GroceryStats | null, fallbackTax = 0.0407): number | null {
-  if (!stats || stats.trips < 3 || stats.usualTrip <= 0) return null;
-  return round2(stats.usualTrip * stats.tripsPerMonth * (1 + (stats.taxRate ?? fallbackTax)));
+  if (!stats || stats.trips < 3 || stats.needsPerMonth <= 0) return null;
+  // lots of small trips or a few big ones: both come out as what you actually need each month
+  return round2(stats.needsPerMonth * (1 + (stats.taxRate ?? fallbackTax)));
+}
+
+/** What you spent on each kind of thing, from every receipt in a month (gas, nicotine, snacks…). */
+export function receiptSpendByDept(receipts: Receipt[], month: string): { dept: GroceryDept; total: number; stores: string[] }[] {
+  const map = new Map<GroceryDept, { total: number; stores: Set<string> }>();
+  for (const r of receipts) {
+    if (r.date.slice(0, 7) !== month) continue;
+    const taxShare = r.tax && r.items.length ? r.tax / Math.max(0.01, r.items.reduce((s, i) => s + Math.max(0, i.price), 0)) : 0;
+    for (const it of r.items) {
+      if (it.price <= 0) continue;
+      const cur = map.get(it.dept) ?? { total: 0, stores: new Set<string>() };
+      cur.total += it.price * (1 + (it.dept === 'fuel' ? 0 : taxShare));
+      cur.stores.add(r.store);
+      map.set(it.dept, cur);
+    }
+  }
+  return [...map.entries()].map(([dept, v]) => ({ dept, total: round2(v.total), stores: [...v.stores] })).sort((a, b) => b.total - a.total);
 }

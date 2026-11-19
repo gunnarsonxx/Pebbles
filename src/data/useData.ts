@@ -2,7 +2,7 @@ import { useMemo, useSyncExternalStore } from 'react';
 import { store } from './store';
 import { syncClient } from './syncClient';
 import { normalizeSettings } from '../core/defaults';
-import { today as todayISO, parts } from '../core/dates';
+import { today as todayISO, parts, diffDays } from '../core/dates';
 import { computeGross, periodByIndex, periodContaining, upcomingPayPeriod, type Period } from '../core/pay';
 import { calibrationFrom, estimatePaycheck, type PaycheckEstimate } from '../core/paycheck';
 import { BUNDLED_RULES, isValidRulesFile, newerVersion, rulesForYear, type TaxRulesFile } from '../core/taxrules';
@@ -15,7 +15,7 @@ import { BUNDLED_GUIDELINES, checkGuidelines, isValidGuidelines, type GuidelineC
 import { goalsAccount, interestNextMonth, reconcile, type Reconcile } from '../core/savingsAccount';
 import { paydayMoves, type Move } from '../core/moves';
 import { threePaycheckMonths } from '../core/budget';
-import { usd } from '../core/money';
+import type { GasPrice, PantryItem, ShopItem } from '../core/types';
 
 export function useVersion(): number {
   return useSyncExternalStore(store.subscribe, store.getVersion);
@@ -65,6 +65,9 @@ export interface AppData {
   interestMonthly: number;
   reconcile: Reconcile | null;
   movesFor: { period: Period; estimate: PaycheckEstimate; plan: PaycheckPlan; moves: Move[]; isPast: boolean } | null;
+  pantry: PantryItem[];
+  shoplist: ShopItem[];
+  gasPrices: GasPrice[];
 }
 
 export function effectiveRules(): TaxRulesFile {
@@ -125,15 +128,20 @@ export function computeData(version: number, today: ISODate): AppData {
   const receipts = store.list('receipts').sort((a, b) => b.date.localeCompare(a.date));
   const groceries = analyzeGroceries(receipts, today);
   const need = monthlyGroceryNeed(groceries);
+  // the gas price you actually pay (your receipts and logged prices, last 30 days) beats the state average
+  const gasPrices = store.list('gasprices').sort((a, b) => b.date.localeCompare(a.date));
+  const paid = gasPrices.filter((g) => g.source !== 'google' && diffDays(today, g.date) <= 30);
+  const paidGas = paid.length ? Math.round((paid.reduce((s, g) => s + g.perGallon, 0) / paid.length) * 1000) / 1000 : null;
+  const marketForBudget = paidGas && !market?.manualGasPrice ? ({ ...(market ?? { id: 'market', gas: null, foodCpi: null, staples: [], fetchedAt: 0, errors: [] }), manualGasPrice: paidGas } as MarketData) : market;
   const essentials = estimateEssentials(
     settings,
     txns,
-    market,
+    marketForBudget,
     today,
     need && groceries
       ? {
           monthly: need,
-          reason: `Your usual trip from receipts (${usd(groceries.usualTrip, true)} × ${groceries.tripsPerMonth.toFixed(1)} trips/mo${groceries.taxRate ? `, ${(groceries.taxRate * 100).toFixed(1)}% tax` : ''})`,
+          reason: `What you need each month, from ${groceries.trips} receipt${groceries.trips === 1 ? '' : 's'} (${groceries.tripsPerMonth.toFixed(1)} trips a month${groceries.taxRate ? `, ${(groceries.taxRate * 100).toFixed(1)}% tax` : ''})`,
         }
       : null,
   );
@@ -281,5 +289,8 @@ export function computeData(version: number, today: ISODate): AppData {
     interestMonthly: interestNextMonth(gAcct?.balance ?? saved, gAcct?.apy),
     reconcile: reconcile(gAcct, saved),
     movesFor,
+    pantry: store.list('pantry').filter((p) => !p.archived).sort((a, b) => a.name.localeCompare(b.name)),
+    shoplist: store.list('shoplist').sort((a, b) => a.addedAt - b.addedAt),
+    gasPrices,
   };
 }

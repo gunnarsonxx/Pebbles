@@ -206,7 +206,7 @@ export function PaycheckScreen({ data }: { data: AppData; go: GoTo }) {
             </div>
             <div className="list">
               {rates.map((r) => (
-                <button key={r.id} className="list-item" onClick={() => (r.isBase ? toast('Change your base rate in Settings → Pay') : setRateEdit(r))}>
+                <button key={r.id} className="list-item" onClick={() => (r.isBase ? toast('Change your base rate in Settings → Pay & schedule') : setRateEdit(r))}>
                   <GemIcon gem={r.gem} size={22} />
                   <div className="grow strong">{r.name}</div>
                   <div className="amount">{usd(r.rate)}/hr</div>

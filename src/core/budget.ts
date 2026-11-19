@@ -284,7 +284,7 @@ export function buildPlan(opts: {
   if (available <= 0) {
     shortfall = round2(-available);
     notes.push(`Bills and essentials are ${'$' + shortfall.toFixed(2)} more than this check. Pebbles paused savings this time.`);
-    if (b.billsMode === 'due_dates') notes.push('A big bill like rent lands on this check. Switching Settings → Budget style → “Same amount every check” spreads it evenly.');
+    if (b.billsMode === 'due_dates') notes.push('A big bill like rent lands on this check. Switching Settings → Budget → “Same amount every check” spreads it evenly.');
   } else {
     const floor = (net * b.personalFloorPct) / 100;
     const ideal = (net * b.savingsTargetPct) / 100;

@@ -80,8 +80,7 @@ export function ReceiveSheet({ data, estimate, onClose }: { data: AppData; estim
           total={plan.net}
           parts={[
             { key: 'bills', label: 'Bills', value: plan.bills, color: 'var(--sapphire)' },
-            { key: 'ess', label: 'Essentials', value: plan.essentials, color: 'var(--citrine)' },
-            { key: 'you', label: 'For you', value: Math.max(0, plan.personal), color: 'var(--amethyst)' },
+            { key: 'you', label: 'Your money', value: plan.essentials + Math.max(0, plan.personal), color: 'var(--amethyst)' },
             { key: 'save', label: 'Savings', value: plan.savings, color: 'var(--jade)' },
           ]}
         />

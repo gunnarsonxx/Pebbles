@@ -68,7 +68,7 @@ export function Onboarding({ data }: { data: AppData }) {
               (pairFirst ? (
                 <div className="col">
                   <p className="small ink2">
-                    Click <strong>Pair a phone</strong>, then on your phone open <strong>Settings → Sync</strong> and enter the address and code (or scan the QR code). Everything from your phone appears here in a few seconds.
+                    Click <strong>Pair a phone</strong>, then on your phone open <strong>Settings → Sync & devices</strong> and enter the address and code (or scan the QR code). Everything from your phone appears here in a few seconds.
                   </p>
                   <DesktopSync />
                 </div>
@@ -195,7 +195,7 @@ export function Onboarding({ data }: { data: AppData }) {
                 <NumberInput value={goalTarget} onChange={setGoalTarget} prefix="$" allowEmpty />
               </Field>
             </div>
-            {platformKind === 'android' && <p className="small muted">To sync with your Windows computer, open Settings → Sync after this.</p>}
+            {platformKind === 'android' && <p className="small muted">To sync with your Windows computer, open Settings → Sync & devices after this.</p>}
           </div>
         )}
 

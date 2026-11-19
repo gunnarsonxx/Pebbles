@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { Camera, RefreshCw, ShoppingBasket, Store, Tag } from 'lucide-react';
 import type { AppData } from '../../data/useData';
-import { Empty, useToast } from '../components';
+import { Empty, Segmented, useToast } from '../components';
+import { PantryView, ShoppingListView } from './Pantry';
+import { GasView } from './Gas';
 import { ReceiptSheet } from '../sheets/ReceiptSheet';
 import { DEPT_LABEL, WANT_DEPTS, extrasOn, monthlyGroceryNeed, receiptItemsTotal } from '../../core/groceries';
 import { fmtShort } from '../../core/dates';
@@ -68,7 +70,7 @@ export function GroceriesView({ data, openSettings }: { data: AppData; openSetti
       <div className="grid two">
         <div className="card">
           <div className="card-head">
-            <div className="eyebrow">Your usual grocery trip</div>
+            <div className="eyebrow">A usual grocery trip</div>
             <button className="btn primary small" onClick={() => setScanning(true)}>
               <Camera /> Add receipt
             </button>
@@ -185,43 +187,29 @@ export function GroceriesView({ data, openSettings }: { data: AppData; openSetti
             ))}
           </div>
         )}
-        <div className="scroll-x">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Usual item</th>
-                <th className="r">You paid</th>
-                <th className="r">King Soopers now (best)</th>
-                <th>Cheapest seen</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(g?.usual ?? []).slice(0, 20).map((u) => {
-                const live = livePrices(u.key).sort((a, b) => priceOf(a) - priceOf(b));
-                const kp = live[0];
-                const best = Object.entries(u.byStore).sort((a, b) => a[1].last - b[1].last)[0];
-                return (
-                  <tr key={u.key}>
-                    <td>
-                      {u.name}
-                      <div className="tiny muted">
-                        {DEPT_LABEL[u.dept]} · in {Math.round(u.share * 100)}% of trips
-                      </div>
-                    </td>
-                    <td className="r num">
-                      {usd(u.lastPrice)}
-                      <div className="tiny muted">{u.lastStore}</div>
-                    </td>
-                    <td className="r num">
-                      {kp ? (kp.promo != null ? `${usd(kp.promo)} sale` : kp.regular != null ? usd(kp.regular) : '—') : '—'}
-                      {kp && live.length > 1 && <div className="tiny muted">{kp.store}</div>}
-                    </td>
-                    <td className="small">{best ? `${best[0]} ${usd(best[1].last)}` : '—'}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+        <div className="list">
+          {(g?.usual ?? []).slice(0, 20).map((u) => {
+            const live = livePrices(u.key).sort((a, b) => priceOf(a) - priceOf(b));
+            const kp = live[0];
+            const best = Object.entries(u.byStore).sort((a, b) => a[1].last - b[1].last)[0];
+            return (
+              <div key={u.key} className="list-item" style={{ alignItems: 'flex-start' }}>
+                <div className="grow" style={{ minWidth: 0 }}>
+                  <div className="strong small">{u.name}</div>
+                  <div className="tiny muted">
+                    You paid {usd(u.lastPrice)} at {u.lastStore}
+                    {best && best[0] !== u.lastStore ? ` · cheapest ${best[0]} ${usd(best[1].last)}` : ''}
+                  </div>
+                </div>
+                {kp && (kp.promo ?? kp.regular) != null && (
+                  <div style={{ textAlign: 'right' }}>
+                    <div className={`num strong small${kp.promo != null ? ' good' : ''}`}>{usd((kp.promo ?? kp.regular) as number)}</div>
+                    <div className="tiny muted">{kp.promo != null ? 'sale · ' : ''}{kp.store}</div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
         <p className="tiny muted mt">Walmart doesn’t share prices with apps, so its prices come from your own Walmart receipts.</p>
       </div>
@@ -257,6 +245,29 @@ export function GroceriesView({ data, openSettings }: { data: AppData; openSetti
   );
 }
 
-export function GroceriesScreen({ data, go }: { data: AppData; go: GoTo; view?: string; setView: (v: string) => void }) {
-  return <GroceriesView data={data} openSettings={() => go('settings', 'connections')} />;
+type GView = 'list' | 'pantry' | 'trips' | 'gas';
+
+/** Groceries and gas: what you have, what to buy, what it costs, and where. */
+export function GroceriesScreen({ data, go, view, setView }: { data: AppData; go: GoTo; view?: string; setView: (v: string) => void }) {
+  const v: GView = view === 'pantry' || view === 'trips' || view === 'gas' ? view : 'list';
+  return (
+    <div>
+      <div className="subnav">
+        <Segmented
+          value={v}
+          options={[
+            { value: 'list', label: 'List' },
+            { value: 'pantry', label: 'Pantry' },
+            { value: 'trips', label: 'Receipts' },
+            { value: 'gas', label: 'Gas' },
+          ]}
+          onChange={setView}
+        />
+      </div>
+      {v === 'list' && <ShoppingListView data={data} openPantry={() => setView('pantry')} openTrips={() => setView('trips')} />}
+      {v === 'pantry' && <PantryView data={data} />}
+      {v === 'trips' && <GroceriesView data={data} openSettings={() => go('settings', 'connections')} />}
+      {v === 'gas' && <GasView data={data} go={go} />}
+    </div>
+  );
 }

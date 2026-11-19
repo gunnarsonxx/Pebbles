@@ -59,21 +59,14 @@ export function paydayMoves(opts: {
       auto: false,
     });
   }
-  if (plan.essentials > 0)
-    moves.push({
-      key: 'essentials',
-      title: `Keep ${usd(plan.essentials, true)} for groceries & gas`,
-      detail: 'Already counted at today’s prices',
-      amount: plan.essentials,
-      checkable: false,
-      done: false,
-      auto: false,
-    });
   moves.push({
     key: 'spend',
-    title: plan.personal > 0 ? `${usd(plan.personal, true)} is yours to spend` : 'Nothing extra this check',
-    detail: plan.personal > 0 ? `About ${usd(plan.personalPerDay, true)} a day until next payday. Guilt-free.` : 'Bills and essentials are covered first.',
-    amount: Math.max(0, plan.personal),
+    title: `Keep ${usd(plan.essentials + Math.max(0, plan.personal), true)} for you`,
+    detail:
+      plan.personal > 0
+        ? `About ${usd(plan.essentials, true)} of it for groceries and gas; the other ${usd(plan.personal, true)} (${usd(plan.personalPerDay, true)} a day) is guilt-free.`
+        : `That covers groceries and gas. Nothing extra to play with this check.`,
+    amount: plan.essentials + Math.max(0, plan.personal),
     checkable: false,
     done: false,
     auto: false,

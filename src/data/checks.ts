@@ -8,8 +8,9 @@ import { krogerPrice, krogerToken } from '../core/kroger';
 import { fetchBls, fetchEiaColoradoGas } from '../core/market';
 import { BUILTIN_EIA_KEY, krogerStoresOf } from '../core/defaults';
 import { RELEASES_API } from '../core/updates';
+import { googleStations } from '../core/gas';
 
-export type CheckId = 'plaid' | 'kroger' | 'eia' | 'bls' | 'github';
+export type CheckId = 'plaid' | 'kroger' | 'eia' | 'bls' | 'google' | 'github';
 
 export interface CheckResult {
   id: CheckId;
@@ -22,7 +23,8 @@ export const CHECK_LABELS: Record<CheckId, string> = {
   plaid: 'Plaid (bank connections)',
   kroger: 'Kroger (King Soopers prices)',
   eia: 'EIA (Colorado gas prices)',
-  bls: 'BLS (grocery prices)',
+  bls: 'BLS (grocery price trends)',
+  google: 'Google Maps (gas station prices)',
   github: 'Pebbles updates & tax tables',
 };
 
@@ -75,6 +77,14 @@ async function attempt(id: CheckId): Promise<CheckResult> {
         const series = await fetchBls(http, ['CUUR0400SAF11']);
         const d = series[0]?.data?.[0];
         return done(true, d ? `Food-at-home index ${d.value} (${d.periodName ?? d.period} ${d.year})` : 'Connected');
+      }
+      case 'google': {
+        const key = s.googlePlacesKey.trim();
+        if (!key) return done(null, 'Optional · not set up');
+        const at = s.homeLat != null && s.homeLon != null ? { lat: s.homeLat, lon: s.homeLon } : { lat: 38.8339, lon: -104.8214 };
+        const st = await googleStations(http, key, at);
+        const withPrice = st.filter((x) => x.live).length;
+        return done(true, `Key accepted · ${st.length} stations, ${withPrice} with posted prices`);
       }
       case 'github': {
         const res = await http(RELEASES_API, { headers: { Accept: 'application/vnd.github+json' } });

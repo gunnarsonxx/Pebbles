@@ -29,7 +29,7 @@ import { UpdateCard } from '../UpdateCard';
 import { ShiftSchedule } from '../ShiftSchedule';
 import { ACCENTS, PALETTES } from '../themes';
 import { ChecksCard } from '../ChecksCard';
-import { BankSettings, GroceryPriceSettings } from './ConnectionsSettings';
+import { BankSettings, GasStationSettings, GroceryPriceSettings } from './ConnectionsSettings';
 
 export const SETTINGS_SECTIONS: { id: string; title: string; hint: string; icon: typeof Wallet }[] = [
   { id: 'pay', title: 'Pay & schedule', hint: 'Rate, shifts, pay periods, overtime, holidays', icon: CalendarClock },
@@ -88,6 +88,7 @@ export function SettingsScreen({ data, section, open }: { data: AppData; section
           <ChecksCard />
           <BankSettings s={s} set={set} />
           <GroceryPriceSettings s={s} set={set} />
+          <GasStationSettings s={s} set={set} />
           <PricesSection s={s} set={set} />
         </>
       )}
@@ -696,7 +697,7 @@ export function PhoneSync() {
       ) : (
         <div className="col gap-l">
           <ol className="small ink2" style={{ margin: 0, paddingLeft: 18 }}>
-            <li>Open Pebbles on your computer and go to Settings → Sync.</li>
+            <li>Open Pebbles on your computer and go to Settings → Sync & devices.</li>
             <li>Click “Pair a phone” and type the address and 6-digit code here.</li>
           </ol>
           <div className="form-grid two">
@@ -809,7 +810,7 @@ export function DesktopSync() {
             <div className="card tint" style={{ padding: 16 }}>
               <div className="row" style={{ alignItems: 'flex-start', gap: 16 }}>
                 <div className="grow">
-                  <div className="small muted">On your phone: Settings → Sync, then enter</div>
+                  <div className="small muted">On your phone: Settings → Sync & devices, then enter</div>
                   <div className="small muted mt">Address</div>
                   <div className="strong num" style={{ fontSize: 18 }}>
                     {pairing.addresses[0] ?? '?'}:{pairing.port}

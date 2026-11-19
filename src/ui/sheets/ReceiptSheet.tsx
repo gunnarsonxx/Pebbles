@@ -9,7 +9,7 @@ import { linesFromFile } from '../ocr';
 import type { AppData } from '../../data/useData';
 import type { GroceryDept, Receipt, ReceiptItem } from '../../core/types';
 
-const STORES = ['King Soopers', 'Walmart', 'Safeway', 'Sprouts', 'Costco', 'Target', 'Aldi', 'Natural Grocers', 'Whole Foods', "Sam's Club", 'Grocery store'];
+const STORES = ['King Soopers', 'Walmart', 'Safeway', 'Sprouts', 'Costco', 'Target', 'Aldi', 'Natural Grocers', 'Whole Foods', "Sam's Club", 'Circle K', '7-Eleven', "Loaf 'N Jug", 'Maverik', 'Murphy USA', 'Conoco', 'Shell', 'Walgreens', 'CVS'];
 
 /** Scan or edit a grocery receipt. Anything Pebbles wasn't sure about is highlighted to check. */
 export function ReceiptSheet({ data, existing, onClose }: { data: AppData; existing?: Receipt; onClose: () => void }) {
@@ -45,7 +45,7 @@ export function ReceiptSheet({ data, existing, onClose }: { data: AppData; exist
 
   return (
     <Sheet
-      title={existing ? 'Receipt' : 'Add a grocery receipt'}
+      title={existing ? 'Receipt' : 'Add a receipt'}
       wide
       onClose={onClose}
       footer={
@@ -59,8 +59,8 @@ export function ReceiptSheet({ data, existing, onClose }: { data: AppData; exist
               disabled={!r.items.length}
               onClick={async () => {
                 const { warnings: _w, itemsTotal: _t, ...rest } = r;
-                await saveReceipt({ ...rest, items: r.items.map(({ lowConfidence: _l, ...i }) => i), source, id: existing?.id });
-                toast(`Saved ${r.items.length} items from ${r.store}`);
+                const res = await saveReceipt({ ...rest, store: rest.store.trim() || 'Store', items: r.items.map(({ lowConfidence: _l, ...i }) => i), source, id: existing?.id });
+                toast(`Saved ${r.items.length} items from ${r.store}${res.restocked ? ` · restocked ${res.restocked} pantry item${res.restocked === 1 ? '' : 's'}` : ''}${r.fuel ? ` · gas ${'$' + r.fuel.perGallon.toFixed(3)}/gal logged` : ''}`);
                 onClose();
               }}
             >
@@ -106,11 +106,12 @@ export function ReceiptSheet({ data, existing, onClose }: { data: AppData; exist
           ))}
           <div className="form-grid two">
             <Field label="Store">
-              <select className="input" value={STORES.includes(r.store) ? r.store : 'Grocery store'} onChange={(e) => setR({ ...r, store: e.target.value })}>
+              <input className="input" list="pebbles-stores" value={r.store} onChange={(e) => setR({ ...r, store: e.target.value })} placeholder="Store name" />
+              <datalist id="pebbles-stores">
                 {STORES.map((s) => (
-                  <option key={s}>{s}</option>
+                  <option key={s} value={s} />
                 ))}
-              </select>
+              </datalist>
             </Field>
             <Field label="Date">
               <input className="input" type="date" value={r.date} onChange={(e) => setR({ ...r, date: e.target.value })} />

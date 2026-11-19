@@ -16,12 +16,15 @@ import { fetchFeed } from './actions';
 import { newerVersion } from '../core/taxrules';
 import { krogerStoresOf, normalizeSettings } from '../core/defaults';
 import { today } from '../core/dates';
+import { afterReceipt } from './pantryActions';
 import type { GroceryDept, Paystub, Receipt, ReceiptItem } from '../core/types';
 
 // ---------------- receipts ----------------
 
-export async function saveReceipt(r: Omit<Receipt, 'id' | 'createdAt'> & { id?: string }): Promise<void> {
-  await store.put('receipts', { ...r, id: r.id ?? uid('rc_'), createdAt: Date.now() });
+export async function saveReceipt(r: Omit<Receipt, 'id' | 'createdAt'> & { id?: string }): Promise<{ restocked: number }> {
+  const rec: Receipt = { ...r, id: r.id ?? uid('rc_'), createdAt: Date.now() };
+  await store.put('receipts', rec);
+  return afterReceipt(rec);
 }
 
 export const deleteReceipt = (id: string) => store.remove('receipts', id);

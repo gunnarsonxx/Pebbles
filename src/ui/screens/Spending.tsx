@@ -14,6 +14,35 @@ import { topMerchants } from '../../core/insights';
 import { recategorize, undoImport, updateTransaction } from '../../data/actions';
 import { GROUP_COLOR } from '../components';
 import type { Transaction } from '../../core/types';
+import { DEPT_LABEL, WANT_DEPTS, receiptSpendByDept } from '../../core/groceries';
+
+/** What the receipts say you bought: gas vs. drinks vs. nicotine, not just "Circle K". */
+function ReceiptBreakdown({ data, month }: { data: AppData; month: string }) {
+  const rows = receiptSpendByDept(data.receipts, month);
+  if (!rows.length) return null;
+  const total = rows.reduce((s, r) => s + r.total, 0);
+  return (
+    <div className="card mt">
+      <div className="eyebrow">What you bought</div>
+      <div className="small muted" style={{ marginBottom: 8 }}>
+        From {data.receipts.filter((r) => r.date.slice(0, 7) === month).length} receipts this month · {usd(total)}
+      </div>
+      <div className="list">
+        {rows.map((r) => (
+          <div key={r.dept} className="row between small" style={{ padding: '6px 0' }}>
+            <span>
+              {DEPT_LABEL[r.dept]}
+              {WANT_DEPTS.includes(r.dept) && <span className="badge warn" style={{ marginLeft: 6 }}>want</span>}
+              <span className="tiny muted"> · {r.stores.slice(0, 3).join(', ')}</span>
+            </span>
+            <span className="num strong">{usd(r.total)}</span>
+          </div>
+        ))}
+      </div>
+      <p className="tiny muted mt">Upload every receipt (gas stations too) to see this for all your spending.</p>
+    </div>
+  );
+}
 
 export function SpendingScreen({ data, openSettings }: { data: AppData; openSettings: () => void }) {
   const [view, setView] = useState<'txns' | 'groceries' | 'accounts'>('txns');
@@ -144,6 +173,8 @@ export function TransactionsView({ data }: { data: AppData }) {
           {catRows.length ? <CategoryBars rows={catRows} onPick={(id) => setCatFilter(id === catFilter ? null : id)} /> : <p className="small muted">No spending this month.</p>}
         </div>
       </div>
+
+      <ReceiptBreakdown data={data} month={month} />
 
       {merchants.length > 0 && (
         <div className="card mt">

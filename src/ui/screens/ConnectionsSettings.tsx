@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Landmark, Store } from 'lucide-react';
+import { Fuel, Landmark, Store } from 'lucide-react';
 import { Field, Segmented, TextInput, useToast } from '../components';
 import { findKrogerStores, refreshStorePrices } from '../../data/groceryActions';
 import type { KrogerLocation } from '../../core/kroger';
@@ -30,7 +30,7 @@ export function BankSettings({ s, set }: { s: Settings; set: SetFn }) {
             Open <strong>Developers → Keys</strong>. Copy your <strong>client_id</strong> and your <strong>Production</strong> secret into the boxes below.
           </li>
           <li>
-            In Pebbles go to <strong>Spending → Accounts → Connect a bank</strong>, sign in to your bank, then do the same for Marcus.
+            In Pebbles go to <strong>Budget → Accounts → Connect a bank</strong>, sign in to your bank, then do the same for Marcus.
           </li>
         </ol>
         <div className="form-grid two">
@@ -141,6 +141,33 @@ export function GroceryPriceSettings({ s, set }: { s: Settings; set: SetFn }) {
           );
         })()}
         <p className="tiny muted">Walmart doesn’t offer prices to apps, so Pebbles uses what you paid on your Walmart receipts to compare.</p>
+      </div>
+    </div>
+  );
+}
+
+export function GasStationSettings({ s, set }: { s: Settings; set: SetFn }) {
+  const i = s.integrations;
+  const up = (patch: Partial<Settings['integrations']>) => set((x) => ({ ...x, integrations: { ...x.integrations, ...patch } }));
+  return (
+    <div className="card">
+      <div className="row" style={{ marginBottom: 12 }}>
+        <Fuel />
+        <h2 className="grow">Gas station prices</h2>
+      </div>
+      <div className="col gap-l">
+        <p className="small ink2" style={{ margin: 0 }}>
+          Without this, Pebbles finds stations on OpenStreetMap (free) and prices them from your gas receipts and the prices you tap in. With a Google Maps key, it shows the prices stations post on Google Maps.
+        </p>
+        <ol className="small ink2" style={{ margin: 0, paddingLeft: 18 }}>
+          <li>Go to console.cloud.google.com, make a project and turn on billing (a card is required).</li>
+          <li>Turn on “Places API (New)”, then make an API key under Credentials.</li>
+          <li>Paste it here. Pebbles refreshes at most every 3 hours, which stays well inside Google’s free monthly allowance.</li>
+        </ol>
+        <Field label="Google Maps API key (optional)">
+          <TextInput value={i.googlePlacesKey} onChange={(v) => up({ googlePlacesKey: v.trim() })} placeholder="AIza…" />
+        </Field>
+        {i.homeAddress && <p className="tiny muted">Home for gas prices: {i.homeAddress}</p>}
       </div>
     </div>
   );

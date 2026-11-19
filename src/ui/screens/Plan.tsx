@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Fuel, Plus, RefreshCw, ShoppingBasket, Sparkles, Home as HomeIcon, Settings as SettingsIcon } from 'lucide-react';
+import { Plus, Sparkles, Settings as SettingsIcon } from 'lucide-react';
 import type { AppData } from '../../data/useData';
 import type { GoTo } from '../App';
 import { SplitBar } from '../charts';
@@ -10,22 +10,19 @@ import { monthlyBillsTotal, monthlyEquivalent } from '../../core/budget';
 import { detectRecurring } from '../../core/analytics';
 import { CATEGORIES, categoryOf } from '../../core/categories';
 import { fmtDay, fmtShort, addDays } from '../../core/dates';
-import { FOOD_PLAN_LABEL, currentGasPrice } from '../../core/food';
+import { FOOD_PLAN_LABEL } from '../../core/food';
 import { usd, pebbles } from '../../core/money';
-import { deleteBill, newBill, saveBill, setManualGasPrice, setSavingsOverride, updateMarket } from '../../data/actions';
+import { deleteBill, newBill, saveBill, setSavingsOverride } from '../../data/actions';
 import type { Bill, BillFrequency } from '../../core/types';
 
 export function PlanScreen({ data, go }: { data: AppData; go: GoTo }) {
   const toast = useToast();
   const { plan, essentials, upcoming } = data;
   const [editingBill, setEditingBill] = useState<Bill | null>(null);
-  const [refreshing, setRefreshing] = useState(false);
-  const [gasEdit, setGasEdit] = useState(false);
   const recurring = detectRecurring(data.txns, data.bills, data.today).slice(0, 6);
   const due = new Set(plan.billsDue.map((b) => b.bill.id));
   const bills = [...data.bills].sort((a, b) => Number(b.active) - Number(a.active) || a.dueDay - b.dueDay);
   const monthly = monthlyBillsTotal(data.bills);
-  const gas = currentGasPrice(data.market);
   const override = data.paychecks.get(upcoming.period.start)?.savingsOverride ?? null;
 
   return (
@@ -41,8 +38,13 @@ export function PlanScreen({ data, go }: { data: AppData; go: GoTo }) {
           total={plan.net}
           parts={[
             { key: 'bills', label: 'Bills', value: plan.bills, color: 'var(--sapphire)', hint: data.settings.budget.billsMode === 'due_dates' ? `Due by ${fmtShort(addDays(data.afterUpcoming.payday, -1))}` : 'Even share of monthly bills' },
-            { key: 'ess', label: 'Essentials', value: plan.essentials, color: 'var(--citrine)', hint: 'Groceries, gas & basics' },
-            { key: 'you', label: 'For you', value: Math.max(0, plan.personal), color: 'var(--amethyst)', hint: `${usd(plan.personalPerDay)}/day until next payday` },
+            {
+              key: 'you',
+              label: 'Your money',
+              value: plan.essentials + Math.max(0, plan.personal),
+              color: 'var(--amethyst)',
+              hint: `${usd(plan.essentials, true)} groceries, gas & basics · ${usd(Math.max(0, plan.personal), true)} to enjoy (${usd(plan.personalPerDay)}/day)`,
+            },
             { key: 'save', label: 'Savings', value: plan.savings, color: 'var(--jade)', hint: `${pebbles(plan.savings)} pebbles · ${Math.round(plan.savingsRate * 100)}%` },
           ]}
         />
@@ -177,12 +179,12 @@ export function PlanScreen({ data, go }: { data: AppData; go: GoTo }) {
         <div className="card">
           <div className="card-head">
             <div>
-              <div className="eyebrow">Essentials</div>
+              <div className="eyebrow">Groceries, gas & basics</div>
               <div className="small muted">
-                {usd(essentials.totalMonthly)} a month · {usd(essentials.perPaycheck)} per paycheck
+                Part of your money · {usd(essentials.totalMonthly)} a month, {usd(essentials.perPaycheck)} per paycheck
               </div>
             </div>
-            <button className="icon-btn" onClick={() => go('settings')} aria-label="Household settings">
+            <button className="icon-btn" onClick={() => go('settings', 'budget')} aria-label="Household settings">
               <SettingsIcon />
             </button>
           </div>
@@ -212,77 +214,12 @@ export function PlanScreen({ data, go }: { data: AppData; go: GoTo }) {
               <CategoryIcon id="household" size={34} />
               <div className="grow">
                 <div className="strong">Other basics</div>
-                <div className="tiny muted">Toiletries, cleaning, pet food… (Settings → Household)</div>
+                <div className="tiny muted">Toiletries, cleaning, pet food… (Settings → Budget)</div>
               </div>
               <div className="amount">{usd(essentials.otherMonthly, true)}</div>
             </div>
           </div>
         </div>
-      </div>
-
-      <div className="card mt">
-        <div className="card-head">
-          <div>
-            <div className="eyebrow">Prices near you</div>
-            <div className="small muted">
-              {data.market?.fetchedAt ? `Updated ${new Date(data.market.fetchedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}` : 'Not downloaded yet'}
-            </div>
-          </div>
-          <button
-            className="btn small"
-            disabled={refreshing}
-            onClick={async () => {
-              setRefreshing(true);
-              const errs = await updateMarket(true);
-              setRefreshing(false);
-              toast(errs.length ? `Some prices couldn’t load: ${errs[0]}` : 'Prices updated');
-            }}
-          >
-            <RefreshCw /> {refreshing ? 'Updating…' : 'Refresh'}
-          </button>
-        </div>
-        <div className="grid three">
-          <div className="card tint">
-            <div className="row gap-s small muted">
-              <Fuel size={16} /> Regular gas
-            </div>
-            <div className="big-number">{gas ? usd(gas.price) : '—'}</div>
-            <div className="tiny muted">
-              {gas?.source}
-              {data.market?.gas?.previous != null && !data.market?.manualGasPrice && ` · was ${usd(data.market.gas.previous)}`}
-            </div>
-            <button className="btn ghost small" onClick={() => setGasEdit(true)}>
-              Enter what you pay
-            </button>
-          </div>
-          <div className="card tint">
-            <div className="row gap-s small muted">
-              <ShoppingBasket size={16} /> Grocery prices
-            </div>
-            <div className="big-number">
-              {data.market?.foodCpi ? `${data.market.foodCpi.yoyPct >= 0 ? '+' : ''}${data.market.foodCpi.yoyPct}%` : '—'}
-            </div>
-            <div className="tiny muted">{data.market?.foodCpi ? `vs a year ago · ${data.market.foodCpi.region} · ${data.market.foodCpi.asOf}` : 'Food-at-home inflation (BLS)'}</div>
-          </div>
-          <div className="card tint">
-            <div className="row gap-s small muted">
-              <HomeIcon size={16} /> Staples ({data.market?.staples[0]?.asOf ?? 'BLS West region'})
-            </div>
-            {data.market?.staples.length ? (
-              data.market.staples.map((s) => (
-                <div key={s.item} className="row between small">
-                  <span>{s.item}</span>
-                  <span className="num">
-                    {usd(s.price)}/{s.unit}
-                  </span>
-                </div>
-              ))
-            ) : (
-              <div className="tiny muted">Eggs, milk, bread, beef, chicken, bananas</div>
-            )}
-          </div>
-        </div>
-        {data.market?.errors?.length ? <p className="tiny warn mt">{data.market.errors.join(' · ')}</p> : null}
       </div>
 
       <GuidelinesCard data={data} />
@@ -299,16 +236,6 @@ export function PlanScreen({ data, go }: { data: AppData; go: GoTo }) {
       </div>
 
       {editingBill && <BillSheet bill={editingBill} onClose={() => setEditingBill(null)} />}
-      {gasEdit && (
-        <GasSheet
-          current={data.market?.manualGasPrice ?? null}
-          onClose={() => setGasEdit(false)}
-          onSave={async (v) => {
-            await setManualGasPrice(v);
-            setGasEdit(false);
-          }}
-        />
-      )}
     </div>
   );
 }
@@ -420,30 +347,6 @@ function BillSheet({ bill, onClose }: { bill: Bill; onClose: () => void }) {
           {usd(monthlyEquivalent(b))} a month · about {usd((monthlyEquivalent(b) * 12) / 26)} per paycheck
         </p>
       </div>
-    </Sheet>
-  );
-}
-
-function GasSheet({ current, onClose, onSave }: { current: number | null; onClose: () => void; onSave: (v: number | null) => void }) {
-  const [v, setV] = useState<number | null>(current);
-  return (
-    <Sheet
-      title="Your gas price"
-      onClose={onClose}
-      footer={
-        <>
-          <button className="btn" onClick={() => onSave(null)}>
-            Use live average
-          </button>
-          <button className="btn primary" onClick={() => onSave(v && v > 0 ? v : null)}>
-            Save
-          </button>
-        </>
-      }
-    >
-      <Field label="Price per gallon you usually pay" hint="Overrides the regional average in your essentials budget">
-        <NumberInput value={v} onChange={setV} prefix="$" allowEmpty autoFocus />
-      </Field>
     </Sheet>
   );
 }

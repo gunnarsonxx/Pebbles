@@ -100,6 +100,10 @@ export interface IntegrationSettings {
   krogerLocationName: string;
   krogerStores: { id: string; name: string }[]; // every King Soopers you shop at
   zip: string;
+  homeAddress: string; // for nearby gas stations
+  homeLat: number | null;
+  homeLon: number | null;
+  googlePlacesKey: string; // optional: live station prices from Google Maps
 }
 
 export interface FireSettings {
@@ -226,6 +230,11 @@ export type GroceryDept =
   | 'personal'
   | 'baby'
   | 'pet'
+  | 'fuel' // gas for the car
+  | 'tobacco' // cigarettes, vapes, nicotine pouches
+  | 'prepared' // hot food, fountain drinks, deli counter
+  | 'lottery'
+  | 'auto' // oil, washer fluid, car wash
   | 'other';
 
 export interface ReceiptItem {
@@ -249,6 +258,48 @@ export interface Receipt {
   savings: number | null; // store discounts printed on the receipt
   source: 'photo' | 'pdf' | 'text';
   createdAt: number;
+  fuel?: { gallons: number; perGallon: number; grade: string } | null; // gas pump line, when there is one
+}
+
+/** Something you keep at home. Pebbles tracks it three ways: */
+export interface PantryItem {
+  id: string;
+  name: string;
+  key: string; // matches receipt item keys, so receipts restock it
+  dept: GroceryDept;
+  mode: 'count' | 'amount' | 'level'; // 12 eggs · 2.5 lb rice · milk: full/half/low/out
+  qty: number; // on hand (count and amount)
+  unit: string; // 'ct', 'lb', 'oz', 'gal', 'can', 'bag'…
+  perBuy: number; // how much one purchase adds (a dozen eggs = 12)
+  lowAt: number; // on the list at or below this (count and amount)
+  level: 'full' | 'half' | 'low' | 'out'; // level mode
+  lastBought: ISODate | null;
+  archived?: boolean;
+}
+
+/** A shopping-list line you added yourself (low pantry items are added automatically). */
+export interface ShopItem {
+  id: string;
+  name: string;
+  key: string;
+  qty: number;
+  pantryId: string | null;
+  done: boolean;
+  doneAt: number | null;
+  addedAt: number;
+}
+
+/** A gas price you paid or saw. */
+export interface GasPrice {
+  id: string;
+  station: string;
+  stationId: string | null; // OpenStreetMap or Google place id
+  lat: number | null;
+  lon: number | null;
+  perGallon: number;
+  grade: string;
+  date: ISODate;
+  source: 'receipt' | 'manual' | 'google';
 }
 
 export interface ItemRule {
@@ -424,6 +475,9 @@ export interface CollectionMap {
   prices: StorePrice;
   moves: MoveState;
   guidelines: { id: string; json: string; version: string; fetchedAt: number };
+  pantry: PantryItem;
+  shoplist: ShopItem;
+  gasprices: GasPrice;
 }
 
 export type CollectionName = keyof CollectionMap;
@@ -450,6 +504,9 @@ export const COLLECTIONS: CollectionName[] = [
   'prices',
   'moves',
   'guidelines',
+  'pantry',
+  'shoplist',
+  'gasprices',
 ];
 
 /** A record as stored and synced. */

@@ -271,7 +271,7 @@ export function NumberInput({
   );
 }
 
-export function TextInput(props: { value: string; onChange: (v: string) => void; placeholder?: string; autoFocus?: boolean; ariaLabel?: string; type?: string }) {
+export function TextInput(props: { value: string; onChange: (v: string) => void; placeholder?: string; autoFocus?: boolean; ariaLabel?: string; type?: string; onEnter?: () => void }) {
   return (
     <input
       className="input"
@@ -281,6 +281,8 @@ export function TextInput(props: { value: string; onChange: (v: string) => void;
       autoFocus={props.autoFocus}
       aria-label={props.ariaLabel}
       onChange={(e) => props.onChange(e.target.value)}
+      onKeyDown={props.onEnter ? (e) => e.key === 'Enter' && props.onEnter!() : undefined}
+      enterKeyHint={props.onEnter ? 'done' : undefined}
     />
   );
 }

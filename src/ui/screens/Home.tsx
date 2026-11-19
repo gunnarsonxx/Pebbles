@@ -146,8 +146,7 @@ export function HomeScreen({ data, go }: { data: AppData; go: GoTo }) {
           total={plan.net}
           parts={[
             { key: 'bills', label: 'Bills', value: plan.bills, color: 'var(--sapphire)', hint: plan.billsDue.length ? `${plan.billsDue.length} due before next payday` : undefined },
-            { key: 'ess', label: 'Essentials', value: plan.essentials, color: 'var(--citrine)', hint: 'Groceries, gas & basics' },
-            { key: 'you', label: 'For you', value: Math.max(0, plan.personal), color: 'var(--amethyst)', hint: `${usd(plan.personalPerDay, true)} a day to enjoy` },
+            { key: 'you', label: 'Your money', value: plan.essentials + Math.max(0, plan.personal), color: 'var(--amethyst)', hint: `${usd(plan.essentials, true)} groceries & gas · ${usd(plan.personalPerDay, true)} a day to enjoy` },
             { key: 'save', label: 'Savings', value: plan.savings, color: 'var(--jade)', hint: `${Math.round(plan.savingsRate * 100)}% of take-home` },
           ]}
         />

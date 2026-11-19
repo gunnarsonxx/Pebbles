@@ -48,7 +48,7 @@ export function generateInsights(i: InsightInput): Insight[] {
       id: 'import-first',
       kind: 'heads_up',
       title: 'Bring in a bank statement',
-      body: 'Import a CSV, QFX or PDF statement in Spending. Pebbles will learn your real grocery, gas and bill costs and tailor every suggestion to you.',
+      body: 'Import a CSV, QFX or PDF statement (Budget → Spending), or connect your bank. Pebbles will learn your real grocery, gas and bill costs and tailor every suggestion to you.',
       monthlyImpact: 0,
       priority: 100,
     });
@@ -165,7 +165,7 @@ export function generateInsights(i: InsightInput): Insight[] {
         id: 'overspent',
         kind: 'heads_up',
         title: `${fmtMonth(last)}: spent ${usd(lastSum.spending - lastSum.income)} more than came in`,
-        body: 'Check the Spending tab for the biggest categories. The paycheck plan sets aside bills and essentials first so this is easier to avoid.',
+        body: 'Check Budget → Spending for the biggest categories. The paycheck plan sets aside bills, groceries and gas first, so this is easier to avoid.',
         monthlyImpact: 0,
         priority: 80,
       });

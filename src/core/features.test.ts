@@ -186,7 +186,7 @@ TOTAL 7.84
     expect(s.extrasPerTrip).toBeCloseTo((3.29 + 4.99) / 4, 2);
     expect(s.taxRate).toBeGreaterThan(0.01);
     expect(s.tripsPerMonth).toBeCloseTo(3.9, 1);
-    expect(monthlyGroceryNeed(s)).toBeCloseTo(s.usualTrip * s.tripsPerMonth * (1 + (s.taxRate ?? 0)), 1);
+    expect(monthlyGroceryNeed(s)).toBeCloseTo(s.needsPerMonth * (1 + (s.taxRate ?? 0)), 1);
   });
 });
 
@@ -275,7 +275,7 @@ describe('payday moves', () => {
   it('tells you what to move', () => {
     const moves = paydayMoves({ period, plan, goals, savingsName: 'Marcus', states: new Map(), bonusMonth: true });
     expect(moves[0].title).toContain('to Marcus');
-    expect(moves.map((m) => m.key)).toEqual(['save', 'essentials', 'spend', 'bonus']);
+    expect(moves.map((m) => m.key)).toEqual(['save', 'spend', 'bonus']);
   });
   it('finds the paycheck and the savings transfer in bank data', () => {
     const t = (id: string, date: string, amount: number, category: string, description = '') =>

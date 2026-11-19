@@ -30,7 +30,7 @@ Every push to this repository builds both apps on GitHub. Open the repository's 
 2. Windows SmartScreen may say "Windows protected your PC" because the app isn't code-signed. Click **More info → Run anyway**.
 3. The first time your phone connects, Windows may ask whether Pebbles can use **private networks**. Click **Allow**.
 
-Closing the window keeps Pebbles running in the system tray so your phone can sync any time the PC is on. You can turn that off, or turn on "Start Pebbles with Windows", in **Settings → Phone sync**.
+Closing the window keeps Pebbles running in the system tray so your phone can sync any time the PC is on. You can turn that off, or turn on "Start Pebbles with Windows", in **Settings → Sync & devices**.
 
 ### Android phone
 
@@ -40,7 +40,7 @@ Closing the window keeps Pebbles running in the system tray so your phone can sy
 
 ### Updating
 
-Pebbles checks for new versions once a day. When one is ready you'll see **"A new version of Pebbles is ready · Update"** on Home (or tap **Settings → Updates → Check for updates**).
+Pebbles checks for new versions once a day. When one is ready you'll see **"A new version of Pebbles is ready · Update"** on Home (or tap **Settings → Updates & backup → Check for updates**).
 - **Windows:** downloads, verifies and installs it, then reopens Pebbles.
 - **Android:** downloads it and opens Android's installer. The first time, Android asks you to allow Pebbles to install updates: turn on **Allow from this source**, come back, and tap Update again.
 
@@ -50,7 +50,7 @@ Pebbles checks for new versions once a day. When one is ready you'll see **"A ne
 
 Set up on whichever device you have handy; you can pair the other one any time later.
 
-- **Phone first, computer later:** set up Pebbles on your phone and use it normally. When you install the Windows program, tap **"I already set up Pebbles on my phone"** on its welcome screen, then **Pair a phone**. On the phone go to **Settings → Sync** and enter the address and 6-digit code (or point the phone's camera at the QR code). Everything from your phone appears on the computer in seconds.
+- **Phone first, computer later:** set up Pebbles on your phone and use it normally. When you install the Windows program, tap **"I already set up Pebbles on my phone"** on its welcome screen, then **Pair a phone**. On the phone go to **Settings → Sync & devices** and enter the address and 6-digit code (or point the phone's camera at the QR code). Everything from your phone appears on the computer in seconds.
 - **Computer first:** set up on Windows, then on the phone tap **"I already set up Pebbles on my computer"** and pair the same way.
 
 Whenever both devices are on the same Wi-Fi they stay in sync. Away from home, the phone works normally and catches up when you're back.
@@ -61,51 +61,50 @@ Pebbles connects to banks through **Plaid**, which many banking apps use. Plaid'
 
 1. Sign up at **dashboard.plaid.com** (free). Describe it as a personal budgeting app for yourself.
 2. Pick the free **Trial** plan when offered, and make sure **Transactions** is enabled.
-3. In **Developers → Keys**, copy your **client_id** and **Production secret** into Pebbles: **Settings → Bank connections**.
-4. Go to **Spending → Accounts → Connect a bank**, sign in to your checking bank, then repeat for **Marcus**.
+3. In **Developers → Keys**, copy your **client_id** and **Production secret** into Pebbles: **Settings → Connections**.
+4. Go to **Budget → Accounts → Connect a bank**, sign in to your checking bank, then repeat for **Marcus**.
 
-Transactions and balances refresh a few times a day. **Settings → Connections** shows a ✓ or ✗ for Plaid, Kroger, gas and grocery prices, and updates, with a Test button. If a bank sign-in finishes but the bank doesn't appear, tap **Refresh** on Spending → Accounts: Pebbles picks up any sign-in from the last 6 hours, and the **Connection status** list there shows each step. Pebbles makes your Marcus account the home for your savings goals automatically. Add its APY under **Spending → Accounts → (Marcus)** so it can project your monthly interest.
+Transactions and balances refresh a few times a day. **Settings → Connections** shows a ✓ or ✗ for Plaid, Kroger, gas and grocery prices, and updates, with a Test button. If a bank sign-in finishes but the bank doesn't appear, tap **Refresh** on Budget → Accounts: Pebbles picks up any sign-in from the last 6 hours, and the **Connection status** list there shows each step. Pebbles makes your Marcus account the home for your savings goals automatically. Add its APY under **Budget → Accounts → (Marcus)** so it can project your monthly interest.
 
 ### King Soopers prices (optional)
 
-Create a free account at **developer.kroger.com**, register an app with the **Product** scope, then enter its client ID and secret in **Settings → Grocery prices**, tap **Find stores near me**, and tick every King Soopers you shop at. Walmart doesn't share prices with apps, so Walmart prices come from your own Walmart receipts.
+Create a free account at **developer.kroger.com**, register an app with the **Product** scope, then enter its client ID and secret in **Settings → Connections**, tap **Find stores near me**, and tick every King Soopers you shop at. Walmart doesn't share prices with apps, so Walmart prices come from your own Walmart receipts.
 
 ---
 
 ## Using Pebbles
 
-### Paycheck
+Five tabs: **Home**, **Pay**, **Budget**, **Groceries** and **Savings**. Settings is the gear at the top, split into categories.
 
-- **Overnight shifts:** in Settings → Pay choose **Overnight shifts**, enter your start/end times and break, and tick the nights your shift starts. Tap the night a shift starts to change it; calling off a shift removes its hours from both days.
-- The calendar shows your two-week pay period. **Tap a day** to change it:
-  - **Worked**: change hours or pick a different **pay rate** (add rates like "Lead shift" or "Training" under *Pay rates*). You can split a day across two rates, and mark a worked holiday.
-  - **Missed**: an unpaid day.
-  - **PTO / Sick / Holiday**: paid leave at your base rate.
-- The breakdown shows exactly how the estimate was built: base pay → each adjustment → overtime → gross → every tax and deduction → take-home.
-- **Upload pay stub** (PDF from your payroll site, or a photo): Pebbles copies your 401(k)/insurance deductions, checks your rate, records the paycheck, and matches future estimates to your employer's numbers.
-- On payday, the **moves** card on Home tells you what to do. With a bank connected, Pebbles records your paycheck when the deposit arrives and checks off the savings move when it sees your transfer to Marcus. Without one, tap **I got paid**.
+### Pay
 
-### Spending
+- **Your shifts**: the button at the top of the calendar sets day or **overnight** shifts (start and end time, break, the nights a shift starts). Hours count on the calendar day they're worked, so a Saturday-night shift on the last day of a pay period puts 2.5 h on this check and 5.5 h on the next. Calling off a shift takes off exactly those hours.
+- **Tap a day** to change it: worked (other hours, other times, other rates, split across rates), missed, PTO, sick or a paid holiday. **Reset** clears the period's changes after asking, and can be undone.
+- **Holidays**: the 11 federal holidays are built in (plus optional Christmas Eve, New Year's Eve, the day after Thanksgiving and Easter). Hours worked on one pay your holiday rate (1.5× by default) automatically. Choose in Settings → Pay & schedule whether it's the hours on that date or whole shifts that start on it.
+- **Pay stubs**: upload a PDF, photo or screenshot. Pebbles reads table-style stubs (it removes the grid lines and rebuilds each row), checks the taxes add up to the stub's totals, copies your deductions and matches future estimates to your real checks.
 
-- **Import**: download statements from your bank's website or app (look for *Download transactions* or *Export*). CSV or QFX are the most accurate; PDFs work too, but check the preview. Re-importing the same file never creates duplicates.
-- Tap any transaction to change its category. Pebbles can remember that choice for the same store in the future. Mark transfers between your own accounts as "Don't count this".
-- **Marcus statements**: import them like any other statement. Pebbles recognizes Marcus, reads the APY, and adds each interest payment to your goals as pebbles.
-- **Groceries tab**: add receipts by photo, PDF or by hand. You'll see your usual trip (needs only, with tax), what the extras cost per trip, the cheapest store for your usual list, and King Soopers sales on things you buy. Your grocery budget then uses these real numbers.
-- **Accounts tab**: connected banks, balances, and which account holds your goals.
+### Budget
+
+- **Plan**: each check splits into **bills**, **your money** (groceries, gas and basics, plus what's yours to enjoy) and **savings**. Drag the slider for more pebbles or more spending money.
+- **Spending**: import statements or connect banks. **What you bought** breaks your receipts down by kind: gas, nicotine, snacks, drinks, groceries, so a Circle K stop isn't just "Circle K".
+- **Accounts**: connected banks, balances, and which account holds your goals.
+
+### Groceries
+
+- **List**: fills itself from pantry items that are low or out (and ones you usually rebuy about now), plus anything you add. Shows what the **next trip** will cost with tax, using King Soopers prices or what you last paid. Tick items off in the store.
+- **Pantry**: type a quick list (`eggs 12`, `rice 5 lb`, `milk`, `coffee low`). Count things, measure things, or just mark them Full / Half / Low / Out. Receipts restock what they match.
+- **Receipts**: any store, gas stations included. Pebbles learns your prices and your real monthly grocery spending from all your trips, small or big, and that number goes straight into your budget.
+- **Gas**: stations near home and near you. Prices come from your gas receipts and prices you tap in; add a Google Maps key (Settings → Connections) for live posted prices. Pebbles tells you whether a cheaper station is worth the drive, and your gas budget uses the price you actually pay.
 
 ### Savings
 
-- Create goals with a photo, a target, an optional date and a priority. Mark one as your **Bedrock fund** (emergency fund); Pebbles fills it first.
-- Each payday, savings are shared out automatically: emergency fund first, then goals with dates (so you hit them on time), then by priority. You can also add or take out pebbles by hand.
+- **Goals**: a photo, a target, an optional date and a priority. Your **Bedrock fund** (emergency fund) fills first.
+- **Marcus is the source of truth**: your goals always add up to the Marcus balance. Each deposit is split the way that paycheck's plan split it (say $53 to the ring and $212 to Bedrock), interest is shared across goals, money that was already there is spread out, and **Adjust split** lets you set it exactly.
+- **Retirement**: one answer first (when you could retire, and how far along you are), your single next step, then details you can open: every step in order, different ways to retire, how savings rate changes things, and investing basics.
 
-### Plan
+### Look
 
-- **Paycheck plan**: drag the savings slider to choose more pebbles or more spending money for this check.
-- **Bills**: add your monthly bills, or tap **+ Bill** on anything Pebbles found repeating in your statements.
-- **Essentials**: groceries (your real average, never below the USDA Thrifty plan for your household), gas (miles ÷ mpg × current price), and other basics.
-- **Prices near you**: weekly Colorado gas prices (U.S. EIA; a key is built in), grocery inflation and staple prices (BLS).
-- **How you compare to the experts**: your split checked against the broad consensus (50/30/20, Fidelity's 50/15/5, a 3–6 month emergency fund, housing ≤ 30% of gross). Pebbles follows these on its own: needs first, about 20% saved, spending money near 30% once your bills are in.
-- **Field notes**: suggestions to save more, habits to keep or quit, and places to cut back.
+Settings → Appearance: five backgrounds and twelve gemstone accents, light or dark. **Alexandrite** is teal in light mode and raspberry in dark mode, like the real stone in daylight and lamplight.
 
 ---
 
@@ -128,7 +127,7 @@ These are estimates of withholding, not tax advice. Your employer's payroll syst
 
 Budget guidelines live in [`data/guidelines.json`](data/guidelines.json) and update the same way as tax tables.
 
-Tax rules live in [`data/tax-rules.json`](data/tax-rules.json). The apps check that file on the **`main`** branch once a day and switch to newer tables automatically (Settings → Taxes shows the version). When rules change, edit the file, bump `version`, and merge to `main`. Note: the 2027 Colorado withholding allowance is provisional until the state publishes the final 2027 DR 1098.
+Tax rules live in [`data/tax-rules.json`](data/tax-rules.json). The apps check that file on the **`main`** branch once a day (falling back to the build branch until it's merged) and switch to newer tables automatically (Settings → Taxes & deductions shows the version). When rules change, edit the file, bump `version`, and merge to `main`. Note: the 2027 Colorado withholding allowance is provisional until the state publishes the final 2027 DR 1098.
 
 ---
 
@@ -136,7 +135,7 @@ Tax rules live in [`data/tax-rules.json`](data/tax-rules.json). The apps check t
 
 - All data lives on your phone and your computer. There is no Pebbles server or account.
 - Phone ↔ computer sync happens only on your local network. Pairing uses an ECDH key exchange authenticated by the 6-digit code, and every sync payload is encrypted with AES-256-GCM.
-- The computer keeps a daily backup (the last 14 days) in its data folder (*Settings → Backup → Open data folder*). You can also save or restore a backup file by hand.
+- The computer keeps a daily backup (the last 14 days) in its data folder (*Settings → Updates & backup → Open data folder*). You can also save or restore a backup file by hand.
 - Receipts and pay stubs are read on your device (the text reader ships inside the app); images are never uploaded.
 - Internet requests: public price data (BLS, EIA), tax tables / guidelines / updates from this GitHub repo, and, only if you set them up, Plaid (your banks) and Kroger (store prices). Plaid and Kroger keys and bank access tokens are stored on your phone and computer only.
 - The built-in EIA key is public in this repo. It only reads public gas-price data.

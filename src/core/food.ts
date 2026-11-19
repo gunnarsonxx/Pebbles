@@ -52,7 +52,7 @@ export function inflationSinceReference(market: MarketData | null): number {
   const [ry, rm] = FOOD_PLAN_REFERENCE.month.split('-').map(Number);
   const [y, m] = market.foodCpi.asOf.slice(0, 7).split('-').map(Number);
   const months = Math.max(0, (y - ry) * 12 + (m - rm));
-  return ((market.foodCpi.yoyPct / 100) * months) / 12;
+  return (((market.foodCpi.yoyPct ?? 0) / 100) * months) / 12;
 }
 
 export function currentGasPrice(market: MarketData | null): { price: number; source: string } | null {

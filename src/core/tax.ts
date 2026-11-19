@@ -159,7 +159,7 @@ export function computeWithholding(
       detail: `${(rate * 100).toFixed(rate * 100 % 1 ? 1 : 0)}%${flat ? ' flat' : ' bracket'} · $${allowance.toLocaleString()} allowance`,
     });
   } else if (!stateRules) {
-    warnings.push(`Pebbles doesn't have detailed ${st.state} tax tables yet. Add your state's rate under Settings → Taxes.`);
+    warnings.push(`Pebbles doesn't have detailed ${st.state} tax tables yet. Add your state's rate under Settings → Taxes & deductions.`);
   }
 
   // Colorado FAMLI (or similar paid-leave premium)
