@@ -742,7 +742,7 @@ export function DesktopSync() {
   const [devices, setDevices] = useState<DeviceInfo[]>([]);
   const [qr, setQr] = useState('');
   const [now, setNow] = useState(Date.now());
-  const [fw, setFw] = useState<{ supported: boolean; allowed: boolean } | null>(null);
+  const [fw, setFw] = useState<{ supported: boolean; allowed: boolean; blocked?: boolean } | null>(null);
   const [fixing, setFixing] = useState(false);
 
   const refresh = async () => {
@@ -802,9 +802,11 @@ export function DesktopSync() {
           )}
           {fw?.supported && !fw.allowed && (
             <div className="card tint" style={{ padding: 14, borderLeft: '4px solid var(--warn)' }}>
-              <div className="strong small">Windows Firewall May Block Your Phone</div>
+              <div className="strong small">{fw.blocked ? 'Windows Firewall Is Blocking Your Phone' : 'Windows Firewall May Block Your Phone'}</div>
               <p className="small ink2" style={{ margin: '4px 0 10px' }}>
-                Phones reach Pebbles over your home Wi-Fi. Allow it once and Windows will ask for permission.
+                {fw.blocked
+                  ? 'Windows saved a rule that blocks Pebbles (this happens if its “Allow access?” popup was closed). Fix it once and Windows will ask for permission.'
+                  : 'Phones reach Pebbles over your home Wi-Fi. Allow it once and Windows will ask for permission.'}
               </p>
               <button
                 className="btn small primary"
@@ -817,7 +819,7 @@ export function DesktopSync() {
                   toast(r.allowed ? 'Phones can reach Pebbles now' : 'Windows didn’t add the rule. Try again and choose Yes.');
                 }}
               >
-                {fixing ? 'Waiting for Windows…' : 'Allow Phones Through Firewall'}
+                {fixing ? 'Waiting for Windows…' : fw.blocked ? 'Fix Windows Firewall' : 'Allow Phones Through Firewall'}
               </button>
             </div>
           )}

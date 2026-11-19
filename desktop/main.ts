@@ -232,18 +232,38 @@ function run(cmd: string, args: string[]): Promise<{ code: number; out: string }
   });
 }
 
-async function firewallStatus(): Promise<{ supported: boolean; allowed: boolean }> {
+// PowerShell takes a script as base64 UTF-16LE, which avoids quoting problems with paths
+const ps = (script: string) => ['-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(script, 'utf16le').toString('base64')];
+const q = (v: string) => `'${v.replace(/'/g, "''")}'`;
+
+async function firewallStatus(): Promise<{ supported: boolean; allowed: boolean; blocked?: boolean }> {
   if (process.platform !== 'win32') return { supported: false, allowed: true };
-  const r = await run('netsh', ['advfirewall', 'firewall', 'show', 'rule', `name=${RULE}`]);
-  return { supported: true, allowed: r.code === 0 && /Enabled:\s*Yes/i.test(r.out) };
+  const exe = process.execPath;
+  // Windows saves a hidden *block* rule for an app if its "Allow access?" popup was closed;
+  // block rules win over allow rules, so look for those first
+  const r = await run('powershell.exe', ps(`
+$exe = ${q(exe)}
+$rules = Get-NetFirewallApplicationFilter -Program $exe -ErrorAction SilentlyContinue | Get-NetFirewallRule -ErrorAction SilentlyContinue | Where-Object { $_.Direction -eq 'Inbound' -and $_.Enabled -eq 'True' }
+if ($rules | Where-Object { $_.Action -eq 'Block' }) { 'BLOCKED' }
+elseif (($rules | Where-Object { $_.Action -eq 'Allow' }) -or (Get-NetFirewallRule -DisplayName ${q(RULE)} -ErrorAction SilentlyContinue)) { 'ALLOWED' }
+else { 'NONE' }`));
+  const out = r.out.trim();
+  return { supported: true, allowed: /ALLOWED/.test(out), blocked: /BLOCKED/.test(out) };
 }
 
-/** Add an inbound rule for Pebbles' sync port on every network type (asks Windows for permission once). */
+/** Remove Windows' block rules for Pebbles and allow it on every network type (one Windows permission prompt). */
 async function fixFirewall(): Promise<{ allowed: boolean }> {
   if (process.platform !== 'win32') return { allowed: true };
   const port = hub.info().port;
-  const args = `advfirewall firewall add rule name="${RULE}" dir=in action=allow protocol=TCP localport=${port} profile=any enable=yes`;
+  const exe = process.execPath;
+  const script = `
+$exe = ${q(exe)}
+Get-NetFirewallApplicationFilter -Program $exe -ErrorAction SilentlyContinue | Get-NetFirewallRule -ErrorAction SilentlyContinue | Where-Object { $_.Action -eq 'Block' } | Remove-NetFirewallRule -ErrorAction SilentlyContinue
+Get-NetFirewallRule -DisplayName ${q(RULE)} -ErrorAction SilentlyContinue | Remove-NetFirewallRule -ErrorAction SilentlyContinue
+New-NetFirewallRule -DisplayName ${q(RULE)} -Direction Inbound -Action Allow -Program $exe -Profile Any -Enabled True | Out-Null
+New-NetFirewallRule -DisplayName ${q(RULE + ' port')} -Direction Inbound -Action Allow -Protocol TCP -LocalPort ${port} -Profile Any -Enabled True | Out-Null`;
+  const inner = Buffer.from(script, 'utf16le').toString('base64');
   // Start-Process -Verb RunAs shows the Windows admin prompt
-  await run('powershell.exe', ['-NoProfile', '-Command', `Start-Process netsh -ArgumentList '${args.replace(/'/g, "''")}' -Verb RunAs -Wait -WindowStyle Hidden`]);
+  await run('powershell.exe', ps(`Start-Process powershell.exe -Verb RunAs -Wait -WindowStyle Hidden -ArgumentList '-NoProfile','-EncodedCommand','${inner}'`));
   return { allowed: (await firewallStatus()).allowed };
 }
