@@ -84,3 +84,44 @@ describe('goals follow the savings account', () => {
     expect(bal(cs, 'ring') + bal(cs, 'em')).toBe(510);
   });
 });
+
+describe('bills: roommate split, wider suggestions, calendar', async () => {
+  const { roommateTransfer, monthlyEquivalent } = await import('./budget');
+  const { detectRecurring } = await import('./analytics');
+  const { billsCalendar } = await import('./ics');
+  const bill = (p: Partial<import('./types').Bill>) => ({ id: p.name ?? 'b', name: 'Bill', amount: 0, dueDay: 1, dueMonth: null, anchorDate: null, frequency: 'monthly' as const, category: 'utilities', autopay: false, active: true, matchPattern: '', ...p });
+
+  it('rent to a roommate minus their half of the bills in your name', () => {
+    const bills = [bill({ name: 'Rent', amount: 1000, toRoommate: true, category: 'housing' }), bill({ name: 'Internet', amount: 70, yourSharePct: 50, fromRent: true }), bill({ name: 'Electric', amount: 120, yourSharePct: 50, fromRent: true })];
+    expect(roommateTransfer(bills)).toMatchObject({ send: 905, rent: 1000 });
+    // your real monthly cost: full rent plus your halves
+    expect(bills.reduce((s, b) => s + monthlyEquivalent(b), 0)).toBe(1095);
+  });
+
+  it('a thorough look finds varying utilities, Venmo rent and one-off subscriptions', () => {
+    const t = (id: string, date: string, amount: number, description: string, category: string) => ({ id, accountId: 'c', date, description, merchant: '', amount, category, importId: null, excluded: false, note: '' });
+    const txns = [
+      t('1', '2026-09-03', -82.1, 'XCEL ENERGY PAYMENT', 'utilities'),
+      t('2', '2026-10-04', -118.4, 'XCEL ENERGY PAYMENT', 'utilities'),
+      t('3', '2026-11-02', -96.0, 'XCEL ENERGY PAYMENT', 'utilities'),
+      t('4', '2026-09-01', -905, 'VENMO PAYMENT ROOMMATE', 'p2p'),
+      t('5', '2026-10-01', -905, 'VENMO PAYMENT ROOMMATE', 'p2p'),
+      t('6', '2026-11-01', -905, 'VENMO PAYMENT ROOMMATE', 'p2p'),
+      t('7', '2026-11-10', -15.49, 'NETFLIX.COM', 'subscriptions'),
+    ];
+    const strict = detectRecurring(txns, [], '2026-11-19').map((r) => r.name);
+    const loose = detectRecurring(txns, [], '2026-11-19', { thorough: true }).map((r) => r.name.toUpperCase());
+    expect(strict.length).toBeLessThan(loose.length);
+    expect(loose.some((n) => n.includes('XCEL'))).toBe(true);
+    expect(loose.some((n) => n.includes('VENMO'))).toBe(true);
+    expect(loose.some((n) => n.includes('NETFLIX'))).toBe(true);
+  });
+
+  it('writes a calendar file with repeating bills and paydays', () => {
+    const ics = billsCalendar([bill({ name: 'Crunchyroll', amount: 10.8, dueDay: 9 })], '2026-11-19', '2026-11-20');
+    expect(ics).toContain('BEGIN:VCALENDAR');
+    expect(ics).toContain('DTSTART;VALUE=DATE:20261209');
+    expect(ics).toContain('RRULE:FREQ=MONTHLY;BYMONTHDAY=9');
+    expect(ics).toContain('SUMMARY:Payday');
+  });
+});

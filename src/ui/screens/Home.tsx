@@ -170,7 +170,7 @@ export function HomeScreen({ data, go }: { data: AppData; go: GoTo }) {
         <div className="card">
           <div className="card-head">
             <div className="eyebrow">Bills in the Next 2 Weeks</div>
-            <button className="btn ghost small" onClick={() => go('plan')}>
+            <button className="btn ghost small" onClick={() => go('budget', 'bills')}>
               All Bills
             </button>
           </div>

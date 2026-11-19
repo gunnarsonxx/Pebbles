@@ -1743,3 +1743,19 @@ ol.step-list li.now strong {
 .diff-chip.down {
   background: var(--bad);
 }
+.bill-day {
+  min-height: 56px;
+}
+.bill-day .tiny.strong {
+  color: var(--sapphire);
+  font-size: 10px;
+}
+.payday-tag {
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--on-moss);
+  background: var(--moss);
+  border-radius: 6px;
+  padding: 0 4px;
+  margin-top: auto;
+}

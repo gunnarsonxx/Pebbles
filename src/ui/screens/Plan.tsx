@@ -1,27 +1,20 @@
-import { useState } from 'react';
-import { Plus, Sparkles, Settings as SettingsIcon } from 'lucide-react';
+import { CalendarDays, ChevronRight, Sparkles, Settings as SettingsIcon } from 'lucide-react';
 import type { AppData } from '../../data/useData';
 import type { GoTo } from '../App';
 import { SplitBar } from '../charts';
-import { CategoryIcon, Field, GemIcon, NumberInput, Sheet, TextInput, ToggleRow, useToast } from '../components';
+import { CategoryIcon, GemIcon } from '../components';
 import { InsightList } from '../InsightList';
 import { GuidelinesCard } from '../AutopilotCards';
-import { monthlyBillsTotal, monthlyEquivalent } from '../../core/budget';
+import { monthlyBillsTotal } from '../../core/budget';
 import { detectRecurring } from '../../core/analytics';
-import { CATEGORIES, categoryOf } from '../../core/categories';
 import { fmtDay, fmtShort, addDays } from '../../core/dates';
 import { FOOD_PLAN_LABEL } from '../../core/food';
 import { usd, pebbles } from '../../core/money';
-import { deleteBill, newBill, saveBill, setSavingsOverride } from '../../data/actions';
-import type { Bill, BillFrequency } from '../../core/types';
+import { setSavingsOverride } from '../../data/actions';
 
 export function PlanScreen({ data, go }: { data: AppData; go: GoTo }) {
-  const toast = useToast();
   const { plan, essentials, upcoming } = data;
-  const [editingBill, setEditingBill] = useState<Bill | null>(null);
   const recurring = detectRecurring(data.txns, data.bills, data.today).slice(0, 6);
-  const due = new Set(plan.billsDue.map((b) => b.bill.id));
-  const bills = [...data.bills].sort((a, b) => Number(b.active) - Number(a.active) || a.dueDay - b.dueDay);
   const monthly = monthlyBillsTotal(data.bills);
   const override = data.paychecks.get(upcoming.period.start)?.savingsOverride ?? null;
 
@@ -104,77 +97,22 @@ export function PlanScreen({ data, go }: { data: AppData; go: GoTo }) {
       </div>
 
       <div className="grid two mt">
-        <div className="card">
-          <div className="card-head">
-            <div>
-              <div className="eyebrow">Monthly Bills</div>
-              <div className="small muted">
-                {usd(monthly)} a month · about {usd((monthly * 12) / 26)} per paycheck
-              </div>
+        <button className="card action-card" onClick={() => go('budget', 'bills')}>
+          <span className="list-icon" style={{ background: 'color-mix(in srgb, var(--sapphire) 14%, var(--card))', color: 'var(--sapphire)' }}>
+            <CalendarDays />
+          </span>
+          <div className="grow">
+            <div className="eyebrow">Bills</div>
+            <div className="strong">
+              {usd(monthly)} a month · {usd((monthly * 12) / 26)} per paycheck
             </div>
-            <button className="btn small" onClick={() => setEditingBill(newBill())}>
-              <Plus /> Add
-            </button>
+            <div className="tiny muted">
+              {plan.billsDue.length ? `This check covers ${plan.billsDue.slice(0, 3).map((x) => x.bill.name).join(', ')}${plan.billsDue.length > 3 ? '…' : ''}` : 'Calendar, suggestions and roommate split'}
+              {recurring.length ? ` · ${recurring.length} found in your statements` : ''}
+            </div>
           </div>
-          {bills.length ? (
-            <div className="list">
-              {bills.map((b) => (
-                <button key={b.id} className="list-item" onClick={() => setEditingBill(b)} style={!b.active ? { opacity: 0.5 } : undefined}>
-                  <CategoryIcon id={b.category} size={34} />
-                  <div className="grow">
-                    <div className="strong ellipsis">{b.name}</div>
-                    <div className="tiny muted">
-                      {freqLabel(b)}
-                      {b.autopay ? ' · autopay' : ''}
-                      {due.has(b.id) ? ' · this paycheck' : ''}
-                    </div>
-                  </div>
-                  <div className="amount">{usd(b.amount)}</div>
-                </button>
-              ))}
-            </div>
-          ) : (
-            <p className="small muted">Add rent, utilities, phone, insurance, car payment and subscriptions. Pebbles sets aside money for each before payday.</p>
-          )}
-          {recurring.length > 0 && (
-            <div className="mt">
-              <div className="eyebrow" style={{ marginBottom: 4 }}>
-                Found in Your Statements
-              </div>
-              {recurring.map((r) => (
-                <div key={r.key} className="row" style={{ padding: '6px 0' }}>
-                  <CategoryIcon id={r.category} size={30} />
-                  <div className="grow">
-                    <div className="small strong">{r.name}</div>
-                    <div className="tiny muted">
-                      {usd(r.amount)} {r.frequency} · seen {r.count}×
-                    </div>
-                  </div>
-                  <button
-                    className="btn small"
-                    onClick={async () => {
-                      await saveBill(
-                        newBill({
-                          name: r.name,
-                          amount: r.amount,
-                          dueDay: r.dueDay,
-                          frequency: r.frequency === 'yearly' ? 'yearly' : r.frequency,
-                          dueMonth: r.frequency === 'yearly' ? Number(r.lastDate.slice(5, 7)) : null,
-                          anchorDate: r.frequency === 'weekly' || r.frequency === 'biweekly' ? r.lastDate : null,
-                          category: categoryOf(r.category).group === 'bills' ? r.category : 'subscriptions',
-                          matchPattern: r.pattern,
-                        }),
-                      );
-                      toast(`${r.name} added to bills`);
-                    }}
-                  >
-                    <Plus /> Bill
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+          <ChevronRight size={18} className="muted" />
+        </button>
 
         <div className="card">
           <div className="card-head">
@@ -235,118 +173,6 @@ export function PlanScreen({ data, go }: { data: AppData; go: GoTo }) {
         <InsightList items={data.insights} />
       </div>
 
-      {editingBill && <BillSheet bill={editingBill} onClose={() => setEditingBill(null)} />}
     </div>
-  );
-}
-
-function freqLabel(b: Bill): string {
-  const th = (n: number) => `${n}${n % 10 === 1 && n !== 11 ? 'st' : n % 10 === 2 && n !== 12 ? 'nd' : n % 10 === 3 && n !== 13 ? 'rd' : 'th'}`;
-  switch (b.frequency) {
-    case 'monthly':
-      return `Monthly on the ${th(b.dueDay)}`;
-    case 'yearly':
-      return `Yearly · ${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][(b.dueMonth ?? 1) - 1]} ${b.dueDay} (${usd(monthlyEquivalent(b))}/mo)`;
-    case 'quarterly':
-      return `Every 3 months on the ${th(b.dueDay)}`;
-    case 'weekly':
-      return 'Weekly';
-    case 'biweekly':
-      return 'Every 2 weeks';
-  }
-}
-
-function BillSheet({ bill, onClose }: { bill: Bill; onClose: () => void }) {
-  const [b, setB] = useState(bill);
-  const isNew = !bill.name;
-  const billCats = CATEGORIES.filter((c) => c.group === 'bills' || ['transport', 'health', 'pets', 'household'].includes(c.id));
-  return (
-    <Sheet
-      title={isNew ? 'New Bill' : 'Edit Bill'}
-      onClose={onClose}
-      footer={
-        <>
-          {!isNew && (
-            <button
-              className="btn danger"
-              onClick={async () => {
-                await deleteBill(b.id);
-                onClose();
-              }}
-            >
-              Delete
-            </button>
-          )}
-          <button
-            className="btn primary"
-            disabled={!b.name.trim() || !(b.amount > 0)}
-            onClick={async () => {
-              await saveBill({ ...b, name: b.name.trim() });
-              onClose();
-            }}
-          >
-            Save
-          </button>
-        </>
-      }
-    >
-      <div className="col gap-l">
-        <Field label="Name">
-          <TextInput value={b.name} onChange={(v) => setB({ ...b, name: v })} placeholder="Rent, Colorado Springs Utilities, phone…" autoFocus={isNew} />
-        </Field>
-        <div className="form-grid two">
-          <Field label="Amount">
-            <NumberInput value={b.amount} onChange={(v) => setB({ ...b, amount: v ?? 0 })} prefix="$" />
-          </Field>
-          <Field label="How Often">
-            <select className="input" value={b.frequency} onChange={(e) => setB({ ...b, frequency: e.target.value as BillFrequency })}>
-              <option value="monthly">Monthly</option>
-              <option value="yearly">Yearly</option>
-              <option value="quarterly">Every 3 months</option>
-              <option value="biweekly">Every 2 weeks</option>
-              <option value="weekly">Weekly</option>
-            </select>
-          </Field>
-          {(b.frequency === 'monthly' || b.frequency === 'quarterly' || b.frequency === 'yearly') && (
-            <Field label="Due Day of the Month">
-              <NumberInput value={b.dueDay} onChange={(v) => setB({ ...b, dueDay: Math.min(31, Math.max(1, Math.round(v ?? 1))) })} />
-            </Field>
-          )}
-          {(b.frequency === 'yearly' || b.frequency === 'quarterly') && (
-            <Field label={b.frequency === 'yearly' ? 'Month' : 'First Month'}>
-              <select className="input" value={b.dueMonth ?? 1} onChange={(e) => setB({ ...b, dueMonth: Number(e.target.value) })}>
-                {['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'].map((m, i) => (
-                  <option key={m} value={i + 1}>
-                    {m}
-                  </option>
-                ))}
-              </select>
-            </Field>
-          )}
-          {(b.frequency === 'weekly' || b.frequency === 'biweekly') && (
-            <Field label="A Recent Due Date">
-              <input className="input" type="date" value={b.anchorDate ?? ''} onChange={(e) => setB({ ...b, anchorDate: e.target.value || null })} />
-            </Field>
-          )}
-        </div>
-        <Field label="Category">
-          <div className="row wrap" style={{ gap: 6 }}>
-            {billCats.map((c) => (
-              <button key={c.id} className={`chip${b.category === c.id ? ' on' : ''}`} onClick={() => setB({ ...b, category: c.id })}>
-                {c.name}
-              </button>
-            ))}
-          </div>
-        </Field>
-        <Field label="Shows Up on Statements As (Optional)" hint="Helps Pebbles recognize the payment">
-          <TextInput value={b.matchPattern} onChange={(v) => setB({ ...b, matchPattern: v })} placeholder="e.g. CSU, T-MOBILE" />
-        </Field>
-        <ToggleRow title="Autopay" hint="No reminder needed" on={b.autopay} onChange={(v) => setB({ ...b, autopay: v })} />
-        <ToggleRow title="Active" on={b.active} onChange={(v) => setB({ ...b, active: v })} />
-        <p className="small muted center">
-          {usd(monthlyEquivalent(b))} a month · about {usd((monthlyEquivalent(b) * 12) / 26)} per paycheck
-        </p>
-      </div>
-    </Sheet>
   );
 }

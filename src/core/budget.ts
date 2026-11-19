@@ -7,19 +7,46 @@ import type { Bill, Contribution, Goal, ISODate, MarketData, Settings, Transacti
 
 // ---------------- bills ----------------
 
-export function monthlyEquivalent(b: Bill): number {
+/** Your part of a bill (all of it unless it's split with a roommate). */
+export function yourAmount(b: Bill): number {
+  const pct = b.yourSharePct;
+  return pct != null && pct >= 0 && pct < 100 ? round2((b.amount * pct) / 100) : b.amount;
+}
+
+function perMonth(b: Bill, amount: number): number {
   switch (b.frequency) {
     case 'monthly':
-      return b.amount;
+      return amount;
     case 'yearly':
-      return b.amount / 12;
+      return amount / 12;
     case 'quarterly':
-      return b.amount / 3;
+      return amount / 3;
     case 'weekly':
-      return (b.amount * 52) / 12;
+      return (amount * 52) / 12;
     case 'biweekly':
-      return (b.amount * 26) / 12;
+      return (amount * 26) / 12;
   }
+}
+
+/** What a bill costs you per month (your share). */
+export function monthlyEquivalent(b: Bill): number {
+  return perMonth(b, yourAmount(b));
+}
+
+/**
+ * Paying rent to a roommate who owes you part of bills in your name: what to send them.
+ * Rent (and anything else you pay them) minus their share of the split bills you cover.
+ */
+export function roommateTransfer(bills: Bill[]): { send: number; rent: number; credits: { name: string; amount: number }[] } | null {
+  const active = bills.filter((b) => b.active);
+  const to = active.filter((b) => b.toRoommate);
+  if (!to.length) return null;
+  const rent = round2(to.reduce((s, b) => s + perMonth(b, b.amount), 0));
+  const credits = active
+    .filter((b) => b.fromRent && b.yourSharePct != null && b.yourSharePct < 100)
+    .map((b) => ({ name: b.name, amount: round2(perMonth(b, b.amount - yourAmount(b))) }))
+    .filter((c) => c.amount > 0);
+  return { send: round2(rent - credits.reduce((s, c) => s + c.amount, 0)), rent, credits };
 }
 
 /** All due dates for a bill in [from, to). */
@@ -56,7 +83,7 @@ export interface BillDue {
 export function billsDueBetween(bills: Bill[], from: ISODate, to: ISODate): BillDue[] {
   return bills
     .filter((b) => b.active)
-    .flatMap((b) => billDueDates(b, from, to).map((date) => ({ bill: b, date, amount: b.amount })))
+    .flatMap((b) => billDueDates(b, from, to).map((date) => ({ bill: b, date, amount: yourAmount(b) })))
     .sort((a, b) => a.date.localeCompare(b.date));
 }
 

@@ -395,6 +395,9 @@ export interface Bill {
   autopay: boolean;
   active: boolean;
   matchPattern: string; // to auto-recognize payments in statements
+  yourSharePct?: number | null; // split with a roommate: the % that's yours (null = all yours)
+  fromRent?: boolean; // the roommate's share comes out of what you send them for rent
+  toRoommate?: boolean; // you pay this to your roommate (e.g. rent by Venmo)
 }
 
 export type GemName =

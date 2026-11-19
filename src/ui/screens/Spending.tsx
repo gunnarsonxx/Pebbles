@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, Search, Upload, Undo2 } from 'lucide-react';
+import { CalendarPlus, ChevronLeft, ChevronRight, Search, Upload, Undo2 } from 'lucide-react';
 import type { AppData } from '../../data/useData';
 import { CategoryBars, MonthBars } from '../charts';
 import { CategoryIcon, Empty, Field, Segmented, Sheet, ToggleRow, TextInput, useToast } from '../components';
@@ -13,7 +13,8 @@ import { usd } from '../../core/money';
 import { topMerchants } from '../../core/insights';
 import { recategorize, undoImport, updateTransaction } from '../../data/actions';
 import { GROUP_COLOR } from '../components';
-import type { Transaction } from '../../core/types';
+import type { Bill, Transaction } from '../../core/types';
+import { BillSheet, billFromTransaction } from './Bills';
 import { DEPT_LABEL, WANT_DEPTS, receiptSpendByDept } from '../../core/groceries';
 
 /** What the receipts say you bought: gas vs. drinks vs. nicotine, not just "Circle K". */
@@ -273,6 +274,7 @@ function TxnSheet({ txn, onClose }: { txn: Transaction; onClose: () => void }) {
   const [remember, setRemember] = useState(true);
   const [excluded, setExcluded] = useState(txn.excluded);
   const [note, setNote] = useState(txn.note);
+  const [asBill, setAsBill] = useState<Bill | null>(null);
   const groups: CategoryGroup[] = ['income', 'bills', 'essentials', 'personal', 'savings', 'transfer'];
   return (
     <Sheet
@@ -304,6 +306,11 @@ function TxnSheet({ txn, onClose }: { txn: Transaction; onClose: () => void }) {
           <div className="small ink2" style={{ wordBreak: 'break-word' }}>
             {txn.description}
           </div>
+          {txn.amount < 0 && (
+            <button className="btn small mt" onClick={() => setAsBill(billFromTransaction(txn))}>
+              <CalendarPlus /> Make This a Bill
+            </button>
+          )}
         </div>
         <Field label="Category">
           <div className="col" style={{ gap: 12 }}>
@@ -331,6 +338,7 @@ function TxnSheet({ txn, onClose }: { txn: Transaction; onClose: () => void }) {
           <TextInput value={note} onChange={setNote} placeholder="Optional" />
         </Field>
       </div>
+      {asBill && <BillSheet bill={asBill} onClose={() => setAsBill(null)} />}
     </Sheet>
   );
 }
