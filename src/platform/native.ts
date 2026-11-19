@@ -1,6 +1,7 @@
 // Android-only niceties: status bar colors, back button, and payday / bill reminders.
 import { App as CapApp } from '@capacitor/app';
 import { LocalNotifications } from '@capacitor/local-notifications';
+import { Browser } from '@capacitor/browser';
 import { StatusBar, Style } from '@capacitor/status-bar';
 import { platformKind } from './index';
 import { store } from '../data/store';
@@ -14,6 +15,12 @@ import { syncClient } from '../data/syncClient';
 export const pairEvents = new EventTarget();
 
 async function handlePairLink(url: string | undefined) {
+  if (url?.startsWith('pebbles://plaid')) {
+    const { recoverPendingLinks } = await import('../data/bank');
+    void Browser.close().catch(() => {});
+    void recoverPendingLinks();
+    return;
+  }
   if (!url || !url.startsWith('pebbles://pair')) return;
   const q = new URL(url.replace('pebbles://', 'https://pebbles.local/')).searchParams;
   const addr = q.get('addr') ?? '';

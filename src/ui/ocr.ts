@@ -11,18 +11,44 @@ function ocrBase(): string {
   return new URL('./ocr/', window.location.href).href;
 }
 
+function simdSupported(): boolean {
+  try {
+    // smallest module using a SIMD instruction
+    return WebAssembly.validate(new Uint8Array([0, 97, 115, 109, 1, 0, 0, 0, 1, 5, 1, 96, 0, 1, 123, 3, 2, 1, 0, 10, 10, 1, 8, 0, 65, 0, 253, 15, 253, 98, 11]));
+  } catch {
+    return false;
+  }
+}
+
+function withTimeout<T>(p: Promise<T>, ms: number, msg: string): Promise<T> {
+  return new Promise((res, rej) => {
+    const t = setTimeout(() => rej(new Error(msg)), ms);
+    p.then(
+      (v) => {
+        clearTimeout(t);
+        res(v);
+      },
+      (e) => {
+        clearTimeout(t);
+        rej(e);
+      },
+    );
+  });
+}
+
 async function getWorker() {
   if (!workerPromise) {
     workerPromise = (async () => {
       const { createWorker, PSM } = await import('tesseract.js');
       const w = await createWorker('eng', 1, {
         workerPath: ocrBase() + 'worker.min.js',
-        corePath: ocrBase() + 'tesseract-core-simd-lstm.wasm.js',
+        corePath: ocrBase() + (simdSupported() ? 'tesseract-core-simd-lstm.wasm.js' : 'tesseract-core-lstm.wasm.js'),
         langPath: ocrBase(),
-        gzip: true,
+        gzip: false,
         cacheMethod: 'none',
         workerBlobURL: false,
         logger: (m: { status: string; progress: number }) => onProgress?.(m.progress, m.status),
+        errorHandler: (e: unknown) => console.warn('reader', e),
       });
       await w.setParameters({ tessedit_pageseg_mode: PSM.SINGLE_COLUMN, preserve_interword_spaces: '1' });
       return w;
@@ -92,8 +118,11 @@ async function prepare(file: File): Promise<HTMLCanvasElement> {
 export async function ocrImage(file: File, progress?: Progress): Promise<OcrLine[]> {
   onProgress = progress ?? null;
   progress?.(0, 'Getting ready');
-  const [worker, canvas] = await Promise.all([getWorker(), prepare(file)]);
-  const { data } = await worker.recognize(canvas, {}, { text: true, blocks: true });
+  const [worker, canvas] = await Promise.all([
+    withTimeout(getWorker(), 60_000, 'The text reader didn’t start. You can type the details in by hand instead.'),
+    prepare(file),
+  ]);
+  const { data } = await withTimeout(worker.recognize(canvas, {}, { text: true, blocks: true }), 120_000, 'Reading took too long. Try a smaller, clearer photo, or type it in.');
   onProgress = null;
   const lines: OcrLine[] = [];
   for (const b of data.blocks ?? [])
@@ -111,7 +140,8 @@ export async function linesFromFile(file: File, progress?: Progress): Promise<{ 
   const name = file.name.toLowerCase();
   if (name.endsWith('.pdf') || file.type === 'application/pdf') {
     const { pdfToLines } = await import('./pdfText');
-    return { lines: (await pdfToLines(file)).map((text) => ({ text, confidence: 100 })), source: 'pdf' };
+    const lines = await withTimeout(pdfToLines(file), 60_000, 'That PDF took too long to open.');
+    return { lines: lines.map((text) => ({ text, confidence: 100 })), source: 'pdf' };
   }
   if (file.type.startsWith('image/') || /\.(jpe?g|png|webp|heic|bmp)$/.test(name)) {
     return { lines: await ocrImage(file, progress), source: 'photo' };

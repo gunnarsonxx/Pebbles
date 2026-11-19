@@ -206,3 +206,51 @@ describe('learning from real paychecks', () => {
     expect(calibrationFrom([rec('2026-10-02', 1400, 1400, 1400), rec('2026-10-16', 1400, 1400, 1250)])).toBe(0);
   });
 });
+
+describe('overnight shifts (9:30p–6a, 30 min break after midnight)', () => {
+  const s = defaultSettings();
+  // shifts start Sat, Sun, Mon, Tue, Wed nights; pay periods run Sun–Sat
+  s.pay = { ...s.pay, periodAnchor: '2026-11-08', paydayOffset: 6, baseRate: 20, workDays: [6, 0, 1, 2, 3], shiftStart: '21:30', shiftEnd: '06:00', breakMinutes: 30, breakAfterMidnight: true };
+  const period = periodByIndex(s.pay, 0); // Sun Nov 8 – Sat Nov 21
+
+  it('splits each shift 2.5 h before midnight and 5.5 h after', async () => {
+    const { shiftSplit, shiftHours } = await import('./pay');
+    expect(shiftSplit(s.pay)).toEqual({ overnight: true, pre: 2.5, post: 5.5 });
+    expect(shiftHours(s.pay)).toBe(8);
+  });
+
+  it('counts hours on the day they are worked, across the pay period edges', () => {
+    const g = computeGross(period, s.pay, [], {});
+    // 10 shifts start inside the period, Saturday Nov 7's morning (5.5 h) comes in,
+    // Saturday Nov 21's morning (5.5 h) goes to the next check: still 80 h
+    expect(g.scheduledHours).toBe(80);
+    const sat = g.days.find((d) => d.date === '2026-11-14') as unknown as { countedHours: number };
+    const sun = g.days.find((d) => d.date === '2026-11-15') as unknown as { countedHours: number };
+    expect(sat.countedHours).toBe(2.5);
+    expect(sun.countedHours).toBe(5.5 + 2.5); // Saturday night's morning + Sunday night's start
+  });
+
+  it('calling off a Wednesday shift removes 2.5 h Wednesday and 5.5 h Thursday, not Tuesday night', () => {
+    const g = computeGross(period, s.pay, [], { '2026-11-11': newWorkDay('2026-11-11', 'missed', s.pay) });
+    expect(g.gross).toBe(1600 - 160);
+    const wed = g.days.find((d) => d.date === '2026-11-11') as unknown as { countedHours: number };
+    expect(wed.countedHours).toBe(5.5); // Tuesday night's shift still counts on Wednesday
+  });
+
+  it('only the part of the last Saturday shift inside the period changes this check', () => {
+    const lead = { id: 'lead', name: 'Lead', rate: 24, gem: 'amethyst' as const };
+    const g = computeGross(period, s.pay, [lead], { '2026-11-21': { ...newWorkDay('2026-11-21', 'worked', s.pay), segments: [{ hours: 8, rateId: 'lead', rate: null }] } });
+    expect(g.adjustments[0].amount).toBeCloseTo(2.5 * 4, 2);
+    expect(g.adjustments[0].detail).toContain('part of it on this check');
+  });
+
+  it('weekly overtime uses hours by calendar day', () => {
+    const extra: Record<string, ReturnType<typeof newWorkDay>> = {
+      '2026-11-12': newWorkDay('2026-11-12', 'worked', s.pay), // Thu night extra shift
+    };
+    const g = computeGross(period, s.pay, [], extra);
+    // week 1 (Nov 8–14): 5.5 carry-in + 5 shifts... check OT appears only beyond 40 h
+    expect(g.weeks[0].hours).toBeGreaterThan(40);
+    expect(g.weeks[0].otHours).toBeCloseTo(g.weeks[0].hours - 40, 2);
+  });
+});

@@ -12,7 +12,7 @@ import { rulesForYear } from '../core/taxrules';
 import { periodContaining } from '../core/pay';
 import { GUIDELINES_URL, isValidGuidelines } from '../core/guidelines';
 import { newerVersion } from '../core/taxrules';
-import { normalizeSettings } from '../core/defaults';
+import { krogerStoresOf, normalizeSettings } from '../core/defaults';
 import { today } from '../core/dates';
 import type { GroceryDept, Paystub, Receipt, ReceiptItem } from '../core/types';
 
@@ -41,7 +41,8 @@ let pricing = false;
 /** Look up King Soopers prices for your usual items (once a day). */
 export async function refreshStorePrices(force = false): Promise<{ updated: number; error?: string }> {
   const s = getSettings().integrations;
-  if (pricing || !s.krogerClientId || !s.krogerSecret || !s.krogerLocationId) return { updated: 0 };
+  const stores = krogerStoresOf(s);
+  if (pricing || !s.krogerClientId || !s.krogerSecret || !stores.length) return { updated: 0 };
   const stats = analyzeGroceries(store.list('receipts'), today());
   if (!stats) return { updated: 0 };
   const items = [...stats.usual, ...stats.items.filter((i) => i.trips >= 2)].filter((v, i, a) => a.findIndex((x) => x.key === v.key) === i).slice(0, 20);
@@ -49,14 +50,16 @@ export async function refreshStorePrices(force = false): Promise<{ updated: numb
   try {
     const token = await krogerToken(http, s.krogerClientId.trim(), s.krogerSecret.trim());
     let updated = 0;
-    for (const it of items) {
-      const cur = store.get('prices', it.key);
-      if (!force && cur && Date.now() - cur.fetchedAt < 20 * 3600_000) continue;
-      const p = await krogerPrice(http, token, s.krogerLocationId, it.name).catch(() => null);
-      if (!p) continue;
-      await store.put('prices', { id: it.key, store: s.krogerLocationName || 'King Soopers', description: p.description, regular: p.regular, promo: p.promo, size: p.size, fetchedAt: Date.now() });
-      updated++;
-    }
+    for (const st of stores)
+      for (const it of items) {
+        const id = `${st.id}|${it.key}`;
+        const cur = store.get('prices', id);
+        if (!force && cur && Date.now() - cur.fetchedAt < 20 * 3600_000) continue;
+        const p = await krogerPrice(http, token, st.id, it.name).catch(() => null);
+        if (!p) continue;
+        await store.put('prices', { id, store: st.name, description: p.description, regular: p.regular, promo: p.promo, size: p.size, fetchedAt: Date.now() });
+        updated++;
+      }
     return { updated };
   } catch (e) {
     return { updated: 0, error: (e as Error).message };

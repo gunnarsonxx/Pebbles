@@ -308,7 +308,7 @@ a {
   bottom: 0;
   z-index: 30;
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(6, 1fr);
   height: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px));
   padding-bottom: env(safe-area-inset-bottom, 0px);
   background: color-mix(in srgb, var(--card) 94%, transparent);
@@ -1326,4 +1326,79 @@ button.list-item {
   .hide-desktop {
     display: none !important;
   }
+}
+
+/* ---------- color themes (palette = surfaces, accent = buttons & highlights) ---------- */
+:root[data-palette='sandstone'] { --bg: #f1e8da; --bg-deep: #e8dcc8; --card: #fbf6ee; --card-2: #f4ebdd; --line: #e3d4bd; --line-2: #d6c2a3; }
+:root[data-palette='sandstone'][data-mode='dark'] { --bg: #1e1914; --bg-deep: #18140f; --card: #2a231c; --card-2: #322a21; --line: #3e342a; --line-2: #4c4033; }
+:root[data-palette='slate'] { --bg: #eceff1; --bg-deep: #e1e6ea; --card: #f8fafb; --card-2: #eef2f4; --line: #d9e0e5; --line-2: #c9d2d9; }
+:root[data-palette='slate'][data-mode='dark'] { --bg: #171a1d; --bg-deep: #121417; --card: #22262a; --card-2: #292e33; --line: #343a40; --line-2: #424950; }
+:root[data-palette='redrock'] { --bg: #f4e9e3; --bg-deep: #ecdcd2; --card: #fcf7f4; --card-2: #f6ebe5; --line: #ead4c8; --line-2: #dfc0b0; }
+:root[data-palette='redrock'][data-mode='dark'] { --bg: #1f1614; --bg-deep: #19110f; --card: #2c201c; --card-2: #352621; --line: #43302a; --line-2: #523b33; }
+:root[data-palette='forest'] { --bg: #ebefe6; --bg-deep: #e0e7d9; --card: #f8faf5; --card-2: #eef3e9; --line: #d8e1cf; --line-2: #c7d3bb; }
+:root[data-palette='forest'][data-mode='dark'] { --bg: #161a15; --bg-deep: #111410; --card: #20261e; --card-2: #272e24; --line: #323b2e; --line-2: #3e4939; }
+:root[data-accent='jade'] { --moss: #2e8a66; --moss-strong: #236e51; --moss-soft: #dcefe6; --on-moss: #ffffff; --focus: #2e8a66; }
+:root[data-accent='jade'][data-mode='dark'] { --moss: #4fb08a; --moss-strong: #6cc7a2; --moss-soft: #1f3329; --on-moss: #0e1712; --focus: #6cc7a2; }
+:root[data-accent='sapphire'] { --moss: #2f6bb0; --moss-strong: #24548c; --moss-soft: #dde8f5; --on-moss: #ffffff; --focus: #2f6bb0; }
+:root[data-accent='sapphire'][data-mode='dark'] { --moss: #6a9fdc; --moss-strong: #8ab6ea; --moss-soft: #1e2a3a; --on-moss: #0c1420; --focus: #8ab6ea; }
+:root[data-accent='amethyst'] { --moss: #7a5aa6; --moss-strong: #624787; --moss-soft: #ebe3f4; --on-moss: #ffffff; --focus: #7a5aa6; }
+:root[data-accent='amethyst'][data-mode='dark'] { --moss: #a88bd0; --moss-strong: #bea6df; --moss-soft: #2c2338; --on-moss: #160f1f; --focus: #bea6df; }
+:root[data-accent='garnet'] { --moss: #a3453a; --moss-strong: #86362d; --moss-soft: #f5e0dc; --on-moss: #ffffff; --focus: #a3453a; }
+:root[data-accent='garnet'][data-mode='dark'] { --moss: #d97b6c; --moss-strong: #e69688; --moss-soft: #3a221e; --on-moss: #1c0f0c; --focus: #e69688; }
+:root[data-accent='citrine'] { --moss: #94661a; --moss-strong: #7a5414; --moss-soft: #f6ead2; --on-moss: #ffffff; --focus: #94661a; }
+:root[data-accent='citrine'][data-mode='dark'] { --moss: #d6a44a; --moss-strong: #e3ba6a; --moss-soft: #382c16; --on-moss: #1c150a; --focus: #e3ba6a; }
+:root[data-accent='copper'] { --moss: #a85a2b; --moss-strong: #8a4a23; --moss-soft: #f5e3d8; --on-moss: #ffffff; --focus: #a85a2b; }
+:root[data-accent='copper'][data-mode='dark'] { --moss: #d68a5c; --moss-strong: #e3a07a; --moss-soft: #39251a; --on-moss: #1c120c; --focus: #e3a07a; }
+
+/* ---------- phones: only the content scrolls, so the tab bar never moves ---------- */
+@media (max-width: 899px) {
+  html,
+  body {
+    height: 100%;
+    overflow: hidden;
+  }
+  .app {
+    height: 100%;
+    height: 100dvh;
+    flex-direction: column;
+  }
+  .main {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+  }
+  .tabbar {
+    position: relative;
+    flex-shrink: 0;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    background: var(--card);
+  }
+  .content {
+    padding-bottom: 28px;
+  }
+  .toast {
+    bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 16px);
+  }
+}
+
+.swatch-btn {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: 2px solid var(--line-2);
+  cursor: pointer;
+  padding: 0;
+  position: relative;
+}
+.swatch-btn.on {
+  box-shadow: 0 0 0 3px var(--card), 0 0 0 5px var(--moss);
+}
+.status-ok {
+  color: var(--good);
+}
+.status-bad {
+  color: var(--bad);
 }

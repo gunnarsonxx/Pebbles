@@ -112,7 +112,9 @@ export async function getLinkResult(http: HttpFn, creds: PlaidCreds, linkToken: 
     }
   }
   if (items.length) return { status: 'done', items };
-  const finished = sessions.find((s) => s.finished_at);
+  // a finished session can take a few seconds to show its results; only treat it as
+  // closed when Plaid reports an exit
+  const finished = sessions.find((s) => s.finished_at && s.exit);
   if (finished) {
     const err = finished.exit?.error;
     return { status: 'exited', items: [], message: err?.display_message || err?.error_message || 'The bank sign-in was closed before finishing.' };

@@ -1,4 +1,4 @@
-import type { PayRate, Settings } from './types';
+import type { IntegrationSettings, PayRate, Settings } from './types';
 
 // Free U.S. EIA open-data key (read-only public gas prices). Your own key in Settings overrides it.
 export const BUILTIN_EIA_KEY = 'CNMWTKhfFBG8krrGRmjrcrmLnQhdWt8RdJR6wRQn';
@@ -37,6 +37,10 @@ export function defaultSettings(): Settings {
       baseRate: 20,
       hoursPerDay: 8,
       workDays: [1, 2, 3, 4, 5],
+      shiftStart: null,
+      shiftEnd: null,
+      breakMinutes: 30,
+      breakAfterMidnight: true,
       overtime: { weeklyThreshold: 40, dailyThreshold: 12, multiplier: 1.5, method: 'weighted' },
       holidayMultiplier: 1.5,
     },
@@ -69,9 +73,13 @@ export function defaultSettings(): Settings {
       krogerSecret: '',
       krogerLocationId: '',
       krogerLocationName: '',
+      krogerStores: [],
       zip: '80903',
     },
     theme: 'auto',
+    fire: { age: 28, retireAge: 60, invested: 0, extraMonthly: 0, matchPct: 0, returnPct: 7, inflationPct: 3, withdrawalPct: 4, annualSpending: null },
+    palette: 'limestone',
+    accent: 'moss',
     notifications: true,
   };
 }
@@ -90,6 +98,7 @@ export function normalizeSettings(s: Partial<Settings> | undefined): Settings {
     budget: { ...d.budget, ...(s.budget ?? {}) },
     integrations: { ...d.integrations, ...(s.integrations ?? {}) },
     deductions: s.deductions ?? [],
+    fire: { ...d.fire, ...(s.fire ?? {}) },
   } as Settings;
 }
 
@@ -97,4 +106,11 @@ export const BASE_RATE_ID = 'base';
 
 export function baseRateRecord(rate: number): PayRate {
   return { id: BASE_RATE_ID, name: 'Base', rate, gem: 'quartz', isBase: true };
+}
+
+/** All King Soopers stores you picked (includes the older single-store setting). */
+export function krogerStoresOf(i: IntegrationSettings): { id: string; name: string }[] {
+  const list = [...(i.krogerStores ?? [])];
+  if (i.krogerLocationId && !list.some((x) => x.id === i.krogerLocationId)) list.unshift({ id: i.krogerLocationId, name: i.krogerLocationName || 'King Soopers' });
+  return list;
 }

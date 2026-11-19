@@ -4,6 +4,7 @@ import { Field, Segmented, TextInput, useToast } from '../components';
 import { findKrogerStores, refreshStorePrices } from '../../data/groceryActions';
 import type { KrogerLocation } from '../../core/kroger';
 import type { Settings } from '../../core/types';
+import { krogerStoresOf } from '../../core/defaults';
 
 type SetFn = (f: (s: Settings) => Settings) => void;
 
@@ -101,27 +102,44 @@ export function GroceryPriceSettings({ s, set }: { s: Settings; set: SetFn }) {
             </button>
           </div>
         </div>
-        {i.krogerLocationName && !stores && <p className="small">Using: {i.krogerLocationName}</p>}
-        {stores && (
-          <Field label="Your King Soopers">
-            <select
-              className="input"
-              value={i.krogerLocationId}
-              onChange={(e) => {
-                const st = stores.find((x) => x.id === e.target.value);
-                up({ krogerLocationId: e.target.value, krogerLocationName: st ? `${st.name}` : '' });
-                setTimeout(() => void refreshStorePrices(true), 500);
-              }}
-            >
-              <option value="">Pick a store…</option>
-              {stores.map((st) => (
-                <option key={st.id} value={st.id}>
-                  {st.name} · {st.address}
-                </option>
-              ))}
-            </select>
-          </Field>
-        )}
+        {(() => {
+          const chosen = krogerStoresOf(i);
+          const toggle = (st: { id: string; name: string }) => {
+            const on = chosen.some((x) => x.id === st.id);
+            const next = on ? chosen.filter((x) => x.id !== st.id) : [...chosen, st];
+            up({ krogerStores: next, krogerLocationId: '', krogerLocationName: '' });
+            if (!on) setTimeout(() => void refreshStorePrices(true), 500);
+          };
+          return (
+            <>
+              {chosen.length > 0 && (
+                <div className="row wrap" style={{ gap: 6 }}>
+                  {chosen.map((c) => (
+                    <button key={c.id} className="chip on" onClick={() => toggle(c)} title="Remove">
+                      {c.name} ✕
+                    </button>
+                  ))}
+                </div>
+              )}
+              {stores && (
+                <Field label="Your King Soopers stores" hint="Pick every store you shop at. Prices are checked at each one.">
+                  <div className="col" style={{ gap: 4 }}>
+                    {stores.map((st) => {
+                      const on = chosen.some((x) => x.id === st.id);
+                      const label = `${st.name}${st.address ? ` · ${st.address}` : ''}`;
+                      return (
+                        <label key={st.id} className="row small" style={{ cursor: 'pointer', padding: '4px 0' }}>
+                          <input type="checkbox" checked={on} onChange={() => toggle({ id: st.id, name: st.address ? `${st.name} (${st.address.split(',')[0]})` : st.name })} />
+                          {label}
+                        </label>
+                      );
+                    })}
+                  </div>
+                </Field>
+              )}
+            </>
+          );
+        })()}
         <p className="tiny muted">Walmart doesn’t offer prices to apps, so Pebbles uses what you paid on your Walmart receipts to compare.</p>
       </div>
     </div>

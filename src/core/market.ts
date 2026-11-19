@@ -24,7 +24,7 @@ const GAS_US = 'APU000074714'; // U.S. city average, unleaded regular, per gallo
 
 interface BlsSeries {
   seriesID: string;
-  data: { year: string; period: string; value: string }[];
+  data: { year: string; period: string; periodName?: string; value: string }[];
 }
 
 function blsMonth(d: { year: string; period: string }): string {

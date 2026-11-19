@@ -3,13 +3,14 @@ import { ArrowRight, ChevronLeft } from 'lucide-react';
 import type { AppData } from '../../data/useData';
 import { Field, NumberInput, PebbleLogo, Segmented, TextInput, ToggleRow } from '../components';
 import { saveSettings, saveGoal, newGoal } from '../../data/actions';
-import { addDays, dayOfWeek, diffDays, dowName, fmtDay, fmtShort, today } from '../../core/dates';
-import { upcomingPayPeriod } from '../../core/pay';
+import { addDays, dayOfWeek, diffDays, fmtDay, fmtShort, today } from '../../core/dates';
+import { shiftHours, upcomingPayPeriod } from '../../core/pay';
 import { STATE_NAMES } from '../../core/taxrules';
 import { statusLabel } from '../../core/tax';
 import { usd } from '../../core/money';
 import { platformKind } from '../../platform';
 import { DesktopSync, PhoneSync } from './Settings';
+import { ShiftSchedule } from '../ShiftSchedule';
 import type { Settings } from '../../core/types';
 
 export function Onboarding({ data }: { data: AppData }) {
@@ -86,28 +87,13 @@ export function Onboarding({ data }: { data: AppData }) {
               <Field label="Base hourly rate">
                 <NumberInput value={p.baseRate} onChange={(v) => setS({ ...s, pay: { ...p, baseRate: v ?? 0 } })} prefix="$" suffix="/hr" />
               </Field>
-              <Field label="Hours in a normal day">
-                <NumberInput value={p.hoursPerDay} onChange={(v) => setS({ ...s, pay: { ...p, hoursPerDay: v ?? 8 } })} suffix="h" />
-              </Field>
             </div>
-            <Field label="Days you normally work">
-              <div className="row wrap" style={{ gap: 6 }}>
-                {[0, 1, 2, 3, 4, 5, 6].map((d) => (
-                  <button
-                    key={d}
-                    className={`chip${p.workDays.includes(d) ? ' on' : ''}`}
-                    onClick={() => setS({ ...s, pay: { ...p, workDays: p.workDays.includes(d) ? p.workDays.filter((x) => x !== d) : [...p.workDays, d].sort() } })}
-                  >
-                    {dowName(d)}
-                  </button>
-                ))}
-              </div>
-            </Field>
+            <ShiftSchedule pay={p} onChange={(np) => setS({ ...s, pay: np })} />
             <div className="card tint" style={{ padding: 14 }}>
               <div className="small muted">Base pay per paycheck</div>
-              <div className="big-number">{usd(p.workDays.length * 2 * p.hoursPerDay * p.baseRate)}</div>
+              <div className="big-number">{usd(p.workDays.length * 2 * shiftHours(p) * p.baseRate)}</div>
               <div className="small muted">
-                {p.workDays.length * 2 * p.hoursPerDay} hours every two weeks. Different-rate days and missed days get adjusted from here.
+                {p.workDays.length * 2 * shiftHours(p)} hours every two weeks. Different-rate days and missed days get adjusted from here.
               </div>
             </div>
             <div className="form-grid two">

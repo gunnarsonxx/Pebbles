@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { CalendarDays, Compass, Gem, House, Moon, Receipt, Settings as SettingsIcon, ChevronLeft, Sun } from 'lucide-react';
+import { CalendarDays, Compass, Gem, House, Moon, Receipt, Settings as SettingsIcon, ChevronLeft, Sun, TrendingUp } from 'lucide-react';
 import { saveSettings } from '../data/actions';
 import { useData, useSync } from '../data/useData';
 import { PebbleLogo, ToastProvider } from './components';
@@ -8,19 +8,21 @@ import { PaycheckScreen } from './screens/Paycheck';
 import { SpendingScreen } from './screens/Spending';
 import { SavingsScreen } from './screens/Savings';
 import { PlanScreen } from './screens/Plan';
+import { GrowScreen } from './screens/Grow';
 import { SettingsScreen } from './screens/Settings';
 import { Onboarding } from './screens/Onboarding';
 import { onBack, pairEvents } from '../platform/native';
 import { useToast } from './components';
 import { platformKind } from '../platform';
 
-export type Tab = 'home' | 'paycheck' | 'spending' | 'savings' | 'plan' | 'settings';
+export type Tab = 'home' | 'paycheck' | 'spending' | 'savings' | 'grow' | 'plan' | 'settings';
 
 const TABS: { id: Tab; label: string; icon: typeof House }[] = [
   { id: 'home', label: 'Home', icon: House },
   { id: 'paycheck', label: 'Paycheck', icon: CalendarDays },
   { id: 'spending', label: 'Spending', icon: Receipt },
   { id: 'savings', label: 'Savings', icon: Gem },
+  { id: 'grow', label: 'Grow', icon: TrendingUp },
   { id: 'plan', label: 'Plan', icon: Compass },
 ];
 
@@ -29,6 +31,7 @@ const TITLES: Record<Tab, string> = {
   paycheck: 'Paycheck',
   spending: 'Spending',
   savings: 'Savings',
+  grow: 'Retirement & FIRE',
   plan: 'Plan',
   settings: 'Settings',
 };
@@ -41,9 +44,17 @@ export function App() {
 
   useEffect(() => {
     const t = data.settings.theme;
-    if (t === 'auto') document.documentElement.removeAttribute('data-theme');
-    else document.documentElement.setAttribute('data-theme', t);
-  }, [data.settings.theme]);
+    const root = document.documentElement;
+    if (t === 'auto') root.removeAttribute('data-theme');
+    else root.setAttribute('data-theme', t);
+    root.setAttribute('data-palette', data.settings.palette || 'limestone');
+    root.setAttribute('data-accent', data.settings.accent || 'moss');
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    const apply = () => root.setAttribute('data-mode', t === 'dark' || (t === 'auto' && mq.matches) ? 'dark' : 'light');
+    apply();
+    mq.addEventListener?.('change', apply);
+    return () => mq.removeEventListener?.('change', apply);
+  }, [data.settings.theme, data.settings.palette, data.settings.accent]);
 
   useEffect(() => {
     try {
@@ -52,6 +63,7 @@ export function App() {
       /* ignore */
     }
     window.scrollTo({ top: 0 });
+    document.querySelector('.main')?.scrollTo({ top: 0 });
   }, [tab]);
 
   useEffect(
@@ -152,6 +164,7 @@ export function App() {
             {tab === 'spending' && <SpendingScreen data={data} openSettings={() => go('settings')} />}
             {tab === 'savings' && <SavingsScreen data={data} />}
             {tab === 'plan' && <PlanScreen data={data} go={go} />}
+            {tab === 'grow' && <GrowScreen data={data} />}
             {tab === 'settings' && <SettingsScreen data={data} />}
           </main>
         </div>

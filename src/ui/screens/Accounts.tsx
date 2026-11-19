@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useState, useSyncExternalStore } from 'react';
 import { Landmark, Link2, Plus, RefreshCw, Unlink, PiggyBank } from 'lucide-react';
 import type { AppData } from '../../data/useData';
 import { Field, NumberInput, Sheet, ToggleRow, TextInput, useToast } from '../components';
-import { connectBank, cancelConnect, disconnectBank, plaidCreds, syncAllBanks, syncBank } from '../../data/bank';
+import { bankLog, connectBank, cancelConnect, disconnectBank, plaidCreds, syncAllBanks, syncBank } from '../../data/bank';
 import { store } from '../../data/store';
 import { usd } from '../../core/money';
 import { fmtShort } from '../../core/dates';
@@ -12,6 +12,8 @@ export function AccountsView({ data, openSettings }: { data: AppData; openSettin
   const toast = useToast();
   const [status, setStatus] = useState<string | null>(null);
   const [editing, setEditing] = useState<Account | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const entries = useSyncExternalStore(bankLog.subscribe, bankLog.get);
   const hasKeys = !!plaidCreds();
 
   const connect = async (reconnect?: BankLink) => {
@@ -40,8 +42,17 @@ export function AccountsView({ data, openSettings }: { data: AppData; openSettin
             <div className="small muted">Transactions and balances update on their own, a few times a day.</div>
           </div>
           {hasKeys && (
-            <button className="btn small" onClick={() => void syncAllBanks(true).then(() => toast('Banks refreshed'))}>
-              <RefreshCw /> Refresh
+            <button
+              className="btn small"
+              disabled={refreshing}
+              onClick={async () => {
+                setRefreshing(true);
+                await syncAllBanks(true);
+                setRefreshing(false);
+                toast('Banks checked');
+              }}
+            >
+              <RefreshCw /> {refreshing ? 'Checking…' : 'Refresh'}
             </button>
           )}
         </div>
@@ -108,6 +119,28 @@ export function AccountsView({ data, openSettings }: { data: AppData; openSettin
           </div>
         )}
       </div>
+
+      {hasKeys && (
+        <div className="card mt">
+          <div className="eyebrow" style={{ marginBottom: 6 }}>
+            Connection status
+          </div>
+          {entries.length ? (
+            <div className="list">
+              {entries.slice(0, 10).map((e, i) => (
+                <div key={i} className="row small" style={{ padding: '5px 0', alignItems: 'flex-start' }}>
+                  <span className="muted num" style={{ minWidth: 92 }}>
+                    {new Date(e.at).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                  </span>
+                  <span className={e.error ? 'bad' : ''}>{e.msg}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="small muted">Nothing yet. If you finished signing in to a bank but it isn’t listed above, tap Refresh: Pebbles picks up any sign-in from the last 6 hours.</p>
+          )}
+        </div>
+      )}
 
       {(byLink.get('manual') ?? []).length > 0 && (
         <div className="card mt">

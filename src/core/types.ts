@@ -52,8 +52,12 @@ export interface PaySettings {
   periodAnchor: ISODate; // any date on which a pay period started
   paydayOffset: number; // days after the period's last day that payday falls
   baseRate: number;
-  hoursPerDay: number; // 8
-  workDays: number[]; // 0=Sun..6=Sat, default Mon-Fri
+  hoursPerDay: number; // 8 (paid hours in a normal day shift)
+  workDays: number[]; // 0=Sun..6=Sat: days a shift STARTS (default Mon-Fri)
+  shiftStart: string | null; // '21:30' for overnight shifts; null = simple day shifts
+  shiftEnd: string | null; // '06:00'
+  breakMinutes: number; // unpaid break
+  breakAfterMidnight: boolean; // which side of midnight the break falls
   overtime: OvertimeSettings;
   holidayMultiplier: number; // pay multiplier for working a holiday (1 = none)
 }
@@ -89,7 +93,20 @@ export interface IntegrationSettings {
   krogerSecret: string;
   krogerLocationId: string;
   krogerLocationName: string;
+  krogerStores: { id: string; name: string }[]; // every King Soopers you shop at
   zip: string;
+}
+
+export interface FireSettings {
+  age: number;
+  retireAge: number;
+  invested: number; // 401(k)/IRA/brokerage balances today
+  extraMonthly: number; // IRA or brokerage deposits outside your paycheck
+  matchPct: number; // employer 401(k) match, % of gross pay
+  returnPct: number;
+  inflationPct: number;
+  withdrawalPct: number;
+  annualSpending: number | null; // null = use your current spending
 }
 
 export interface Settings {
@@ -105,6 +122,9 @@ export interface Settings {
   budget: BudgetSettings;
   integrations: IntegrationSettings;
   theme: 'auto' | 'light' | 'dark';
+  fire: FireSettings;
+  palette: string; // limestone | sandstone | slate | redrock | forest
+  accent: string; // moss | jade | sapphire | amethyst | garnet | citrine | copper
   notifications: boolean;
 }
 

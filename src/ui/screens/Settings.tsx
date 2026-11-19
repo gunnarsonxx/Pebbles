@@ -7,7 +7,7 @@ import { Field, NumberInput, Segmented, TextInput, ToggleRow, useToast } from '.
 import { saveSettings, checkTaxUpdates, exportBackup, restoreBackup } from '../../data/actions';
 import { syncClient, DEFAULT_PORT } from '../../data/syncClient';
 import { desktop, platformKind, type DesktopInfo, type DeviceInfo, type PairingInfo } from '../../platform';
-import { addDays, diffDays, dowName, fmtDay, fmtLong } from '../../core/dates';
+import { addDays, diffDays, fmtDay, fmtLong } from '../../core/dates';
 import { STATE_NAMES, rulesForYear } from '../../core/taxrules';
 import { statusLabel } from '../../core/tax';
 import { FOOD_PLAN_LABEL, foodPlanMonthly } from '../../core/food';
@@ -25,6 +25,9 @@ function Section({ title, children, id }: { title: string; children: ReactNode; 
 }
 
 import { UpdateCard } from '../UpdateCard';
+import { ShiftSchedule } from '../ShiftSchedule';
+import { ACCENTS, PALETTES } from '../themes';
+import { ChecksCard } from '../ChecksCard';
 import { BankSettings, GroceryPriceSettings } from './ConnectionsSettings';
 
 export function SettingsScreen({ data }: { data: AppData }) {
@@ -36,6 +39,7 @@ export function SettingsScreen({ data }: { data: AppData }) {
         <SyncSection />
         <UpdateCard />
       </div>
+      <ChecksCard />
       <div className="grid two">
         <BankSettings s={s} set={set} />
         <GroceryPriceSettings s={s} set={set} />
@@ -73,23 +77,8 @@ function PaySection({ s, set }: { s: Settings; set: (f: (s: Settings) => Setting
         <Field label="Base hourly rate">
           <NumberInput value={p.baseRate} onChange={(v) => set((x) => ({ ...x, pay: { ...x.pay, baseRate: v ?? 0 } }))} prefix="$" suffix="/hr" />
         </Field>
-        <Field label="Hours in a normal day">
-          <NumberInput value={p.hoursPerDay} onChange={(v) => set((x) => ({ ...x, pay: { ...x.pay, hoursPerDay: v ?? 8 } }))} suffix="h" />
-        </Field>
       </div>
-      <Field label="Days you normally work" hint={`${p.workDays.length * 2 * p.hoursPerDay} hours per paycheck = ${usd(p.workDays.length * 2 * p.hoursPerDay * p.baseRate)} base pay`}>
-        <div className="row wrap" style={{ gap: 6 }}>
-          {[0, 1, 2, 3, 4, 5, 6].map((d) => (
-            <button
-              key={d}
-              className={`chip${p.workDays.includes(d) ? ' on' : ''}`}
-              onClick={() => set((x) => ({ ...x, pay: { ...x.pay, workDays: x.pay.workDays.includes(d) ? x.pay.workDays.filter((y) => y !== d) : [...x.pay.workDays, d].sort() } }))}
-            >
-              {dowName(d)}
-            </button>
-          ))}
-        </div>
-      </Field>
+      <ShiftSchedule pay={p} onChange={(np) => set((x) => ({ ...x, pay: np }))} />
       <div className="form-grid two">
         <Field label="A pay period started on" hint={`So periods run ${fmtDay(p.periodAnchor)} – ${fmtDay(periodEnd)}`}>
           <input
@@ -434,7 +423,7 @@ function PricesSection({ s, set }: { s: Settings; set: (f: (s: Settings) => Sett
 
 function GeneralSection({ s, set }: { s: Settings; set: (f: (s: Settings) => Settings) => void }) {
   return (
-    <Section title="You">
+    <Section title="You & look">
       <Field label="Your first name (for greetings)">
         <TextInput value={s.name} onChange={(v) => set((x) => ({ ...x, name: v }))} />
       </Field>
@@ -448,6 +437,36 @@ function GeneralSection({ s, set }: { s: Settings; set: (f: (s: Settings) => Set
           ]}
           onChange={(v) => set((x) => ({ ...x, theme: v }))}
         />
+      </Field>
+      <Field label="Background">
+        <div className="row wrap" style={{ gap: 10 }}>
+          {PALETTES.map((p) => (
+            <button
+              key={p.id}
+              className={`swatch-btn${(s.palette || 'limestone') === p.id ? ' on' : ''}`}
+              title={p.name}
+              aria-label={`${p.name} background`}
+              style={{ background: `linear-gradient(135deg, ${p.light} 50%, ${p.dark} 50%)` }}
+              onClick={() => set((x) => ({ ...x, palette: p.id }))}
+            />
+          ))}
+        </div>
+        <span className="hint">{PALETTES.find((p) => p.id === (s.palette || 'limestone'))?.name}</span>
+      </Field>
+      <Field label="Accent">
+        <div className="row wrap" style={{ gap: 10 }}>
+          {ACCENTS.map((a) => (
+            <button
+              key={a.id}
+              className={`swatch-btn${(s.accent || 'moss') === a.id ? ' on' : ''}`}
+              title={a.name}
+              aria-label={`${a.name} accent`}
+              style={{ background: a.color }}
+              onClick={() => set((x) => ({ ...x, accent: a.id }))}
+            />
+          ))}
+        </div>
+        <span className="hint">{ACCENTS.find((a) => a.id === (s.accent || 'moss'))?.name}</span>
       </Field>
       {platformKind === 'android' && <ToggleRow title="Payday & bill reminders" on={s.notifications} onChange={(v) => set((x) => ({ ...x, notifications: v }))} />}
     </Section>

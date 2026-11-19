@@ -2,8 +2,8 @@
 // pdf.js is loaded only when a PDF is imported.
 export async function pdfToLines(file: File): Promise<string[]> {
   const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
-  const workerUrl = (await import('pdfjs-dist/legacy/build/pdf.worker.min.mjs?url')).default;
-  pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
+  // shipped as a plain .js file so every platform serves it as JavaScript
+  pdfjs.GlobalWorkerOptions.workerSrc = new URL('./pdf/pdf.worker.min.js', window.location.href).href;
   const doc = await pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
   const lines: string[] = [];
   for (let p = 1; p <= doc.numPages; p++) {

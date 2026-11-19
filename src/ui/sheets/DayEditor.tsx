@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { Field, NumberInput, Segmented, Sheet, ToggleRow, GemIcon, TextInput } from '../components';
-import { allRates, newWorkDay, resolveDay } from '../../core/pay';
+import { allRates, newWorkDay, preMidnightShare, resolveDay, shiftHours } from '../../core/pay';
 import { fmtDay, dayOfWeek } from '../../core/dates';
 import { BASE_RATE_ID } from '../../core/defaults';
 import { usd, signedUsd } from '../../core/money';
@@ -26,7 +26,7 @@ export function DayEditor({ date, data, onClose }: { date: string; data: AppData
   const rates = allRates(pay.baseRate, data.rates);
 
   const preview = useMemo(() => resolveDay(date, pay, rates, day), [date, pay, rates, day]);
-  const normal = scheduled ? pay.hoursPerDay * pay.baseRate : 0;
+  const normal = scheduled ? shiftHours(pay) * pay.baseRate : 0;
   const dayPay = preview.straightPay + preview.leavePay + preview.holidayPremium;
 
   const setSeg = (i: number, s: Partial<WorkSegment>) => setDay({ ...day, segments: day.segments.map((x, k) => (k === i ? { ...x, ...s } : x)) });
@@ -39,7 +39,7 @@ export function DayEditor({ date, data, onClose }: { date: string; data: AppData
 
   return (
     <Sheet
-      title={fmtDay(date)}
+      title={pay.shiftStart ? `${fmtDay(date)} night shift` : fmtDay(date)}
       onClose={onClose}
       footer={
         <>
@@ -139,6 +139,11 @@ export function DayEditor({ date, data, onClose }: { date: string; data: AppData
             <div className={`strong num ${dayPay - normal >= 0 ? 'good' : 'bad'}`}>{signedUsd(dayPay - normal)}</div>
           </div>
         </div>
+        {pay.shiftStart && preview.workedHours > 0 && (
+          <p className="small ink2">
+            {Math.round(preview.workedHours * preMidnightShare(preview.workedHours, pay) * 100) / 100} h count on {fmtDay(date)}, {Math.round(preview.workedHours * (1 - preMidnightShare(preview.workedHours, pay)) * 100) / 100} h on the next day. Leaving early trims the morning part.
+          </p>
+        )}
         <p className="tiny muted">Overtime is figured for the whole week on the paycheck screen.</p>
       </div>
     </Sheet>

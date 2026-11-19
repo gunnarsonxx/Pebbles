@@ -14,7 +14,9 @@ A calm, earthy money tracker and paycheck planner, for your Android phone and yo
 - **Grocery smarts.** Learns your usual needs-only trip, spots the extras, checks King Soopers prices and sales on what you buy, and figures your grocery budget with sales tax.
 - **Marcus interest.** Projects monthly interest on your high-yield savings and adds the real interest to your goals.
 - **Private sync.** Your phone syncs with your computer over your home Wi-Fi only. Nothing goes to a cloud service, and every sync message is encrypted end to end.
-- **One-tap updates** and a **light / dark** toggle (the moon or sun at the top).
+- **Retirement & FIRE (Grow tab).** Your FI number, when you could be financially independent, Coast/Lean/Fat FI, the savings-rate table, which account to fund next, and this week's top posts from r/financialindependence.
+- **Overnight shifts.** Shifts that cross midnight count their hours on the day they're worked (e.g. 9:30p–6a = 2.5 h + 5.5 h), across work weeks and pay periods.
+- **One-tap updates**, a **light / dark** toggle (moon or sun at the top), and **color themes** (5 backgrounds × 7 accents) in Settings.
 
 ---
 
@@ -62,11 +64,11 @@ Pebbles connects to banks through **Plaid**, which many banking apps use. Plaid'
 3. In **Developers → Keys**, copy your **client_id** and **Production secret** into Pebbles: **Settings → Bank connections**.
 4. Go to **Spending → Accounts → Connect a bank**, sign in to your checking bank, then repeat for **Marcus**.
 
-Transactions and balances refresh a few times a day. Pebbles makes your Marcus account the home for your savings goals automatically. Add its APY under **Spending → Accounts → (Marcus)** so it can project your monthly interest.
+Transactions and balances refresh a few times a day. **Settings → Connections** shows a ✓ or ✗ for Plaid, Kroger, gas and grocery prices, and updates, with a Test button. If a bank sign-in finishes but the bank doesn't appear, tap **Refresh** on Spending → Accounts: Pebbles picks up any sign-in from the last 6 hours, and the **Connection status** list there shows each step. Pebbles makes your Marcus account the home for your savings goals automatically. Add its APY under **Spending → Accounts → (Marcus)** so it can project your monthly interest.
 
 ### King Soopers prices (optional)
 
-Create a free account at **developer.kroger.com**, register an app with the **Product** scope, then enter its client ID and secret in **Settings → Grocery prices** and pick your store. Walmart doesn't share prices with apps, so Walmart prices come from your own Walmart receipts.
+Create a free account at **developer.kroger.com**, register an app with the **Product** scope, then enter its client ID and secret in **Settings → Grocery prices**, tap **Find stores near me**, and tick every King Soopers you shop at. Walmart doesn't share prices with apps, so Walmart prices come from your own Walmart receipts.
 
 ---
 
@@ -74,6 +76,7 @@ Create a free account at **developer.kroger.com**, register an app with the **Pr
 
 ### Paycheck
 
+- **Overnight shifts:** in Settings → Pay choose **Overnight shifts**, enter your start/end times and break, and tick the nights your shift starts. Tap the night a shift starts to change it; calling off a shift removes its hours from both days.
 - The calendar shows your two-week pay period. **Tap a day** to change it:
   - **Worked**: change hours or pick a different **pay rate** (add rates like "Lead shift" or "Training" under *Pay rates*). You can split a day across two rates, and mark a worked holiday.
   - **Missed**: an unpaid day.

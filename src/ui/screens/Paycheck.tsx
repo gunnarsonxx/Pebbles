@@ -100,7 +100,7 @@ export function PaycheckScreen({ data }: { data: AppData }) {
 
           <div className="card">
             <div className="card-head">
-              <div className="eyebrow">Your two weeks · tap a day to change it</div>
+              <div className="eyebrow">{settings.pay.shiftStart ? 'Your shifts · tap the night a shift starts' : 'Your two weeks · tap a day to change it'}</div>
             </div>
             <div className="cal" style={{ marginBottom: 6 }}>
               {days.slice(0, 7).map((d) => (
@@ -126,6 +126,11 @@ export function PaycheckScreen({ data }: { data: AppData }) {
                     <span className="h">
                       {d.status === 'missed' ? 'off' : d.status === 'off' ? '–' : `${num(hrs)}h`}
                     </span>
+                    {settings.pay.shiftStart && (
+                      <span className="tiny muted" title="Hours counted on this calendar day">
+                        {num((d as unknown as { countedHours?: number }).countedHours ?? 0)}h day
+                      </span>
+                    )}
                     <span className="tiny muted">
                       {d.status === 'pto' ? 'PTO' : d.status === 'sick' ? 'sick' : d.status === 'holiday' ? 'holiday' : d.status === 'worked' && d.segments.some((s) => s.rateId !== BASE_RATE_ID) ? '' : ''}
                     </span>

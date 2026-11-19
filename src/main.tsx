@@ -9,7 +9,7 @@ import { checkTaxUpdates, getSettings, updateMarket } from './data/actions';
 import { setupNative } from './platform/native';
 import { checkForUpdate } from './platform/updater';
 import { startAutopilot } from './data/autopilot';
-import { syncAllBanks } from './data/bank';
+import { loadBankLog, recoverPendingLinks, syncAllBanks } from './data/bank';
 import { checkGuidelineUpdates, refreshStorePrices } from './data/groceryActions';
 
 async function boot() {
@@ -19,6 +19,11 @@ async function boot() {
   void syncClient.start();
   void setupNative();
   startAutopilot();
+  void loadBankLog();
+  // finish any bank sign-in that completed while Pebbles was in the background
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') void recoverPendingLinks().catch(() => {});
+  });
   // background refreshes: tax tables (daily) and prices (twice a day)
   const refresh = () => {
     const s = getSettings();

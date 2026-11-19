@@ -7,6 +7,7 @@ import { DEPT_LABEL, WANT_DEPTS, extrasOn, monthlyGroceryNeed, receiptItemsTotal
 import { fmtShort } from '../../core/dates';
 import { round2, usd } from '../../core/money';
 import { refreshStorePrices } from '../../data/groceryActions';
+import { krogerStoresOf } from '../../core/defaults';
 import type { Receipt } from '../../core/types';
 
 export function GroceriesView({ data, openSettings }: { data: AppData; openSettings: () => void }) {
@@ -16,7 +17,11 @@ export function GroceriesView({ data, openSettings }: { data: AppData; openSetti
   const [pricing, setPricing] = useState(false);
   const g = data.groceries;
   const kroger = data.settings.integrations;
-  const hasKroger = !!(kroger.krogerClientId && kroger.krogerSecret && kroger.krogerLocationId);
+  const krogerStores = krogerStoresOf(kroger);
+  const hasKroger = !!(kroger.krogerClientId && kroger.krogerSecret && krogerStores.length);
+  // live store prices for an item: one per King Soopers you picked
+  const livePrices = (key: string) => [...data.prices.values()].filter((p) => p.id === key || p.id.endsWith(`|${key}`));
+  const priceOf = (p: { promo: number | null; regular: number | null }) => (p.promo ?? p.regular) as number;
   const taxRate = g?.taxRate ?? 0.0407;
   const need = monthlyGroceryNeed(g);
 
@@ -27,8 +32,7 @@ export function GroceriesView({ data, openSettings }: { data: AppData; openSetti
     const rows = g.usual.map((u) => {
       const prices: Record<string, number> = {};
       for (const [st, v] of Object.entries(u.byStore)) prices[st] = v.last;
-      const kp = data.prices.get(u.key);
-      if (kp && (kp.promo ?? kp.regular)) prices['King Soopers'] = Math.min(prices['King Soopers'] ?? Infinity, (kp.promo ?? kp.regular) as number);
+      for (const kp of livePrices(u.key)) if (kp.promo ?? kp.regular) prices[kp.store] = Math.min(prices[kp.store] ?? Infinity, priceOf(kp));
       return { u, prices };
     });
     const names = [...new Set(rows.flatMap((r) => Object.keys(r.prices)))];
@@ -40,7 +44,7 @@ export function GroceriesView({ data, openSettings }: { data: AppData; openSetti
     return { sorted, count: shared.length };
   })();
 
-  const deals = g ? g.usual.map((u) => ({ u, p: data.prices.get(u.key) })).filter((x) => x.p?.promo != null && x.p.regular != null && x.p.promo < x.p.regular) : [];
+  const deals = g ? g.usual.flatMap((u) => livePrices(u.key).map((p) => ({ u, p }))).filter((x) => x.p.promo != null && x.p.regular != null && x.p.promo < x.p.regular) : [];
 
   if (!data.receipts.length) {
     return (
@@ -129,7 +133,7 @@ export function GroceriesView({ data, openSettings }: { data: AppData; openSetti
         <div className="card-head">
           <div>
             <div className="eyebrow">Prices on what you buy</div>
-            <div className="small muted">{hasKroger ? `King Soopers prices from ${kroger.krogerLocationName || 'your store'}, plus what you paid elsewhere` : 'What you paid at each store'}</div>
+            <div className="small muted">{hasKroger ? `Live prices from ${krogerStores.map((x) => x.name).join(' and ')}, plus what you paid elsewhere` : 'What you paid at each store'}</div>
           </div>
           {hasKroger ? (
             <button
@@ -169,8 +173,10 @@ export function GroceriesView({ data, openSettings }: { data: AppData; openSetti
               <Tag size={15} /> On sale this week at King Soopers
             </div>
             {deals.map(({ u, p }) => (
-              <div key={u.key} className="row between small" style={{ padding: '4px 0' }}>
-                <span>{u.name}</span>
+              <div key={p.id} className="row between small" style={{ padding: '4px 0' }}>
+                <span>
+                  {u.name} <span className="muted">· {p.store}</span>
+                </span>
                 <span className="num">
                   <span className="good strong">{usd(p!.promo as number)}</span> <span className="muted" style={{ textDecoration: 'line-through' }}>{usd(p!.regular as number)}</span>
                 </span>
@@ -184,13 +190,14 @@ export function GroceriesView({ data, openSettings }: { data: AppData; openSetti
               <tr>
                 <th>Usual item</th>
                 <th className="r">You paid</th>
-                <th className="r">King Soopers now</th>
+                <th className="r">King Soopers now (best)</th>
                 <th>Cheapest seen</th>
               </tr>
             </thead>
             <tbody>
               {(g?.usual ?? []).slice(0, 20).map((u) => {
-                const kp = data.prices.get(u.key);
+                const live = livePrices(u.key).sort((a, b) => priceOf(a) - priceOf(b));
+                const kp = live[0];
                 const best = Object.entries(u.byStore).sort((a, b) => a[1].last - b[1].last)[0];
                 return (
                   <tr key={u.key}>
@@ -204,7 +211,10 @@ export function GroceriesView({ data, openSettings }: { data: AppData; openSetti
                       {usd(u.lastPrice)}
                       <div className="tiny muted">{u.lastStore}</div>
                     </td>
-                    <td className="r num">{kp ? (kp.promo != null ? `${usd(kp.promo)} sale` : kp.regular != null ? usd(kp.regular) : '—') : '—'}</td>
+                    <td className="r num">
+                      {kp ? (kp.promo != null ? `${usd(kp.promo)} sale` : kp.regular != null ? usd(kp.regular) : '—') : '—'}
+                      {kp && live.length > 1 && <div className="tiny muted">{kp.store}</div>}
+                    </td>
                     <td className="small">{best ? `${best[0]} ${usd(best[1].last)}` : '—'}</td>
                   </tr>
                 );
