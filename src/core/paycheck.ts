@@ -2,7 +2,7 @@ import { parts } from './dates';
 import { computeGross, periodByIndex, type GrossResult, type Period } from './pay';
 import { computeWithholding, type WithholdingResult } from './tax';
 import { rulesForYear, type TaxRulesFile } from './taxrules';
-import type { ISODate, PayRate, Settings, WorkDay } from './types';
+import type { ISODate, PaycheckRecord, PayRate, Settings, WorkDay } from './types';
 
 export interface PaycheckEstimate {
   period: Period;
@@ -52,4 +52,20 @@ export function estimatePaycheck(
     rulesExact: r.exact,
     rulesStatus: r.rules.status,
   };
+}
+
+/** Learn the gap between estimates and real deposits from recent paychecks. */
+export function calibrationFrom(paychecks: PaycheckRecord[]): number {
+  // compare with the raw estimate so the correction doesn't feed on itself
+  const recent = paychecks
+    .filter((p) => p.received && p.actualNet != null && (p.estimatedNetRaw ?? p.estimatedNet) > 0)
+    .sort((a, b) => b.payday.localeCompare(a.payday))
+    .slice(0, 3)
+    .map((p) => (p.actualNet as number) - (p.estimatedNetRaw ?? p.estimatedNet));
+  if (recent.length < 2) return 0;
+  const avg = recent.reduce((s, x) => s + x, 0) / recent.length;
+  const spread = Math.max(...recent) - Math.min(...recent);
+  // only when it's consistent (e.g. a deduction Pebbles doesn't know about)
+  if (Math.abs(avg) < 1 || spread > Math.max(15, Math.abs(avg) * 0.6)) return 0;
+  return Math.round(avg * 100) / 100;
 }

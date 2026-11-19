@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { defaultSettings } from './defaults';
 import { computeGross, periodByIndex, upcomingPayPeriod, newWorkDay } from './pay';
-import { estimatePaycheck } from './paycheck';
+import { calibrationFrom, estimatePaycheck } from './paycheck';
 import { bracketTax, computeWithholding, federalWithholding, overtimeDeductionEstimate } from './tax';
 import { BUNDLED_RULES, rulesForYear } from './taxrules';
 import type { Settings, WorkDay } from './types';
@@ -185,5 +185,24 @@ describe('no tax on overtime', () => {
     const r = overtimeDeductionEstimate(3000, 50000, settings(), r2026);
     expect(r.deduction).toBe(3000);
     expect(r.taxSaved).toBeCloseTo(360, 2);
+  });
+});
+
+describe('learning from real paychecks', () => {
+  const rec = (payday: string, raw: number, shown: number, actual: number) => ({
+    id: payday, periodStart: payday, payday, estimatedNet: shown, estimatedNetRaw: raw, estimatedGross: 1760,
+    actualNet: actual, actualGross: null, received: true, savingsOverride: null, split: null, goalAllocations: [], note: '',
+  });
+  it('needs two consistent paychecks', () => {
+    expect(calibrationFrom([rec('2026-10-02', 1400, 1400, 1380)])).toBe(0);
+    expect(calibrationFrom([rec('2026-10-02', 1400, 1400, 1380), rec('2026-10-16', 1400, 1400, 1381)])).toBeCloseTo(-19.5, 2);
+  });
+  it('stays stable once the correction is applied', () => {
+    // later estimates already show the correction, but the raw estimate is still what's compared
+    const list = [rec('2026-10-02', 1400, 1400, 1380), rec('2026-10-16', 1400, 1400, 1380), rec('2026-10-30', 1400, 1380, 1380), rec('2026-11-13', 1400, 1380, 1380)];
+    expect(calibrationFrom(list)).toBe(-20);
+  });
+  it('ignores one-off differences', () => {
+    expect(calibrationFrom([rec('2026-10-02', 1400, 1400, 1400), rec('2026-10-16', 1400, 1400, 1250)])).toBe(0);
   });
 });

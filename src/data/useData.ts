@@ -4,7 +4,7 @@ import { syncClient } from './syncClient';
 import { normalizeSettings } from '../core/defaults';
 import { today as todayISO, parts } from '../core/dates';
 import { computeGross, periodByIndex, periodContaining, upcomingPayPeriod, type Period } from '../core/pay';
-import { estimatePaycheck, type PaycheckEstimate } from '../core/paycheck';
+import { calibrationFrom, estimatePaycheck, type PaycheckEstimate } from '../core/paycheck';
 import { BUNDLED_RULES, isValidRulesFile, newerVersion, rulesForYear, type TaxRulesFile } from '../core/taxrules';
 import { buildPlan, estimateEssentials, goalBalance, totalSaved, type EssentialsEstimate, type PaycheckPlan } from '../core/budget';
 import { generateInsights, type Insight } from '../core/insights';
@@ -62,21 +62,6 @@ export function effectiveRules(): TaxRulesFile {
   return BUNDLED_RULES;
 }
 
-/** Learn the gap between estimates and real deposits from recent paychecks. */
-export function calibrationFrom(paychecks: PaycheckRecord[]): number {
-  // compare with the raw estimate so the correction doesn't feed on itself
-  const recent = paychecks
-    .filter((p) => p.received && p.actualNet != null && (p.estimatedNetRaw ?? p.estimatedNet) > 0)
-    .sort((a, b) => b.payday.localeCompare(a.payday))
-    .slice(0, 3)
-    .map((p) => (p.actualNet as number) - (p.estimatedNetRaw ?? p.estimatedNet));
-  if (recent.length < 2) return 0;
-  const avg = recent.reduce((s, x) => s + x, 0) / recent.length;
-  const spread = Math.max(...recent) - Math.min(...recent);
-  // only when it's consistent (e.g. a deduction Pebbles doesn't know about)
-  if (Math.abs(avg) < 1 || spread > Math.max(15, Math.abs(avg) * 0.6)) return 0;
-  return Math.round(avg * 100) / 100;
-}
 
 export function useData(): AppData {
   const version = useVersion();
