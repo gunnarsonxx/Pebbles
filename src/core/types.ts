@@ -136,7 +136,8 @@ export interface PaycheckRecord {
   id: ISODate; // period start
   periodStart: ISODate;
   payday: ISODate;
-  estimatedNet: number;
+  estimatedNet: number; // what Pebbles showed (after calibration)
+  estimatedNetRaw?: number; // before calibration: used to learn the gap
   estimatedGross: number;
   actualNet: number | null;
   actualGross: number | null;

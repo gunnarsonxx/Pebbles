@@ -52,6 +52,7 @@ export function ReceiveSheet({ data, estimate, onClose }: { data: AppData; estim
               await receivePaycheck({
                 period: estimate.period,
                 estimatedNet: estimate.net,
+                estimatedNetRaw: estimate.withholding.net,
                 estimatedGross: estimate.gross.gross,
                 actualNet: actual ?? estimate.net,
                 split: { bills: plan.bills, essentials: plan.essentials, savings: plan.savings, personal: plan.personal },

@@ -294,7 +294,7 @@ export function buildPlan(opts: {
     if (suggested <= 0 && available > 0) suggested = Math.min(available * 0.25, minimum || available * 0.1);
     suggested = floorTo(suggested, step);
     if (suggested > available) suggested = floorTo(available, 1);
-    if (suggested < ideal - 0.5) notes.push(`Saving ${Math.round((suggested / net) * 100)}% this check keeps everyday money comfortable. Your aim is ${b.savingsTargetPct}%.`);
+    if (suggested < ideal * 0.9 - 1) notes.push(`Saving ${Math.round((suggested / net) * 100)}% this check keeps everyday money comfortable. Your aim is ${b.savingsTargetPct}%.`);
     if (deadlineNeed > room && deadlineNeed > 0) notes.push('Your goal dates need more than this check can spare. Consider moving a date out.');
   }
   let savings = suggested;

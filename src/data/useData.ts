@@ -64,11 +64,12 @@ export function effectiveRules(): TaxRulesFile {
 
 /** Learn the gap between estimates and real deposits from recent paychecks. */
 export function calibrationFrom(paychecks: PaycheckRecord[]): number {
+  // compare with the raw estimate so the correction doesn't feed on itself
   const recent = paychecks
-    .filter((p) => p.received && p.actualNet != null && p.estimatedNet > 0)
+    .filter((p) => p.received && p.actualNet != null && (p.estimatedNetRaw ?? p.estimatedNet) > 0)
     .sort((a, b) => b.payday.localeCompare(a.payday))
     .slice(0, 3)
-    .map((p) => (p.actualNet as number) - p.estimatedNet);
+    .map((p) => (p.actualNet as number) - (p.estimatedNetRaw ?? p.estimatedNet));
   if (recent.length < 2) return 0;
   const avg = recent.reduce((s, x) => s + x, 0) / recent.length;
   const spread = Math.max(...recent) - Math.min(...recent);

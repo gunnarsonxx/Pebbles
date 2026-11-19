@@ -176,6 +176,7 @@ export async function setSavingsOverride(period: Period, estimatedNet: number, e
 export async function receivePaycheck(opts: {
   period: Period;
   estimatedNet: number;
+  estimatedNetRaw: number;
   estimatedGross: number;
   actualNet: number;
   split: PaycheckRecord['split'];
@@ -196,6 +197,7 @@ export async function receivePaycheck(opts: {
     periodStart: period.start,
     payday: period.payday,
     estimatedNet: opts.estimatedNet,
+    estimatedNetRaw: opts.estimatedNetRaw,
     estimatedGross: opts.estimatedGross,
     actualNet: opts.actualNet,
     actualGross: prev?.actualGross ?? null,
