@@ -41,6 +41,8 @@ export interface DesktopBridge {
   openDataFolder(): Promise<void>;
   installUpdate(url: string, sha256: string | null): Promise<void>;
   openExternal(url: string): Promise<void>;
+  firewall?(): Promise<{ supported: boolean; allowed: boolean }>;
+  fixFirewall?(): Promise<{ allowed: boolean }>;
   onRemoteChange(cb: () => void): () => void;
 }
 

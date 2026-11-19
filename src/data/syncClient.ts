@@ -143,16 +143,35 @@ class SyncClient {
 
   /** Pair this phone with the desktop using the address and 6-digit code it shows. */
   async pair(address: string, code: string): Promise<HubLink> {
-    const [hostRaw, portRaw] = address.trim().replace(/^https?:\/\//, '').split(':');
-    const host = hostRaw.trim();
+    // "192.168.1.20:47821" or, from the QR code, several addresses: "192.168.1.20,10.0.0.5:47821"
+    const [hostsRaw, portRaw] = address.trim().replace(/^https?:\/\//, '').split(':');
+    const hosts = hostsRaw.split(',').map((h) => h.trim()).filter(Boolean);
     const port = Number(portRaw) || DEFAULT_PORT;
     const cleanCode = code.replace(/\D/g, '');
-    if (!host) throw new Error('Enter the address shown on your computer');
+    if (!hosts.length) throw new Error('Enter the address shown on your computer');
     if (cleanCode.length !== 6) throw new Error('The code has 6 digits');
-    const hello = await lanRequest(`http://${host}:${port}/hello`, {}, 5000).catch(() => {
-      throw new Error(`Couldn't reach ${host}:${port}. Is Pebbles open on your computer and are you on the same Wi-Fi?`);
-    });
-    if (hello.status !== 200) throw new Error('That address answered, but it is not Pebbles.');
+    let host = '';
+    let lastErr = '';
+    for (const h of hosts) {
+      try {
+        const hello = await lanRequest(`http://${h}:${port}/hello`, {}, 5000);
+        if (hello.status === 200 && /hubId/.test(hello.text)) {
+          host = h;
+          break;
+        }
+        lastErr = 'answered, but it isn’t Pebbles';
+      } catch (e) {
+        lastErr = (e as Error).message || 'no answer';
+      }
+    }
+    if (!host) {
+      const refused = /refused|ECONNREFUSED/i.test(lastErr);
+      throw new Error(
+        refused
+          ? `Your computer answered but Pebbles isn’t listening. Make sure Pebbles is open on it, then try again.`
+          : `Couldn’t reach your computer at ${hosts.join(' or ')}. Check that: 1) your phone is on the same Wi-Fi as the computer (not mobile data or a guest network), 2) on the computer, Pebbles → Settings → Sync & Devices says phones are allowed through Windows Firewall, 3) the address matches what the computer shows.`,
+      );
+    }
     const { keys, pubRaw } = await pairKeys();
     const offer = await makeOffer(cleanCode, pubRaw);
     const res = await lanRequest(`http://${host}:${port}/pair`, {

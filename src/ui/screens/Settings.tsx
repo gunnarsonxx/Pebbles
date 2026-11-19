@@ -742,10 +742,13 @@ export function DesktopSync() {
   const [devices, setDevices] = useState<DeviceInfo[]>([]);
   const [qr, setQr] = useState('');
   const [now, setNow] = useState(Date.now());
+  const [fw, setFw] = useState<{ supported: boolean; allowed: boolean } | null>(null);
+  const [fixing, setFixing] = useState(false);
 
   const refresh = async () => {
     setInfo(await desktop!.info());
     setDevices(await desktop!.devices());
+    if (desktop!.firewall) setFw(await desktop!.firewall());
   };
   useEffect(() => {
     void refresh();
@@ -758,8 +761,9 @@ export function DesktopSync() {
 
   useEffect(() => {
     if (!pairing) return;
-    const addr = `${pairing.addresses[0] ?? '127.0.0.1'}:${pairing.port}`;
-    void QRCode.toDataURL(`pebbles://pair?addr=${addr}&code=${pairing.code}`, { margin: 1, width: 180 }).then(setQr);
+    // every address, so the phone can try each one
+    const addr = `${pairing.addresses.length ? pairing.addresses.join(',') : '127.0.0.1'}:${pairing.port}`;
+    void QRCode.toDataURL(`pebbles://pair?addr=${encodeURIComponent(addr)}&code=${pairing.code}`, { margin: 1, width: 180 }).then(setQr);
   }, [pairing]);
 
   useEffect(() => {
@@ -796,6 +800,28 @@ export function DesktopSync() {
               <div className="tiny muted">Data: {info.dataPath}</div>
             </div>
           )}
+          {fw?.supported && !fw.allowed && (
+            <div className="card tint" style={{ padding: 14, borderLeft: '4px solid var(--warn)' }}>
+              <div className="strong small">Windows Firewall May Block Your Phone</div>
+              <p className="small ink2" style={{ margin: '4px 0 10px' }}>
+                Phones reach Pebbles over your home Wi-Fi. Allow it once and Windows will ask for permission.
+              </p>
+              <button
+                className="btn small primary"
+                disabled={fixing}
+                onClick={async () => {
+                  setFixing(true);
+                  const r = await desktop!.fixFirewall!();
+                  setFw({ supported: true, allowed: r.allowed });
+                  setFixing(false);
+                  toast(r.allowed ? 'Phones can reach Pebbles now' : 'Windows didn’t add the rule. Try again and choose Yes.');
+                }}
+              >
+                {fixing ? 'Waiting for Windows…' : 'Allow Phones Through Firewall'}
+              </button>
+            </div>
+          )}
+          {fw?.supported && fw.allowed && <div className="tiny good">✓ Windows Firewall lets your phone connect</div>}
           {!pairing ? (
             <button
               className="btn primary"
@@ -815,6 +841,7 @@ export function DesktopSync() {
                   <div className="strong num" style={{ fontSize: 18 }}>
                     {pairing.addresses[0] ?? '?'}:{pairing.port}
                   </div>
+                  {pairing.addresses.length > 1 && <div className="tiny muted">If that doesn’t work, try {pairing.addresses.slice(1).map((a) => `${a}:${pairing.port}`).join(' or ')}. The QR code tries them all.</div>}
                   <div className="small muted mt">Code</div>
                   <div className="num" style={{ fontSize: 34, fontWeight: 700, letterSpacing: '0.12em' }}>
                     {pairing.code.slice(0, 3)} {pairing.code.slice(3)}

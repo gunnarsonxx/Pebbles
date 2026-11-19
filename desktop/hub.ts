@@ -280,15 +280,22 @@ function readBody(req: IncomingMessage): Promise<string> {
   });
 }
 
+// adapters a phone can't reach: virtual machines, WSL, Docker, VPNs
+const VIRTUAL = /vEthernet|Hyper-?V|WSL|VirtualBox|VMware|VMnet|Docker|Loopback|Tailscale|ZeroTier|Hamachi|TAP-|OpenVPN|WireGuard|NordLynx|ProtonVPN|Npcap|Bluetooth/i;
+
+/** This computer's addresses on your home network, the most likely one first. */
 export function lanAddresses(): string[] {
-  const out: string[] = [];
-  for (const list of Object.values(networkInterfaces())) {
+  const out: { ip: string; name: string }[] = [];
+  for (const [name, list] of Object.entries(networkInterfaces())) {
     for (const a of list ?? []) {
-      if (a.family === 'IPv4' && !a.internal && !a.address.startsWith('169.254.')) out.push(a.address);
+      if (a.family === 'IPv4' && !a.internal && !a.address.startsWith('169.254.')) out.push({ ip: a.address, name });
     }
   }
-  const rank = (ip: string) => (ip.startsWith('192.168.') ? 0 : ip.startsWith('10.') ? 1 : /^172\.(1[6-9]|2\d|3[01])\./.test(ip) ? 2 : 3);
-  return out.sort((a, b) => rank(a) - rank(b));
+  const rank = (x: { ip: string; name: string }) =>
+    (VIRTUAL.test(x.name) ? 10 : 0) +
+    (/wi-?fi|wlan|wireless/i.test(x.name) ? 0 : /ethernet|^eth|^en/i.test(x.name) ? 1 : 2) +
+    (x.ip.startsWith('192.168.') ? 0 : x.ip.startsWith('10.') ? 1 : /^172\.(1[6-9]|2\d|3[01])\./.test(x.ip) ? 3 : 4);
+  return out.sort((a, b) => rank(a) - rank(b)).map((x) => x.ip);
 }
 
 function friendlyHost(): string {

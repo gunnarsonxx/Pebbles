@@ -177,6 +177,8 @@ function registerIpc() {
     }
     await savePrefs();
   });
+  ipcMain.handle('pebbles:firewall', () => firewallStatus());
+  ipcMain.handle('pebbles:fix-firewall', () => fixFirewall());
   ipcMain.handle('pebbles:open-data', () => shell.openPath(dataDir()));
   ipcMain.handle('pebbles:open-external', (_e, url: string) => {
     if (typeof url === 'string' && url.startsWith('https://')) return shell.openExternal(url);
@@ -212,3 +214,36 @@ app.on('before-quit', () => {
 app.on('window-all-closed', () => {
   if (!prefs.closeToTray) app.quit();
 });
+
+// ---------------- Windows Firewall ----------------
+// Phones reach Pebbles over your home Wi-Fi. Windows blocks that unless there's a rule for it
+// (the "allow access" prompt is easy to miss, and networks marked Public block it anyway).
+
+const RULE = 'Pebbles (phone sync)';
+
+function run(cmd: string, args: string[]): Promise<{ code: number; out: string }> {
+  return new Promise((resolve) => {
+    const p = spawn(cmd, args, { windowsHide: true });
+    let out = '';
+    p.stdout?.on('data', (d) => (out += String(d)));
+    p.stderr?.on('data', (d) => (out += String(d)));
+    p.on('error', () => resolve({ code: -1, out }));
+    p.on('close', (code) => resolve({ code: code ?? -1, out }));
+  });
+}
+
+async function firewallStatus(): Promise<{ supported: boolean; allowed: boolean }> {
+  if (process.platform !== 'win32') return { supported: false, allowed: true };
+  const r = await run('netsh', ['advfirewall', 'firewall', 'show', 'rule', `name=${RULE}`]);
+  return { supported: true, allowed: r.code === 0 && /Enabled:\s*Yes/i.test(r.out) };
+}
+
+/** Add an inbound rule for Pebbles' sync port on every network type (asks Windows for permission once). */
+async function fixFirewall(): Promise<{ allowed: boolean }> {
+  if (process.platform !== 'win32') return { allowed: true };
+  const port = hub.info().port;
+  const args = `advfirewall firewall add rule name="${RULE}" dir=in action=allow protocol=TCP localport=${port} profile=any enable=yes`;
+  // Start-Process -Verb RunAs shows the Windows admin prompt
+  await run('powershell.exe', ['-NoProfile', '-Command', `Start-Process netsh -ArgumentList '${args.replace(/'/g, "''")}' -Verb RunAs -Wait -WindowStyle Hidden`]);
+  return { allowed: (await firewallStatus()).allowed };
+}
