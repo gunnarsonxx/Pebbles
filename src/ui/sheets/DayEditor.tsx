@@ -16,7 +16,7 @@ const STATUS: { value: DayStatus; label: string }[] = [
   { value: 'missed', label: 'Missed' },
   { value: 'pto', label: 'PTO' },
   { value: 'sick', label: 'Sick' },
-  { value: 'holiday', label: 'Holiday' },
+  { value: 'holiday', label: 'Holiday Off' },
 ];
 
 export function DayEditor({ date, data, onClose }: { date: string; data: AppData; onClose: () => void }) {
@@ -29,7 +29,6 @@ export function DayEditor({ date, data, onClose }: { date: string; data: AppData
 
   const preview = useMemo(() => resolveDay(date, pay, rates, day), [date, pay, rates, day]);
   const normal = scheduled ? shiftHours(pay) * pay.baseRate : 0;
-  const dayPay = preview.straightPay + preview.leavePay + preview.holidayPremium;
 
   const sp = shiftSplit(pay);
   const overnight = sp.overnight;
@@ -46,6 +45,10 @@ export function DayEditor({ date, data, onClose }: { date: string; data: AppData
   const holToday = holidayOn(date, pay.holidays);
   const holNext = overnight ? holidayOn(addDays(date, 1), pay.holidays) : null;
   const autoHoliday = pay.holidays.rule === 'shiftStart' ? holToday : holToday || holNext;
+  // holiday pay for the hours of this shift that fall on a paid holiday
+  const holShare = preview.workedHours <= 0 ? 0 : pay.holidays.rule === 'shiftStart' ? (holToday ? 1 : 0) : (holToday ? share : 0) + (holNext ? 1 - share : 0);
+  const autoPremium = Math.round(preview.straightPay * holShare * Math.max(0, pay.holidayMultiplier - 1) * 100) / 100;
+  const dayPay = preview.straightPay + preview.leavePay + preview.holidayPremium + autoPremium;
 
   const setSeg = (i: number, s: Partial<WorkSegment>) => setDay({ ...day, segments: day.segments.map((x, k) => (k === i ? { ...x, ...s } : x)) });
 
@@ -154,6 +157,7 @@ export function DayEditor({ date, data, onClose }: { date: string; data: AppData
           </div>
         )}
 
+        {day.status === 'holiday' && <p className="small ink2" style={{ margin: 0 }}>A paid day off for a holiday, at your base rate. If you worked it, choose Worked instead: holiday pay is added on top.</p>}
         {(day.status === 'pto' || day.status === 'sick' || day.status === 'holiday') && (
           <Field label="Paid Hours" hint="Paid at your base rate">
             <NumberInput value={day.paidHours} onChange={(v) => setDay({ ...day, paidHours: Math.max(0, v ?? 0) })} suffix="h" />
@@ -176,6 +180,7 @@ export function DayEditor({ date, data, onClose }: { date: string; data: AppData
           <div>
             <div className="small muted">This day pays</div>
             <div className="big-number num">{usd(dayPay)}</div>
+            {autoPremium > 0 && <div className="tiny good">Includes {usd(autoPremium)} holiday pay</div>}
           </div>
           <div style={{ textAlign: 'right' }}>
             <div className="small muted">vs a normal day</div>

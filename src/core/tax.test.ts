@@ -105,7 +105,7 @@ describe('full paycheck withholding, Colorado Springs', () => {
 
 describe('pay periods and gross pay', () => {
   const s = settings();
-  s.pay = { ...s.pay, periodAnchor: '2026-11-08', paydayOffset: 6, baseRate: 22, holidays: { ids: [], observed: false, rule: 'calendar' } };
+  s.pay = { ...s.pay, periodAnchor: '2026-11-08', paydayOffset: 6, baseRate: 22, holidays: { ids: [], observed: false, rule: 'calendar', confirmed: true } };
 
   it('finds the upcoming payday', () => {
     const p = upcomingPayPeriod(s.pay, '2026-11-19');
@@ -210,7 +210,7 @@ describe('learning from real paychecks', () => {
 describe('overnight shifts (9:30p–6a, 30 min break after midnight)', () => {
   const s = defaultSettings();
   // shifts start Sat, Sun, Mon, Tue, Wed nights; pay periods run Sun–Sat
-  s.pay = { ...s.pay, periodAnchor: '2026-11-08', paydayOffset: 6, baseRate: 20, workDays: [6, 0, 1, 2, 3], shiftStart: '21:30', shiftEnd: '06:00', breakMinutes: 30, breakAfterMidnight: true, holidays: { ids: [], observed: false, rule: 'calendar' } };
+  s.pay = { ...s.pay, periodAnchor: '2026-11-08', paydayOffset: 6, baseRate: 20, workDays: [6, 0, 1, 2, 3], shiftStart: '21:30', shiftEnd: '06:00', breakMinutes: 30, breakAfterMidnight: true, holidays: { ids: [], observed: false, rule: 'calendar', confirmed: true } };
   const period = periodByIndex(s.pay, 0); // Sun Nov 8 – Sat Nov 21
 
   it('splits each shift 2.5 h before midnight and 5.5 h after', async () => {
@@ -257,7 +257,7 @@ describe('overnight shifts (9:30p–6a, 30 min break after midnight)', () => {
 
 describe('overnight shift edge cases', () => {
   const s = defaultSettings();
-  s.pay = { ...s.pay, periodAnchor: '2026-11-08', paydayOffset: 6, baseRate: 20, workDays: [6, 0, 1, 2, 3], shiftStart: '21:30', shiftEnd: '06:00', breakMinutes: 30, breakAfterMidnight: true, holidays: { ids: [], observed: false, rule: 'calendar' } };
+  s.pay = { ...s.pay, periodAnchor: '2026-11-08', paydayOffset: 6, baseRate: 20, workDays: [6, 0, 1, 2, 3], shiftStart: '21:30', shiftEnd: '06:00', breakMinutes: 30, breakAfterMidnight: true, holidays: { ids: [], observed: false, rule: 'calendar', confirmed: true } };
   const p0 = periodByIndex(s.pay, 0);
   const p1 = periodByIndex(s.pay, 1);
 
@@ -294,7 +294,7 @@ describe('holidays', () => {
   const p0 = periodByIndex(s.pay, 0); // includes Veterans Day, Wed Nov 11
 
   it('pays the hours worked on the holiday date at 1.5×', () => {
-    const pay = { ...s.pay, holidays: { ids: ['veterans'], observed: false, rule: 'calendar' as const } };
+    const pay = { ...s.pay, holidays: { ids: ['veterans'], observed: false, rule: 'calendar' as const, confirmed: true } };
     const g = computeGross(p0, pay, [], {});
     const h = g.adjustments.find((a) => a.kind === 'holiday');
     // Tuesday night's 5.5 h after midnight + Wednesday night's 2.5 h before midnight
@@ -303,14 +303,24 @@ describe('holidays', () => {
   });
 
   it('or the whole shift that starts on the holiday', () => {
-    const pay = { ...s.pay, holidays: { ids: ['veterans'], observed: false, rule: 'shiftStart' as const } };
+    const pay = { ...s.pay, holidays: { ids: ['veterans'], observed: false, rule: 'shiftStart' as const, confirmed: true } };
     const g = computeGross(p0, pay, [], {});
     expect(g.adjustments.filter((a) => a.kind === 'holiday').reduce((x, a) => x + a.amount, 0)).toBe(8 * 20 * 0.5);
   });
 
   it('no holiday pay when you are off', () => {
-    const pay = { ...s.pay, holidays: { ids: ['veterans'], observed: false, rule: 'calendar' as const } };
+    const pay = { ...s.pay, holidays: { ids: ['veterans'], observed: false, rule: 'calendar' as const, confirmed: true } };
     const off = { '2026-11-10': newWorkDay('2026-11-10', 'missed', pay), '2026-11-11': newWorkDay('2026-11-11', 'missed', pay) };
     expect(computeGross(p0, pay, [], off).adjustments.some((a) => a.kind === 'holiday')).toBe(false);
+  });
+});
+
+describe('holiday pay is opt-in', () => {
+  it('nothing is automatic until you confirm which holidays your job pays', async () => {
+    const { normalizeSettings } = await import('./defaults');
+    const old = normalizeSettings({ pay: { holidays: { ids: ['veterans', 'thanksgiving'], observed: false, rule: 'calendar' } } } as never);
+    expect(old.pay.holidays.ids).toEqual([]);
+    const confirmed = normalizeSettings({ pay: { holidays: { ids: ['thanksgiving'], observed: false, rule: 'calendar', confirmed: true } } } as never);
+    expect(confirmed.pay.holidays.ids).toEqual(['thanksgiving']);
   });
 });

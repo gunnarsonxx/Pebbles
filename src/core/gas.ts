@@ -85,14 +85,30 @@ export function parseOverpass(text: string, from: Point): Station[] {
   return out.sort((a, b) => a.miles - b.miles);
 }
 
+/** Public Overpass servers: if one is down, blocked or unreachable from your network, try the next. */
+export const OVERPASS_SERVERS = [
+  OVERPASS_URL,
+  'https://overpass.private.coffee/api/interpreter',
+  'https://overpass.kumi.systems/api/interpreter',
+  'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
+];
+
+// The servers ask apps to say who they are; generic library names get refused (HTTP 406).
+const OSM_HEADERS = { 'User-Agent': 'PebblesBudget/1.0 (personal budgeting app)', Accept: 'application/json' };
+
 export async function stationsNear(http: HttpFn, p: Point, radiusMeters = 8000): Promise<Station[]> {
-  const res = await http(OVERPASS_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: `data=${encodeURIComponent(overpassQuery(p, radiusMeters))}`,
-  });
-  if (res.status !== 200) throw new Error(`The station map replied ${res.status}. Try again in a minute.`);
-  return parseOverpass(res.text, p);
+  const q = encodeURIComponent(overpassQuery(p, radiusMeters));
+  let lastErr = '';
+  for (const server of OVERPASS_SERVERS) {
+    try {
+      const res = await http(`${server}?data=${q}`, { headers: OSM_HEADERS });
+      if (res.status === 200 && res.text.trim().startsWith('{')) return parseOverpass(res.text, p);
+      lastErr = `replied ${res.status}`;
+    } catch (e) {
+      lastErr = (e as Error).message;
+    }
+  }
+  throw new Error(`Couldn’t reach the station map (${lastErr}). Check your connection and try again.`);
 }
 
 // ---------------- Google Maps (optional, live posted prices) ----------------

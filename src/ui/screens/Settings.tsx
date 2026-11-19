@@ -182,9 +182,9 @@ function PaySection({ s, set }: { s: Settings; set: (f: (s: Settings) => Setting
   );
 }
 
-function HolidaySettings({ p, set }: { p: Settings['pay']; set: (f: (s: Settings) => Settings) => void }) {
+export function HolidaySettings({ p, set }: { p: Settings['pay']; set: (f: (s: Settings) => Settings) => void }) {
   const h = p.holidays;
-  const up = (patch: Partial<Settings['pay']['holidays']>) => set((x) => ({ ...x, pay: { ...x.pay, holidays: { ...x.pay.holidays, ...patch } } }));
+  const up = (patch: Partial<Settings['pay']['holidays']>) => set((x) => ({ ...x, pay: { ...x.pay, holidays: { ...x.pay.holidays, ...patch, confirmed: true } } }));
   const year = new Date().getFullYear();
   const list = holidaysInYear(year, h);
   return (
@@ -193,7 +193,7 @@ function HolidaySettings({ p, set }: { p: Settings['pay']; set: (f: (s: Settings
       <div>
         <h3 style={{ fontSize: 17 }}>Holiday Pay</h3>
         <p className="small muted" style={{ margin: '4px 0 0' }}>
-          Pebbles adds holiday pay on its own when you work one of these days.
+          Tick only the holidays your job pays extra for. Pebbles adds that pay when you work one. A pay stub that shows holiday pay ticks it for you.
         </p>
       </div>
       <Field label="Holiday Pay Rate" hint="1.5× is time and a half. Set 1× if you don’t get extra.">

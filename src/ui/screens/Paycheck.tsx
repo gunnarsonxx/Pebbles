@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, FileText, Plus, RotateCcw, Sprout, Info, Moon, Clock } from 'lucide-react';
+import { ChevronLeft, ChevronRight, FileText, Plus, RotateCcw, Sprout, Info, Moon, Clock, Sparkles } from 'lucide-react';
 import type { AppData } from '../../data/useData';
 import { DayEditor } from '../sheets/DayEditor';
 import { ReceiveSheet } from '../sheets/ReceiveSheet';
 import { PaystubSheet } from '../sheets/PaystubSheet';
 import { Field, GemIcon, NumberInput, Sheet, TextInput, useConfirm, useToast } from '../components';
 import { ShiftSchedule } from '../ShiftSchedule';
+import { HolidaySettings } from './Settings';
 import type { GoTo } from '../App';
 import type { PaySettings, WorkDay } from '../../core/types';
 import { saveSettings, setWorkDay } from '../../data/actions';
@@ -25,6 +26,7 @@ export function PaycheckScreen({ data }: { data: AppData; go: GoTo }) {
   const toast = useToast();
   const ask = useConfirm();
   const [shiftsOpen, setShiftsOpen] = useState(false);
+  const [holidaysOpen, setHolidaysOpen] = useState(false);
   const [offset, setOffset] = useState(0);
   const [editing, setEditing] = useState<string | null>(null);
   const [receiving, setReceiving] = useState(false);
@@ -86,8 +88,8 @@ export function PaycheckScreen({ data }: { data: AppData; go: GoTo }) {
           <div className="card">
             <div className="row between" style={{ alignItems: 'flex-end' }}>
               <div>
-                <div className="eyebrow">Estimated Take-Home</div>
-                <div className="hero-number">{usd(est.net)}</div>
+                <div className="eyebrow">{record?.received && record.actualNet != null ? 'Take-Home' : 'Estimated Take-Home'}</div>
+                <div className="hero-number">{usd(record?.received && record.actualNet != null ? record.actualNet : est.net)}</div>
               </div>
               <div style={{ textAlign: 'right' }}>
                 <div className="small muted">Gross</div>
@@ -98,9 +100,9 @@ export function PaycheckScreen({ data }: { data: AppData; go: GoTo }) {
               {num(g.workedHours)} h worked{g.leaveHours ? ` · ${num(g.leaveHours)} h paid leave` : ''}
               {g.otHours ? ` · ${num(g.otHours)} h overtime` : ''}
             </div>
-            {record?.received && (
-              <div className="badge good mt">
-                Received {usd(record.actualNet ?? 0)} ({signedUsd((record.actualNet ?? 0) - record.estimatedNet)} vs. estimate)
+            {record?.received && record.actualNet != null && Math.abs(record.actualNet - record.estimatedNet) >= 0.01 && (
+              <div className={`diff-chip ${record.actualNet >= record.estimatedNet ? 'up' : 'down'}`}>
+                {record.actualNet >= record.estimatedNet ? '▲' : '▼'} {usd(Math.abs(record.actualNet - record.estimatedNet))} vs. the {usd(record.estimatedNet)} estimate
               </div>
             )}
           </div>
@@ -132,13 +134,18 @@ export function PaycheckScreen({ data }: { data: AppData; go: GoTo }) {
                 </button>
               </div>
             </div>
+            {!settings.pay.holidays.confirmed && (
+              <button className="tip-row" onClick={() => setHolidaysOpen(true)}>
+                <Sparkles size={16} /> Does your job pay extra on holidays? Pick which ones so Pebbles can add it.
+              </button>
+            )}
             {!overnight && (
               <button className="tip-row" onClick={() => setShiftsOpen(true)}>
                 <Moon size={16} /> Work overnight shifts? Set your shift times so hours split across midnight correctly.
               </button>
             )}
             <div className="small muted" style={{ marginBottom: 8 }}>
-              {overnight ? 'Tap the night a shift starts to change it.' : 'Tap a day to change it.'}
+              {overnight ? 'Each night shows the shift that starts that night. Tap one to change it.' : 'Tap a day to change it.'}
             </div>
             <div className="cal" style={{ marginBottom: 6 }}>
               {days.slice(0, 7).map((d) => (
@@ -155,7 +162,6 @@ export function PaycheckScreen({ data }: { data: AppData; go: GoTo }) {
                   d.status === 'missed' ? 'missed' : '',
                   d.status === 'pto' || d.status === 'sick' || d.status === 'holiday' ? 'leave' : '',
                   d.edited ? 'edited' : '',
-                  d.holiday ? 'holiday' : '',
                   d.date === data.today ? 'today' : '',
                 ].join(' ');
                 const hrs = d.workedHours || d.paidLeaveHours;
@@ -163,12 +169,8 @@ export function PaycheckScreen({ data }: { data: AppData; go: GoTo }) {
                   <button key={d.date} className={cls} onClick={() => setEditing(d.date)} aria-label={`${fmtDay(d.date)}: ${d.status}${d.holiday ? `, ${d.holiday.name}` : ''}`}>
                     <span className="d">{parts(d.date).d}</span>
                     <span className="h">{d.status === 'missed' ? 'off' : d.status === 'off' ? '–' : `${num(hrs)}h`}</span>
-                    {overnight && (
-                      <span className="tiny muted" title="Hours counted on this calendar day">
-                        {num(d.countedHours ?? 0)}h day
-                      </span>
-                    )}
-                    <span className="tiny muted">{d.status === 'pto' ? 'PTO' : d.status === 'sick' ? 'Sick' : d.status === 'holiday' ? 'Holiday' : d.holiday ? 'Holiday' : ''}</span>
+                    {(d.status === 'pto' || d.status === 'sick' || d.status === 'holiday') && <span className="tiny muted">{d.status === 'pto' ? 'PTO' : d.status === 'sick' ? 'Sick' : 'Off'}</span>}
+                    {d.holiday && <span className="holiday-dot" title={d.holiday.name} />}
                     <span className="gems">
                       {d.segments
                         .filter((s) => s.rateId !== BASE_RATE_ID)
@@ -188,9 +190,11 @@ export function PaycheckScreen({ data }: { data: AppData; go: GoTo }) {
               <span className="row gap-s">
                 <span className="swatch" style={{ background: 'var(--moss-soft)', border: '1px solid var(--line)', marginTop: 0 }} /> Paid leave
               </span>
-              <span className="row gap-s">
-                <span className="swatch holiday-swatch" style={{ marginTop: 0 }} /> Holiday
-              </span>
+              {g.days.some((d) => d.holiday) && (
+                <span className="row gap-s">
+                  <span className="holiday-dot static" /> Paid Holiday
+                </span>
+              )}
               <span className="row gap-s">
                 <GemIcon gem="amethyst" size={12} /> Different rate
               </span>
@@ -275,6 +279,7 @@ export function PaycheckScreen({ data }: { data: AppData; go: GoTo }) {
       {rateEdit && <RateSheet rate={rateEdit} onClose={() => setRateEdit(null)} />}
       {stubOpen && <PaystubSheet data={data} onClose={() => setStubOpen(false)} />}
       {shiftsOpen && <ShiftsSheet pay={settings.pay} onClose={() => setShiftsOpen(false)} />}
+      {holidaysOpen && <HolidaysSheet pay={settings.pay} onClose={() => setHolidaysOpen(false)} />}
     </div>
   );
 }
@@ -407,6 +412,39 @@ function ShiftsSheet({ pay, onClose }: { pay: PaySettings; onClose: () => void }
       }
     >
       <ShiftSchedule pay={p} onChange={setP} />
+    </Sheet>
+  );
+}
+
+function HolidaysSheet({ pay, onClose }: { pay: PaySettings; onClose: () => void }) {
+  return (
+    <Sheet
+      title="Holiday Pay"
+      onClose={onClose}
+      footer={
+        <>
+          <button
+            className="btn"
+            onClick={async () => {
+              await saveSettings((s) => ({ ...s, pay: { ...s.pay, holidays: { ...s.pay.holidays, ids: [], confirmed: true } } }));
+              onClose();
+            }}
+          >
+            My Job Doesn’t Pay Holidays
+          </button>
+          <button
+            className="btn primary"
+            onClick={async () => {
+              await saveSettings((s) => ({ ...s, pay: { ...s.pay, holidays: { ...s.pay.holidays, confirmed: true } } }));
+              onClose();
+            }}
+          >
+            Done
+          </button>
+        </>
+      }
+    >
+      <HolidaySettings p={pay} set={(f) => void saveSettings(f)} />
     </Sheet>
   );
 }

@@ -98,7 +98,7 @@ export function RetirementView({ data }: { data: AppData }) {
 
       {/* 3. details, folded away */}
       <Disclosure title="Every Step, in Order">
-        <ol className="small steps">
+        <ol className="small step-list">
           {ACCOUNT_ORDER.map((s, i) => (
             <li key={s.step} className={i < stepIdx ? 'done' : i === stepIdx ? 'now' : ''}>
               <strong>{s.step}</strong>

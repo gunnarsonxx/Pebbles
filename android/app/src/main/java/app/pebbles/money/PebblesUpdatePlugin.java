@@ -104,4 +104,30 @@ public class PebblesUpdatePlugin extends Plugin {
         for (byte b : bytes) sb.append(String.format("%02x", b));
         return sb.toString();
     }
+
+    /** Save a small file (e.g. a .ics calendar) and offer it to the apps that open that type. */
+    @PluginMethod
+    public void openFile(PluginCall call) {
+        String name = call.getString("name", "pebbles.ics");
+        String mime = call.getString("mime", "text/calendar");
+        String text = call.getString("text", "");
+        try {
+            File dir = new File(getContext().getCacheDir(), "shared");
+            if (!dir.exists()) dir.mkdirs();
+            File out = new File(dir, name.replaceAll("[^A-Za-z0-9._-]", "_"));
+            try (FileOutputStream fos = new FileOutputStream(out)) {
+                fos.write(text.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            }
+            Uri uri = FileProvider.getUriForFile(getContext(), getContext().getPackageName() + ".fileprovider", out);
+            Intent view = new Intent(Intent.ACTION_VIEW);
+            view.setDataAndType(uri, mime);
+            view.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            Intent chooser = Intent.createChooser(view, "Add to calendar");
+            chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            getContext().startActivity(chooser);
+            call.resolve();
+        } catch (Exception e) {
+            call.reject("Couldn't open the file: " + e.getMessage());
+        }
+    }
 }

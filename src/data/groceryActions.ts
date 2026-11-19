@@ -15,7 +15,8 @@ import { feedUrls } from '../core/defaults';
 import { fetchFeed } from './actions';
 import { newerVersion } from '../core/taxrules';
 import { krogerStoresOf, normalizeSettings } from '../core/defaults';
-import { today } from '../core/dates';
+import { addDays, today } from '../core/dates';
+import { HOLIDAYS } from '../core/holidays';
 import { afterReceipt } from './pantryActions';
 import type { GroceryDept, Paystub, Receipt, ReceiptItem } from '../core/types';
 
@@ -95,6 +96,31 @@ export async function applyPaystub(stub: Omit<Paystub, 'id' | 'createdAt'>, opts
   if (opts.updateBaseRate && opts.updateBaseRate > 0) {
     await saveSettings((s) => ({ ...s, pay: { ...s.pay, baseRate: opts.updateBaseRate as number } }));
     done.push(`Updated your base rate to $${opts.updateBaseRate.toFixed(2)}`);
+  }
+  // a stub that pays holiday hours this period tells us which holidays your job pays
+  const holLine = stub.hours.find((h) => /HOLIDAY|\bHOL\b/i.test(h.label) && h.amount > 0);
+  if (holLine && stub.periodStart && stub.periodEnd) {
+    const s0 = normalizeSettings(store.get('settings', 'settings'));
+    const found = HOLIDAYS.filter((h) => {
+      for (const y of [Number(stub.periodStart!.slice(0, 4)), Number(stub.periodEnd!.slice(0, 4))]) {
+        const d = h.date(y);
+        if (d >= addDays(stub.periodStart!, -1) && d <= stub.periodEnd!) return true;
+      }
+      return false;
+    }).map((h) => h.id);
+    const ratio = holLine.rate && s0.pay.baseRate ? holLine.rate / s0.pay.baseRate : null;
+    if (found.length) {
+      await saveSettings((s) => ({
+        ...s,
+        pay: {
+          ...s.pay,
+          holidayMultiplier: ratio && ratio >= 1.4 && ratio <= 2.6 ? Math.round(ratio * 4) / 4 : s.pay.holidayMultiplier,
+          holidays: { ...s.pay.holidays, confirmed: true, ids: [...new Set([...(s.pay.holidays.confirmed ? s.pay.holidays.ids : []), ...found])] },
+        },
+      }));
+      const names = HOLIDAYS.filter((h) => found.includes(h.id)).map((h) => h.name).join(' and ');
+      done.push(`Learned that your job pays ${names} as a holiday`);
+    }
   }
   if (opts.recordPaycheck && stub.net != null) {
     const settings = normalizeSettings(store.get('settings', 'settings'));

@@ -1,5 +1,5 @@
 import type { IntegrationSettings, PayRate, Settings } from './types';
-import { DEFAULT_HOLIDAYS } from './holidays';
+
 
 // Free U.S. EIA open-data key (read-only public gas prices). Your own key in Settings overrides it.
 export const BUILTIN_EIA_KEY = 'CNMWTKhfFBG8krrGRmjrcrmLnQhdWt8RdJR6wRQn';
@@ -51,7 +51,7 @@ export function defaultSettings(): Settings {
       breakAfterMidnight: true,
       overtime: { weeklyThreshold: 40, dailyThreshold: 12, multiplier: 1.5, method: 'weighted' },
       holidayMultiplier: 1.5,
-      holidays: { ids: DEFAULT_HOLIDAYS, observed: false, rule: 'calendar' },
+      holidays: { ids: [], observed: false, rule: 'calendar', confirmed: false },
     },
     household: {
       adults: 1,
@@ -106,7 +106,7 @@ export function normalizeSettings(s: Partial<Settings> | undefined): Settings {
     ...s,
     w4: { ...d.w4, ...(s.w4 ?? {}) },
     stateTax: { ...d.stateTax, ...(s.stateTax ?? {}) },
-    pay: { ...d.pay, ...(s.pay ?? {}), overtime: { ...d.pay.overtime, ...(s.pay?.overtime ?? {}) }, holidays: { ...d.pay.holidays, ...(s.pay?.holidays ?? {}) } },
+    pay: { ...d.pay, ...(s.pay ?? {}), overtime: { ...d.pay.overtime, ...(s.pay?.overtime ?? {}) }, holidays: unconfirmedOff({ ...d.pay.holidays, ...(s.pay?.holidays ?? {}) }) },
     household: { ...d.household, ...(s.household ?? {}) },
     budget: { ...d.budget, ...(s.budget ?? {}) },
     integrations: { ...d.integrations, ...(s.integrations ?? {}) },
@@ -126,4 +126,9 @@ export function krogerStoresOf(i: IntegrationSettings): { id: string; name: stri
   const list = [...(i.krogerStores ?? [])];
   if (i.krogerLocationId && !list.some((x) => x.id === i.krogerLocationId)) list.unshift({ id: i.krogerLocationId, name: i.krogerLocationName || 'King Soopers' });
   return list;
+}
+
+/** Not every job pays every holiday: nothing is automatic until you pick yours. */
+function unconfirmedOff(h: Settings['pay']['holidays']): Settings['pay']['holidays'] {
+  return h.confirmed ? h : { ...h, ids: [] };
 }

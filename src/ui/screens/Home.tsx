@@ -37,6 +37,7 @@ export function HomeScreen({ data, go }: { data: AppData; go: GoTo }) {
   const { upcoming, plan, settings } = data;
   const p = upcoming.period;
   const record = data.paychecks.get(p.start);
+  const actual = record?.received && record.actualNet != null ? record.actualNet : null;
   const changes = upcoming.gross.adjustments.length;
   const isPayday = diffDays(p.payday, data.today) <= 0;
   const bills = billsDueBetween(data.bills, data.today, addDays(data.today, 15));
@@ -62,12 +63,25 @@ export function HomeScreen({ data, go }: { data: AppData; go: GoTo }) {
             {isPayday ? 'Payday is today' : `Next payday · ${fmtDay(p.payday)} · ${relativeDays(p.payday, data.today)}`}
           </div>
           <div className="hero-number" style={{ margin: '8px 0 4px' }}>
-            {usd(upcoming.net)}
+            {usd(actual ?? upcoming.net)}
           </div>
-          <div className="ink2 small">
-            Expected take-home · {usd(upcoming.gross.gross)} gross · {upcoming.gross.workedHours + upcoming.gross.leaveHours} h
-            {upcoming.gross.otHours > 0 && ` · ${upcoming.gross.otHours} h overtime`}
-          </div>
+          {actual != null ? (
+            <>
+              <div className="ink2 small">
+                Take-home from your pay stub{record?.actualGross ? ` · ${usd(record.actualGross)} gross` : ''}
+              </div>
+              {Math.abs(actual - upcoming.net) >= 0.01 && (
+                <div className={`diff-chip ${actual >= upcoming.net ? 'up' : 'down'}`}>
+                  {actual >= upcoming.net ? '▲' : '▼'} {usd(Math.abs(actual - upcoming.net))} {actual >= upcoming.net ? 'more' : 'less'} than the {usd(upcoming.net)} Pebbles expected
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="ink2 small">
+              Expected take-home · {usd(upcoming.gross.gross)} gross · {upcoming.gross.workedHours + upcoming.gross.leaveHours} h
+              {upcoming.gross.otHours > 0 && ` · ${upcoming.gross.otHours} h overtime`}
+            </div>
+          )}
           <div className="small muted" style={{ marginTop: 2 }}>
             For work {fmtShort(p.start)} – {fmtShort(p.end)}
             {changes > 0 ? ` · ${changes} change${changes > 1 ? 's' : ''} from your normal 2 weeks` : ' · your normal schedule'}
@@ -81,7 +95,6 @@ export function HomeScreen({ data, go }: { data: AppData; go: GoTo }) {
                 <Sprout /> I Got Paid
               </button>
             )}
-            {record?.received && <span className="badge good">Recorded · {usd(record.actualNet ?? 0)}</span>}
           </div>
         </div>
 

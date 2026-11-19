@@ -61,12 +61,13 @@ export function UpdateBanner() {
   const u = useUpdate();
   if (u.status !== 'available' && u.status !== 'downloading' && u.status !== 'needs-permission') return null;
   return (
-    <div className="card tint row mt" style={{ padding: '12px 16px' }}>
-      <Sparkles size={18} style={{ color: 'var(--amethyst)' }} />
-      <div className="grow small">
-        <strong>A new version of Pebbles is ready.</strong>
+    <div className="card tint update-banner mt">
+      <Sparkles size={20} style={{ color: 'var(--moss)', flexShrink: 0 }} />
+      <div className="grow" style={{ minWidth: 0 }}>
+        <div className="strong small">Update Ready</div>
+        <div className="tiny muted">New fixes and features</div>
       </div>
-      <button className="btn small primary" disabled={u.status === 'downloading'} onClick={() => void installUpdate(u.release)}>
+      <button className="btn small primary" style={{ flexShrink: 0 }} disabled={u.status === 'downloading'} onClick={() => void installUpdate(u.release)}>
         {u.status === 'downloading' ? 'Downloading…' : 'Update'}
       </button>
     </div>

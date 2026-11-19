@@ -1521,21 +1521,21 @@ button.list-item {
   background: var(--card-2);
   box-shadow: none;
 }
-ol.steps {
+ol.step-list {
   margin: 0;
   padding-left: 20px;
 }
-ol.steps li {
+ol.step-list li {
   margin-bottom: 10px;
 }
-ol.steps li.done {
+ol.step-list li.done {
   opacity: 0.55;
 }
-ol.steps li.done strong::after {
+ol.step-list li.done strong::after {
   content: ' ✓';
   color: var(--good);
 }
-ol.steps li.now strong {
+ol.step-list li.now strong {
   color: var(--moss-strong);
 }
 
@@ -1579,12 +1579,18 @@ ol.steps li.now strong {
   margin-top: 2px;
   color: var(--moss);
 }
-.day.holiday {
-  box-shadow: inset 0 0 0 2px var(--citrine);
+.holiday-dot {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--citrine);
 }
-.holiday-swatch {
-  background: transparent;
-  border: 2px solid var(--citrine);
+.holiday-dot.static {
+  position: static;
+  display: inline-block;
 }
 .settings-link {
   padding: 12px;
@@ -1714,4 +1720,26 @@ ol.steps li.now strong {
   color: var(--moss-strong);
   text-decoration: underline;
   cursor: pointer;
+}
+
+.update-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px 10px 16px;
+}
+.diff-chip {
+  display: inline-block;
+  margin-top: 8px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 650;
+  color: #fff;
+}
+.diff-chip.up {
+  background: var(--good);
+}
+.diff-chip.down {
+  background: var(--bad);
 }

@@ -64,6 +64,7 @@ export interface PaySettings {
     ids: string[]; // which holidays your employer pays (see core/holidays.ts)
     observed: boolean; // weekend holidays move to Friday/Monday
     rule: 'calendar' | 'shiftStart'; // hours worked on the holiday's date, or whole shifts that start on it
+    confirmed: boolean; // you said which holidays your job pays (until then, no automatic holiday pay)
   };
 }
 
