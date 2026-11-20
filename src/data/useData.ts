@@ -167,19 +167,22 @@ export function computeData(version: number, today: ISODate): AppData {
   // before the check: what it has to add for bills through the check after it; after it landed: what's still missing
   const topUpFor = (payday: string) =>
     !settings.budget.billsAccountId || !cov.bills ? null : payday === nextPayday ? cov.bills.topUp : payday < today ? Math.ceil(cov.bills.shortNow / 5) * 5 : null;
-  const override = paychecks.get(upPeriod.start)?.savingsOverride ?? null;
+  // ONE plan for the next paycheck, used by every card: the recorded stub pay when there is one, else the estimate
+  const upRecord = paychecks.get(upPeriod.start);
   const plan = buildPlan({
     settings,
-    net: upcoming.net,
+    net: upRecord?.actualNet ?? upcoming.net,
     payday: upPeriod.payday,
     nextPayday: afterUpcoming.payday,
     bills,
     essentials,
     goals,
-    contributions,
-    savingsOverride: override,
+    // money this check already put into goals doesn't change its own plan
+    contributions: contributions.filter((c) => c.paycheckId !== upPeriod.start),
+    savingsOverride: upRecord?.savingsOverride ?? null,
     billsTopUp: topUpFor(upPeriod.payday),
   });
+
   const balances = new Map(goals.map((g) => [g.id, goalBalance(g.id, contributions)]));
   const saved = totalSaved(goals, contributions);
 
@@ -253,9 +256,7 @@ export function computeData(version: number, today: ISODate): AppData {
         contributions: contributions.filter((c) => c.paycheckId !== mPeriod.start),
         savingsOverride: mRecord?.savingsOverride ?? null,
       })
-    : mRecord?.actualNet != null
-      ? buildPlan({ settings, net: mRecord.actualNet, payday: mPeriod.payday, nextPayday: afterUpcoming.payday, bills, essentials, goals, contributions: contributions.filter((c) => c.paycheckId !== mPeriod.start), savingsOverride: mRecord.savingsOverride, billsTopUp: topUpFor(mPeriod.payday) })
-      : plan;
+    : plan;
   const bonusMonth = threePaycheckMonths(Array.from({ length: 4 }, (_, k) => periodByIndex(settings.pay, mPeriod.index - 1 + k).payday)).includes(mPeriod.payday.slice(0, 7));
   movesFor = {
     period: mPeriod,

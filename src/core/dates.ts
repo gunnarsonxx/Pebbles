@@ -104,6 +104,19 @@ export function fmtDay(iso: ISODate): string {
   return `${dowShort(iso)}, ${MON[m - 1]} ${d}`;
 }
 
+/** "1st", "2nd", "20th" */
+export function ordinal(n: number): string {
+  const t = n % 100;
+  if (t >= 11 && t <= 13) return `${n}th`;
+  return `${n}${['th', 'st', 'nd', 'rd'][n % 10] ?? 'th'}`;
+}
+
+/** "Fri, Nov 20th" */
+export function fmtDayOrd(iso: ISODate): string {
+  const { m, d } = parts(iso);
+  return `${dowShort(iso)}, ${MON[m - 1]} ${ordinal(d)}`;
+}
+
 /** "Dec 5" */
 export function fmtShort(iso: ISODate): string {
   const { m, d } = parts(iso);

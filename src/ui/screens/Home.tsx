@@ -9,7 +9,7 @@ import { InsightList } from '../InsightList';
 import { UpdateBanner } from '../UpdateCard';
 import { CoverageCard, MovesCard } from '../AutopilotCards';
 import { ReceiveSheet } from '../sheets/ReceiveSheet';
-import { fmtDay, fmtShort, relativeDays, addDays, diffDays } from '../../core/dates';
+import { fmtDay, fmtDayOrd, fmtShort, relativeDays, addDays, diffDays } from '../../core/dates';
 import { billsDueBetween } from '../../core/budget';
 import { pebbles, usd } from '../../core/money';
 import { currentGasPrice } from '../../core/food';
@@ -34,7 +34,10 @@ export function Ridge() {
 
 export function HomeScreen({ data, go }: { data: AppData; go: GoTo }) {
   const [receiving, setReceiving] = useState(false);
-  const { upcoming, plan, settings } = data;
+  const { upcoming, settings } = data;
+  // the same paycheck the payday steps are about, so every number matches
+  const plan = data.movesFor?.plan ?? data.plan;
+  const planPayday = data.movesFor?.period.payday ?? upcoming.period.payday;
   const p = upcoming.period;
   const record = data.paychecks.get(p.start);
   const actual = record?.received && record.actualNet != null ? record.actualNet : null;
@@ -149,7 +152,7 @@ export function HomeScreen({ data, go }: { data: AppData; go: GoTo }) {
       <div className="card mt">
         <div className="card-head">
           <div>
-            <div className="eyebrow">This Paycheck’s Plan</div>
+            <div className="eyebrow">Paycheck Plan · {fmtDayOrd(planPayday)}</div>
             <div className="small muted">How {usd(plan.net, true)} splits up</div>
           </div>
           <button className="btn ghost small" onClick={() => go('plan')}>
@@ -159,7 +162,7 @@ export function HomeScreen({ data, go }: { data: AppData; go: GoTo }) {
         <SplitBar
           total={plan.net}
           parts={[
-            { key: 'bills', label: 'Bills', value: plan.bills, color: 'var(--sapphire)', hint: plan.billsDue.length ? `${plan.billsDue.length} due before next payday` : undefined },
+            { key: 'bills', label: 'Bills', value: plan.bills, color: 'var(--sapphire)', hint: plan.billsTopUp ? (plan.bills > 0 ? `Into ${data.coverage.bills?.account.name ?? 'your Bills Account'}` : 'Bills Account already covered') : plan.billsDue.length ? `${plan.billsDue.length} due before next payday` : undefined },
             { key: 'you', label: 'Your Money', value: plan.essentials + Math.max(0, plan.personal), color: 'var(--amethyst)', hint: `${usd(plan.essentials, true)} groceries & gas · ${usd(plan.personalPerDay, true)} a day to enjoy` },
             { key: 'save', label: 'Savings', value: plan.savings, color: 'var(--jade)', hint: `${Math.round(plan.savingsRate * 100)}% of take-home` },
           ]}

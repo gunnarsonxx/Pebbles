@@ -42,3 +42,24 @@ describe('emergency fund steps', () => {
     expect(done).toEqual([{ goalId: 'car', amount: 300, reason: expect.any(String) }]);
   });
 });
+
+describe('payday steps add up to the paycheck', async () => {
+  const { buildPlan, estimateEssentials } = await import('./budget');
+  const { paydayMoves } = await import('./moves');
+  const { defaultSettings } = await import('./defaults');
+  it('save + bills + keep = take-home, in whole dollars', () => {
+    const s = defaultSettings();
+    s.budget.billsMode = 'due_dates';
+    const essentials = estimateEssentials(s, [], null, '2026-11-19');
+    for (const [net, topUp] of [[1351.37, 890], [1339.02, 0], [987.55, 455]] as const) {
+      const plan = buildPlan({ settings: s, net, payday: '2026-11-20', nextPayday: '2026-12-04', bills: [], essentials, goals: [goal({ target: 5000 })], contributions: [], billsTopUp: topUp });
+      const period = { index: 0, start: '2026-11-01', end: '2026-11-14', payday: '2026-11-20' } as never;
+      const moves = paydayMoves({ period, plan, goals: [goal()], savingsName: 'Marcus', states: new Map(), bonusMonth: false, billsAccountName: 'Bills Account', billsThrough: '2026-12-04' });
+      const total = moves.reduce((t, m) => t + (m.key === 'spend' ? Math.round(m.amount) : m.amount), 0);
+      expect(Math.abs(total - net)).toBeLessThan(1);
+      const keep = moves.find((m) => m.key === 'spend')!;
+      const [a, b] = [...keep.detail.matchAll(/\$([\d,]+)/g)].slice(0, 2).map((x) => Number(x[1].replace(',', '')));
+      if (plan.personal > 0) expect(a + b).toBe(Math.round(keep.amount));
+    }
+  });
+});

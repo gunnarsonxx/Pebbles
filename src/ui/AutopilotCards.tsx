@@ -8,7 +8,7 @@ import { round2 } from '../core/money';
 import type { Account, Goal } from '../core/types';
 import type { AppData } from '../data/useData';
 import { setBonusMove, setMove } from '../data/autopilot';
-import { fmtDay, fmtShort } from '../core/dates';
+import { fmtDay, fmtDayOrd, fmtShort } from '../core/dates';
 import { usd } from '../core/money';
 import { projectSavings } from '../core/savingsAccount';
 import type { Standing } from '../core/guidelines';
@@ -290,7 +290,9 @@ export function CoverageCard({ data, compact }: { data: AppData; compact?: boole
   const chosen = !!data.settings.budget.billsAccountId;
   const isToday = c.nextPayday === data.today;
   const next = isToday ? 'Today' : fmtDay(c.nextPayday);
-  const nextCheck = isToday ? 'Today’s' : `${fmtDay(c.nextPayday)}’s`;
+  // "Fri, Nov 20th’s check" — the day reads as a date, the rest follows the sentence
+  const nextCheck = isToday ? 'today’s' : `${fmtDayOrd(c.nextPayday)}’s`;
+  const NextCheck = isToday ? 'Today’s' : nextCheck;
   const through = fmtDay(c.followingPayday);
   // "Same amount every check" can put in a bit more than the bare top-up, to smooth out rent; show what the plan says
   const planned = chosen && data.plan.billsTopUp && data.upcoming.period.payday === c.nextPayday ? data.plan.bills : b.topUp;
@@ -326,7 +328,7 @@ export function CoverageCard({ data, compact }: { data: AppData; compact?: boole
         {b.status === 'short'
           ? `Short ${usd(b.shortNow)} for Bills Before ${next}`
           : b.status === 'topup'
-            ? `Move ${usd(planned, true)} to ${b.account.name} From ${nextCheck} Check`
+            ? `Move ${usd(planned, true)} to ${b.account.name} From ${NextCheck} Check`
             : `${b.account.name} Covers Every Bill Through ${through}`}
       </div>
       <div className="coverage-math mt-s">
@@ -362,7 +364,7 @@ export function CoverageCard({ data, compact }: { data: AppData; compact?: boole
             )}
             {b.topUp > 0 && (
               <div className="row between small">
-                <span className="strong">From {nextCheck.toLowerCase()} check</span>
+                <span className="strong">From {nextCheck} check</span>
                 <span className="num strong">{usd(planned, true)}</span>
               </div>
             )}
@@ -387,7 +389,7 @@ export function CoverageCard({ data, compact }: { data: AppData; compact?: boole
       )}
       {b.status === 'ok' && (
         <p className="small ink2" style={{ margin: '8px 0 0' }}>
-          Nothing from {nextCheck.toLowerCase()} check has to go to bills, so the payday plan leaves it for savings and you.
+          Nothing from {nextCheck} check has to go to bills, so the payday plan leaves it for savings and you.
         </p>
       )}
 

@@ -84,12 +84,15 @@ export function paydayMoves(opts: {
       auto: false,
     });
   }
+  // whole dollars that add up: keep = groceries/gas + the rest
+  const keep = Math.round(plan.essentials + Math.max(0, plan.personal));
+  const groceries = Math.min(keep, Math.round(plan.essentials));
   moves.push({
     key: 'spend',
-    title: `Keep ${usd(plan.essentials + Math.max(0, plan.personal), true)} for You`,
+    title: `Keep ${usd(keep, true)} for You`,
     detail:
       plan.personal > 0
-        ? `About ${usd(plan.essentials, true)} of it for groceries and gas; the other ${usd(plan.personal, true)} (${usd(plan.personalPerDay, true)} a day) is guilt-free.`
+        ? `${usd(groceries, true)} of it for groceries and gas; the other ${usd(keep - groceries, true)} (${usd(plan.personalPerDay, true)} a day) is guilt-free.`
         : `That covers groceries and gas. Nothing extra to play with this check.`,
     amount: plan.essentials + Math.max(0, plan.personal),
     checkable: false,

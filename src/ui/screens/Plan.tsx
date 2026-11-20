@@ -26,13 +26,13 @@ export function PlanScreen({ data, go }: { data: AppData; go: GoTo }) {
         <div className="card-head">
           <div>
             <div className="eyebrow">Paycheck Plan · {fmtDay(upcoming.period.payday)}</div>
-            <div className="small muted">{usd(plan.net)} expected take-home</div>
+            <div className="small muted">{usd(plan.net)} {data.paychecks.get(upcoming.period.start)?.actualNet != null ? 'take-home from your stub' : 'expected take-home'}</div>
           </div>
         </div>
         <SplitBar
           total={plan.net}
           parts={[
-            { key: 'bills', label: 'Bills', value: plan.bills, color: 'var(--sapphire)', hint: data.settings.budget.billsMode === 'due_dates' ? `Due by ${fmtShort(addDays(data.afterUpcoming.payday, -1))}` : 'Even share of monthly bills' },
+            { key: 'bills', label: 'Bills', value: plan.bills, color: 'var(--sapphire)', hint: plan.billsTopUp ? `Into ${data.coverage.bills?.account.name ?? 'your Bills Account'} · covers bills through ${fmtShort(data.coverage.followingPayday)}` : data.settings.budget.billsMode === 'due_dates' ? `Due by ${fmtShort(addDays(data.afterUpcoming.payday, -1))}` : 'Even share of monthly bills' },
             {
               key: 'you',
               label: 'Your Money',
