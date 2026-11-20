@@ -1,7 +1,7 @@
 // PayPal and your bank both report a PayPal purchase: PayPal with the store's name, your bank as
 // "PAYPAL *STORE" or "PAYPAL INST XFER". Count it once, on the PayPal side, where the details are.
 import { diffDays } from './dates';
-import type { Account, Transaction } from './types';
+import type { Account, ISODate, Transaction } from './types';
 
 export const isPaypalAccount = (a: Account) => /paypal/i.test(`${a.name} ${a.institution ?? ''}`);
 const BANK_PAYPAL = /PAYPAL|PP\*|PYPL/i;
@@ -79,7 +79,7 @@ export function paypalPurchases(txns: Transaction[], accounts: Account[], today:
  *    bank transactions Pebbles knows about explain (the balance updates before the line comes through).
  */
 export function bankHasIt(p: Transaction, txns: Transaction[], funding: Account): boolean {
-  if (txns.some((t) => t.dupOf === p.id)) return true;
+  if (p.bankHas || txns.some((t) => t.dupOf === p.id)) return true;
   const line = txns.some(
     (t) => t.accountId === funding.id && Math.abs(t.amount - p.amount) <= 0.01 && diffDays(t.date, p.date) >= -2 && diffDays(t.date, p.date) <= 10 && (BANK_PAYPAL.test(`${t.description} ${t.merchant}`) || t.pending),
   );
@@ -113,4 +113,21 @@ export function withInFlight(accounts: Account[], f: InFlight | null): Account[]
           available: a.available != null ? Math.round((a.available - f.amount) * 100) / 100 : a.available,
         },
   );
+}
+
+/** A record of the paying account's balance over time (newest last). */
+export interface BalancePoint {
+  at: number;
+  date: ISODate;
+  available: number;
+  known: number; // sum of its transactions Pebbles had at the time
+}
+
+/**
+ * The balance to compare against for a PayPal purchase: the last one recorded before the purchase's day, so
+ * a bank that had already taken it out when Pebbles first saw it is still caught. Falls back to now.
+ */
+export function balanceBefore(history: BalancePoint[], date: ISODate): BalancePoint | null {
+  const before = history.filter((h) => h.date < date);
+  return before.length ? before[before.length - 1] : null;
 }

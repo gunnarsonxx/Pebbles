@@ -211,7 +211,7 @@ export async function syncBank(link: BankLink): Promise<{ added: number }> {
     // preserve your edits (category, notes, excluded) on transactions Pebbles already has
     const merged = keep.map((t) => {
       const cur = store.get('transactions', t.id);
-      return cur ? { ...t, category: cur.category, note: cur.note, excluded: cur.excluded, dupOf: cur.dupOf, seenBank: cur.seenBank } : t;
+      return cur ? { ...t, category: cur.category, note: cur.note, excluded: cur.excluded, dupOf: cur.dupOf, seenBank: cur.seenBank, bankHas: cur.bankHas } : t;
     });
     if (merged.length) await store.putMany('transactions', merged);
     const removed = r.removed.map((id) => 'p_' + id).filter((id) => store.get('transactions', id));

@@ -4,7 +4,7 @@ import { store } from './store';
 import { emergencyGoalUpdate } from '../core/emergency';
 import { looksVariable } from '../core/billPrompt';
 import { baseName, cleanItemName, fullName, plainNameFor } from '../core/groceries';
-import { knownTotal, paypalPurchases } from '../core/paypal';
+import { balanceBefore, knownTotal, paypalPurchases, type BalancePoint } from '../core/paypal';
 import { computeData } from './useData';
 import { today } from '../core/dates';
 import { dedupePaypal } from '../core/paypal';
@@ -145,10 +145,25 @@ export async function runAutopilot(): Promise<void> {
     if (d.paypalFrom) {
       const from = d.paypalFrom;
       const now = from.available ?? from.balance;
+      const known = knownTotal(d.txns, from.id);
+      // keep two weeks of the paying account's balance, to look back to before a purchase
+      const histKey = `balHist:${from.id}`;
+      const hist = ((await store.getMeta<BalancePoint[]>(histKey)) ?? []).filter((h) => Date.now() - h.at < 14 * 86_400_000);
+      const last = hist[hist.length - 1];
+      if (now != null && (!last || last.available !== now || last.known !== known || last.date !== d.today)) {
+        hist.push({ at: Date.now(), date: d.today, available: now, known });
+        await store.setMeta(histKey, hist.slice(-400));
+      }
       const fresh = paypalPurchases(d.txns, d.accounts, d.today).filter((t) => !t.seenBank || t.seenBank.accountId !== from.id);
       if (fresh.length && now != null) {
-        const known = knownTotal(d.txns, from.id);
-        await store.putMany('transactions', fresh.map((t) => ({ ...t, seenBank: { accountId: from.id, available: now, known } })));
+        await store.putMany(
+          'transactions',
+          fresh.map((t) => {
+            // the balance from before the purchase's day if we have it; otherwise right now
+            const b = balanceBefore(hist, t.date);
+            return { ...t, seenBank: { accountId: from.id, available: b?.available ?? now, known: b?.known ?? known } };
+          }),
+        );
       }
     }
 

@@ -58,3 +58,24 @@ describe('the bank updates its balance before its PayPal line comes through', as
     expect(bankHasIt(steam, [pending], usaa)).toBe(true);
   });
 });
+
+describe('the bank had already taken it out when Pebbles first saw the purchase', async () => {
+  const { bankHasIt, balanceBefore } = await import('./paypal');
+  const usaa = { id: 'spend', name: 'Spending', type: 'checking' as const, available: 84.01, balance: 84.01, source: 'plaid' as const };
+  const steam = tx({ id: 'steam', description: 'Payment to Valve', merchant: 'Steam', amount: -15.99, date: '2026-11-20' });
+  it('compares with the balance from before the purchase day', () => {
+    const history = [
+      { at: 1, date: '2026-11-18', available: 100, known: 0 },
+      { at: 2, date: '2026-11-19', available: 100, known: 0 },
+      { at: 3, date: '2026-11-20', available: 84.01, known: 0 }, // already out by the time PayPal's line arrived
+    ];
+    const b = balanceBefore(history, steam.date)!;
+    expect(b.available).toBe(100);
+    expect(bankHasIt({ ...steam, seenBank: { accountId: 'spend', available: b.available, known: b.known } }, [], usaa)).toBe(true);
+    // stamping with "now" would have missed it
+    expect(bankHasIt({ ...steam, seenBank: { accountId: 'spend', available: 84.01, known: 0 } }, [], usaa)).toBe(false);
+  });
+  it('“Already Taken Out” settles it', () => {
+    expect(bankHasIt({ ...steam, bankHas: true }, [], usaa)).toBe(true);
+  });
+});

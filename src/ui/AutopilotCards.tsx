@@ -357,7 +357,14 @@ export function CoverageCard({ data, compact }: { data: AppData; compact?: boole
     return (
       <div className="tiny muted" style={{ marginTop: -2 }}>
         {bank != null ? `Bank shows ${usd(bank)}; ` : ''}
-        {what} went through PayPal and hasn’t reached {a.name} yet, so it’s already taken off.
+        {what} went through PayPal and hasn’t reached {a.name} yet, so it’s already taken off.{' '}
+        <button
+          className="link-btn tiny"
+          onClick={() => void store.putMany('transactions', fl.txns.map((t) => ({ ...t, bankHas: true })))}
+          title="Your bank already shows it: stop taking it off"
+        >
+          Already Taken Out
+        </button>
       </div>
     );
   };
