@@ -3,6 +3,7 @@
 import { store } from './store';
 import { computeData } from './useData';
 import { today } from '../core/dates';
+import { dedupePaypal } from '../core/paypal';
 import { findPaycheckDeposit, findSavingsTransfer, moveId, type MoveKey } from '../core/moves';
 import { goalsAccount, interestContributions, syncGoalsWithAccount, type Weight } from '../core/savingsAccount';
 import { addDays } from '../core/dates';
@@ -56,6 +57,16 @@ export async function runAutopilot(): Promise<void> {
   try {
     const d = computeData(store.version, today());
     if (!d.settings.onboarded) return;
+
+    // 0) a PayPal purchase shows up at PayPal and at your bank: count it once
+    const dups = dedupePaypal(d.txns, d.accounts);
+    if (dups.length) {
+      const byId = new Map(d.txns.map((t) => [t.id, t]));
+      await store.putMany(
+        'transactions',
+        dups.filter((u) => byId.has(u.id)).map((u) => ({ ...byId.get(u.id)!, ...u.patch })),
+      );
+    }
 
     // 1) interest paid into the goals account → pebbles in each goal
     const acct = goalsAccount(d.accounts);

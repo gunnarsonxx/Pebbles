@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Fuel, House, LocateFixed, MapPin, Pencil, RefreshCw } from 'lucide-react';
 import type { AppData } from '../../data/useData';
 import type { GoTo } from '../App';
@@ -40,7 +40,27 @@ export function GasView({ data, go }: { data: AppData; go: GoTo }) {
   const [err, setErr] = useState('');
   const [address, setAddress] = useState(i.homeAddress);
   const [editHome, setEditHome] = useState(!hasHome);
-  const [pricing, setPricing] = useState<Station | null>(null);
+  const [pricing, setPricing] = useState<{ station: Station; fromMaps: boolean } | null>(null);
+  // after looking a station up in Google Maps, coming back opens its price box ready to type
+  const lookingUp = useRef<{ station: Station; at: number } | null>(null);
+  useEffect(() => {
+    const back = () => {
+      const l = lookingUp.current;
+      if (!l || document.visibilityState !== 'visible' || Date.now() - l.at < 1500) return;
+      lookingUp.current = null;
+      setPricing({ station: l.station, fromMaps: true });
+    };
+    document.addEventListener('visibilitychange', back);
+    window.addEventListener('focus', back);
+    return () => {
+      document.removeEventListener('visibilitychange', back);
+      window.removeEventListener('focus', back);
+    };
+  }, []);
+  const lookUp = (st: Station) => {
+    lookingUp.current = { station: st, at: Date.now() };
+    openMaps(st);
+  };
 
   const load = async (force = false) => {
     setErr('');
@@ -218,7 +238,7 @@ export function GasView({ data, go }: { data: AppData; go: GoTo }) {
           <div className={`list${busy ? ' refreshing' : ''}`}>
             {stations.slice(0, 15).map((s) => (
               <div key={s.id} className="list-item">
-                <button className="icon-btn" onClick={() => openMaps(s)} aria-label={`Open ${s.name} in Google Maps`} title="See it in Google Maps">
+                <button className="icon-btn" onClick={() => lookUp(s)} aria-label={`Open ${s.name} in Google Maps`} title="See it in Google Maps">
                   <MapPin size={18} />
                 </button>
                 <div className="grow" style={{ minWidth: 0 }}>
@@ -229,11 +249,11 @@ export function GasView({ data, go }: { data: AppData; go: GoTo }) {
                   </div>
                 </div>
                 {s.price != null ? (
-                  <button className="btn ghost small num" onClick={() => setPricing(s)}>
+                  <button className="btn ghost small num" onClick={() => setPricing({ station: s, fromMaps: false })}>
                     {ppg(s.price)}
                   </button>
                 ) : (
-                  <button className="btn small" onClick={() => setPricing(s)}>
+                  <button className="btn small" onClick={() => setPricing({ station: s, fromMaps: false })}>
                     <Fuel /> Price
                   </button>
                 )}
@@ -253,13 +273,13 @@ export function GasView({ data, go }: { data: AppData; go: GoTo }) {
         </div>
       )}
 
-      {pricing && <PriceSheet station={pricing} onClose={() => setPricing(null)} />}
+      {pricing && <PriceSheet station={pricing.station} fromMaps={pricing.fromMaps} current={stations.find((x) => x.id === pricing.station.id)?.price ?? null} onClose={() => setPricing(null)} />}
     </div>
   );
 }
 
-function PriceSheet({ station, onClose }: { station: Station; onClose: () => void }) {
-  const [v, setV] = useState<number | null>(null);
+function PriceSheet({ station, fromMaps, current, onClose }: { station: Station; fromMaps: boolean; current: number | null; onClose: () => void }) {
+  const [v, setV] = useState<number | null>(fromMaps ? null : current);
   return (
     <Sheet
       title={station.name}
@@ -267,7 +287,7 @@ function PriceSheet({ station, onClose }: { station: Station; onClose: () => voi
       footer={
         <>
           <button className="btn" onClick={onClose}>
-            Cancel
+            {fromMaps ? 'Skip' : 'Cancel'}
           </button>
           <button
             className="btn primary"
@@ -282,8 +302,8 @@ function PriceSheet({ station, onClose }: { station: Station; onClose: () => voi
         </>
       }
     >
-      <Field label="Regular, per Gallon" hint="What the sign says today">
-        <NumberInput value={v} onChange={setV} prefix="$" allowEmpty autoFocus placeholder="3.299" />
+      <Field label="Regular, per Gallon" hint={fromMaps ? 'Type the price Google Maps showed. It’s saved for this station and used in your gas budget.' : 'What the sign says today'}>
+        <NumberInput value={v} onChange={setV} prefix="$" allowEmpty autoFocus placeholder={current ? current.toFixed(3) : '3.299'} />
       </Field>
     </Sheet>
   );

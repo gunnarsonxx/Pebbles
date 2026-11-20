@@ -219,7 +219,7 @@ export function TransactionsView({ data }: { data: AppData }) {
                 <div className="tiny muted ellipsis">
                   {t.pending && <span className="badge warn" style={{ marginRight: 6, padding: '1px 6px', fontSize: 10 }}>Pending</span>}
                   {fmtShort(t.date)} · {categoryOf(t.category).name}
-                  {t.excluded ? ' · not counted' : ''}
+                  {t.dupOf ? ' · paid via PayPal (counted there)' : t.excluded ? ' · not counted' : ''}
                 </div>
               </div>
               <div className={`amount ${t.amount > 0 ? 'in' : ''}`} style={t.excluded ? { opacity: 0.5 } : undefined}>

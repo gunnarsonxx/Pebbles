@@ -362,6 +362,7 @@ export interface Transaction {
   note: string;
   pending?: boolean;
   source?: 'import' | 'plaid';
+  dupOf?: string; // the same purchase seen in another account (e.g. USAA's line for a PayPal purchase)
 }
 
 export interface ImportBatch {

@@ -125,3 +125,26 @@ describe('bills: roommate split, wider suggestions, calendar', async () => {
     expect(ics).toContain('SUMMARY:Payday');
   });
 });
+
+describe('PayPal purchases count once', async () => {
+  const { dedupePaypal } = await import('./paypal');
+  const acct = (id: string, name: string, institution: string) => ({ id, name, institution, type: 'checking' as const });
+  const t = (id: string, accountId: string, date: string, amount: number, description: string, merchant = '') => ({ id, accountId, date, description, merchant, amount, category: 'shopping', importId: null, excluded: false, note: '' });
+  it('hides the USAA line for a PayPal purchase and keeps the PayPal one', () => {
+    const accounts = [acct('usaa', 'Checking', 'USAA'), acct('pp', 'PayPal Balance', 'PayPal')];
+    const txns = [
+      t('p1', 'pp', '2026-11-19', -42.17, 'Purchase', 'Steam'),
+      t('p2', 'pp', '2026-11-19', 42.17, 'Bank deposit to PP account'),
+      t('b1', 'usaa', '2026-11-21', -42.17, 'PAYPAL *STEAM GAMES 402-935-7733'),
+      t('b2', 'usaa', '2026-11-21', -9.99, 'PAYPAL *SPOTIFY'),
+      t('b3', 'usaa', '2026-11-21', -42.17, 'KING SOOPERS #12'),
+    ];
+    const ups = dedupePaypal(txns, accounts);
+    expect(ups.find((u) => u.id === 'b1')?.patch).toMatchObject({ dupOf: 'p1', excluded: true });
+    expect(ups.find((u) => u.id === 'p2')?.patch.excluded).toBe(true);
+    expect(ups.some((u) => u.id === 'b2' || u.id === 'b3')).toBe(false); // no PayPal match / not a PayPal line
+    // running again after applying changes nothing
+    const applied = txns.map((x) => ({ ...x, ...(ups.find((u) => u.id === x.id)?.patch ?? {}) }));
+    expect(dedupePaypal(applied, accounts)).toEqual([]);
+  });
+});
