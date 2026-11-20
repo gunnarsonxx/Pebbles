@@ -5,6 +5,7 @@
 //   2. prices you tap in when you drive past a sign,
 //   3. optionally Google Maps, which shows live posted prices (needs your own Google key).
 // Home address → map position uses the free U.S. Census geocoder.
+import { ANDROID_PACKAGE } from './edition';
 import type { HttpFn } from './market';
 import type { GasPrice, ISODate } from './types';
 import { diffDays } from './dates';
@@ -63,7 +64,8 @@ interface OsmEl {
 
 // Places tagged as fuel that aren't somewhere to fill a car: propane refills, EV chargers, truck-only
 // cardlocks, and stations that have closed.
-const NOT_A_PUMP = /propane|amerigas|ferrellgas|suburban propane|blue rhino|u-?haul|\bcng\b|\blpg\b|tesla|supercharger|charging|\bev\b|chargepoint|electrify|cardlock|card lock|commercial fuel|fleet|bulk (fuel|plant)|car ?wash only|tire/i;
+const NOT_A_PUMP =
+  /propane|amerigas|ferrellgas|suburban propane|blue rhino|u-?haul|\bcng\b|\blpg\b|tesla|supercharger|charging|\bev\b|chargepoint|electrify|cardlock|card lock|commercial fuel|fleet|bulk (fuel|plant)|car ?wash only|tire/i;
 
 /** Does an OpenStreetMap fuel station actually sell gas (or diesel), and is it open? */
 export function sellsGas(t: Record<string, string>): boolean {
@@ -160,7 +162,8 @@ function priceOf(x: { price?: { units?: string; nanos?: number } }): number | nu
 }
 
 // Google files plenty of convenience stores and car washes under "gas station" too
-const FUEL_BRANDS = /shell|conoco|phillips|sinclair|chevron|exxon|mobil|valero|maverik|loaf|kum ?& ?go|quik ?trip|\bqt\b|7-?eleven|circle k|murphy|costco|sam'?s|king soopers|kroger|safeway|walmart|love'?s|pilot|flying j|speedway|casey|bp\b|arco|texaco|cenex|holiday|7 ?11|diamond shamrock|alta|gas|fuel|petro/i;
+const FUEL_BRANDS =
+  /shell|conoco|phillips|sinclair|chevron|exxon|mobil|valero|maverik|loaf|kum ?& ?go|quik ?trip|\bqt\b|7-?eleven|circle k|murphy|costco|sam'?s|king soopers|kroger|safeway|walmart|love'?s|pilot|flying j|speedway|casey|bp\b|arco|texaco|cenex|holiday|7 ?11|diamond shamrock|alta|gas|fuel|petro/i;
 
 /** Is this Google place open, and a place to fill a car? */
 export function googleSellsGas(p: { businessStatus?: string; primaryType?: string; displayName?: { text: string }; fuelOptions?: unknown }): boolean {
@@ -221,10 +224,15 @@ export async function googleStations(http: HttpFn, key: string, p: Point, radius
       // businessStatus / primaryType sit in a lower price tier than fuelOptions, so they add nothing to the cost
       'X-Goog-FieldMask': 'places.id,places.displayName,places.shortFormattedAddress,places.location,places.fuelOptions,places.businessStatus,places.primaryType',
       // lets a key restricted to "Android apps" (package app.pebbles.money + this signing fingerprint) work
-      'X-Android-Package': 'app.pebbles.money',
+      'X-Android-Package': ANDROID_PACKAGE,
       'X-Android-Cert': PEBBLES_CERT_SHA1,
     },
-    body: JSON.stringify({ includedTypes: ['gas_station'], maxResultCount: 20, rankPreference: 'DISTANCE', locationRestriction: { circle: { center: { latitude: p.lat, longitude: p.lon }, radius: radiusMeters } } }),
+    body: JSON.stringify({
+      includedTypes: ['gas_station'],
+      maxResultCount: 20,
+      rankPreference: 'DISTANCE',
+      locationRestriction: { circle: { center: { latitude: p.lat, longitude: p.lon }, radius: radiusMeters } },
+    }),
   });
   if (res.status !== 200) {
     let msg = `Google replied ${res.status}`;

@@ -97,6 +97,18 @@ export async function applyPaystub(stub: Omit<Paystub, 'id' | 'createdAt'>, opts
       await saveSettings((s) => ({ ...s, deductions: ded }));
       done.push(`Set ${ded.length} paycheck deduction${ded.length === 1 ? '' : 's'} from your stub`);
     }
+    // states without detailed tables: use the rate your stub actually shows
+    const stateTax = stub.lines.filter((l) => l.kind === 'state').reduce((a, l) => a + l.current, 0);
+    const pre = stub.lines.filter((l) => l.kind === 'pretax').reduce((a, l) => a + l.current, 0);
+    const cur = normalizeSettings(store.get('settings', 'settings'));
+    const modeled = rulesForYear(effectiveRules(), Number((stub.payDate ?? today()).slice(0, 4))).rules.states[cur.stateTax.state]?.type === 'brackets';
+    if (!modeled && stub.gross && stateTax > 0 && stub.gross - pre > 0) {
+      const rate = Math.round((stateTax / (stub.gross - pre)) * 10000) / 100;
+      if (rate > 0 && rate < 15 && rate !== cur.stateTax.customFlatRate) {
+        await saveSettings((s) => ({ ...s, stateTax: { ...s.stateTax, customFlatRate: rate, extraWithholding: 0 } }));
+        done.push(`Set your state tax to ${rate}%, the rate on your stub`);
+      }
+    }
   }
   if (opts.updateBaseRate && opts.updateBaseRate > 0) {
     await saveSettings((s) => ({ ...s, pay: { ...s.pay, baseRate: opts.updateBaseRate as number } }));
@@ -123,7 +135,9 @@ export async function applyPaystub(stub: Omit<Paystub, 'id' | 'createdAt'>, opts
           holidays: { ...s.pay.holidays, confirmed: true, ids: [...new Set([...(s.pay.holidays.confirmed ? s.pay.holidays.ids : []), ...found])] },
         },
       }));
-      const names = HOLIDAYS.filter((h) => found.includes(h.id)).map((h) => h.name).join(' and ');
+      const names = HOLIDAYS.filter((h) => found.includes(h.id))
+        .map((h) => h.name)
+        .join(' and ');
       done.push(`Learned that your job pays ${names} as a holiday`);
     }
   }

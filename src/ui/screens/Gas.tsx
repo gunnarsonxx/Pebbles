@@ -105,7 +105,14 @@ export function GasView({ data, go }: { data: AppData; go: GoTo }) {
   // stations you've said are closed or have no pumps stay off the list
   const hidden = i.hiddenStations ?? [];
   const hiddenIds = new Set(hidden.map((h) => h.id));
-  const stations: PricedStation[] = cache ? priceStations(cache.stations.filter((x) => !hiddenIds.has(x.id)), data.gasPrices, data.today, areaAvg) : [];
+  const stations: PricedStation[] = cache
+    ? priceStations(
+        cache.stations.filter((x) => !hiddenIds.has(x.id)),
+        data.gasPrices,
+        data.today,
+        areaAvg,
+      )
+    : [];
   const priced = stations.filter((s) => s.price != null).sort((a, b) => (a.price as number) - (b.price as number));
   const nearest = stations[0] ?? null;
   const cheapest = priced[0] ?? null;
@@ -126,7 +133,7 @@ export function GasView({ data, go }: { data: AppData; go: GoTo }) {
             <div className="tiny muted">{lastPaid ? `${lastPaid.station} · ${fmtShort(lastPaid.date)}` : 'Upload a gas receipt or tap a price below'}</div>
           </div>
           <div>
-            <div className="eyebrow">Colorado Average</div>
+            <div className="eyebrow">{data.market?.gas?.region ? data.market.gas.region.replace(/ avg$/, ' Average') : 'Average Price'}</div>
             <div className="big-number">{data.market?.gas ? ppg(data.market.gas.price) : avg ? ppg(avg.price) : '—'}</div>
             <div className="tiny muted">{data.market?.gas ? `Regular, week of ${fmtShort(data.market.gas.asOf)}` : 'Loads when you’re online'}</div>
           </div>
@@ -193,7 +200,11 @@ export function GasView({ data, go }: { data: AppData; go: GoTo }) {
         </div>
       )}
 
-      {err && <div className="badge bad" style={{ whiteSpace: 'normal' }}>{err}</div>}
+      {err && (
+        <div className="badge bad" style={{ whiteSpace: 'normal' }}>
+          {err}
+        </div>
+      )}
 
       {cache && (
         <div className="card">
@@ -222,11 +233,16 @@ export function GasView({ data, go }: { data: AppData; go: GoTo }) {
               <div className="tiny ink2">{cache.googleError}</div>
             </div>
           )}
-          {cache.note && <div className="tiny muted" style={{ marginBottom: 8 }}>{cache.note}</div>}
+          {cache.note && (
+            <div className="tiny muted" style={{ marginBottom: 8 }}>
+              {cache.note}
+            </div>
+          )}
           <div className="card tint" style={{ padding: 12, marginBottom: 10 }}>
             <div className="strong small">Update Many Prices at Once</div>
             <div className="tiny ink2" style={{ marginBottom: 8 }}>
-              Open Google Maps’ gas list, take a screenshot, and let Pebbles read it. Every station it recognizes gets today’s price. Prices marked “est.” follow this week’s Colorado average until then.
+              Open Google Maps’ gas list, take a screenshot, and let Pebbles read it. Every station it recognizes gets today’s price. Prices marked “est.” follow this week’s average for your area
+              until then.
             </div>
             <div className="row wrap" style={{ gap: 8 }}>
               <button className="btn small" onClick={() => openMaps(null, cache.where)}>
@@ -253,7 +269,11 @@ export function GasView({ data, go }: { data: AppData; go: GoTo }) {
                     cache.stations,
                   );
                   for (const x of found) await logGasPrice(x.station, x.perGallon, 'Regular', 'screenshot');
-                  toast(found.length ? `Saved ${found.length} price${found.length === 1 ? '' : 's'} from your screenshot` : 'Couldn’t match any stations in that screenshot. Try the list view in Google Maps.');
+                  toast(
+                    found.length
+                      ? `Saved ${found.length} price${found.length === 1 ? '' : 's'} from your screenshot`
+                      : 'Couldn’t match any stations in that screenshot. Try the list view in Google Maps.',
+                  );
                 } catch (err) {
                   toast((err as Error).message || 'Couldn’t read that screenshot.');
                 } finally {
@@ -364,7 +384,10 @@ function PriceSheet({ station, fromMaps, current, onClose }: { station: Station;
       <button
         className="btn ghost small mt"
         onClick={async () => {
-          await saveSettings((x) => ({ ...x, integrations: { ...x.integrations, hiddenStations: [...(x.integrations.hiddenStations ?? []).filter((h) => h.id !== station.id), { id: station.id, name: station.name }] } }));
+          await saveSettings((x) => ({
+            ...x,
+            integrations: { ...x.integrations, hiddenStations: [...(x.integrations.hiddenStations ?? []).filter((h) => h.id !== station.id), { id: station.id, name: station.name }] },
+          }));
           onClose();
         }}
       >

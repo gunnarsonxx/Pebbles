@@ -5,7 +5,8 @@
 // Colorado: DR 1098 method (annualize, subtract withholding allowance, apply rate[s]).
 // Colorado FAMLI: employee share of the paid-leave premium.
 import { round2 } from './money';
-import type { Bracket, TaxYearRules } from './taxrules';
+import { STATE_NAMES, type Bracket, type TaxYearRules } from './taxrules';
+import { STATE_APPROX_RATE } from './regions';
 import type { PayrollDeduction, Settings } from './types';
 
 export const PERIODS_PER_YEAR = 26;
@@ -72,11 +73,7 @@ export function computeDeductions(gross: number, deductions: PayrollDeduction[])
   return { pre, post };
 }
 
-export function federalWithholding(
-  federalTaxable: number,
-  settings: Settings,
-  rules: TaxYearRules,
-): { amount: number; detail: string; annualTaxable: number } {
+export function federalWithholding(federalTaxable: number, settings: Settings, rules: TaxYearRules): { amount: number; detail: string; annualTaxable: number } {
   const { w4, filingStatus } = settings;
   const fed = rules.federal;
   const annualWages = federalTaxable * PERIODS_PER_YEAR + (w4.otherIncome || 0) - (w4.deductions || 0);
@@ -87,7 +84,10 @@ export function federalWithholding(
   const credits = (w4.childrenUnder17 || 0) * fed.childCreditPerChild + (w4.otherDependents || 0) * fed.otherDependentCredit;
   const annual = Math.max(0, tax - credits);
   const amount = round2(annual / PERIODS_PER_YEAR + (w4.extraWithholding || 0));
-  const rate = marginalRate(annualTaxable, fed.brackets[filingStatus].map(([u, r]) => [u == null ? null : u * (step2 ? 0.5 : 1), r]));
+  const rate = marginalRate(
+    annualTaxable,
+    fed.brackets[filingStatus].map(([u, r]) => [u == null ? null : u * (step2 ? 0.5 : 1), r]),
+  );
   return {
     amount,
     annualTaxable,
@@ -104,12 +104,7 @@ export function statusLabel(s: Settings['filingStatus']): string {
   }[s];
 }
 
-export function computeWithholding(
-  gross: number,
-  settings: Settings,
-  rules: TaxYearRules,
-  ytd: YtdInfo = { ficaWages: 0 },
-): WithholdingResult {
+export function computeWithholding(gross: number, settings: Settings, rules: TaxYearRules, ytd: YtdInfo = { ficaWages: 0 }): WithholdingResult {
   const warnings: string[] = [];
   const { pre, post } = computeDeductions(gross, settings.deductions);
   const preIncome = pre.reduce((s, d) => s + d.amount, 0);
@@ -141,12 +136,7 @@ export function computeWithholding(
   } else if (stateRules?.type === 'brackets' && stateRules.brackets) {
     const annual = stateTaxable * PERIODS_PER_YEAR;
     const allowanceTable = stateRules.withholdingAllowance ?? { default: 0 };
-    const allowance =
-      st.dr0004Allowance != null
-        ? st.dr0004Allowance
-        : settings.filingStatus === 'married_joint'
-          ? (allowanceTable.married_joint ?? allowanceTable.default)
-          : allowanceTable.default;
+    const allowance = st.dr0004Allowance != null ? st.dr0004Allowance : settings.filingStatus === 'married_joint' ? (allowanceTable.married_joint ?? allowanceTable.default) : allowanceTable.default;
     const taxable = Math.max(0, annual - allowance);
     const annualTax = bracketTax(taxable, stateRules.brackets);
     const amt = round2(annualTax / PERIODS_PER_YEAR + (st.extraWithholding || 0));
@@ -156,10 +146,16 @@ export function computeWithholding(
       key: 'state',
       label: `${stateRules.name} Income Tax`,
       amount: amt,
-      detail: `${(rate * 100).toFixed(rate * 100 % 1 ? 1 : 0)}%${flat ? ' flat' : ' bracket'} · $${allowance.toLocaleString()} allowance`,
+      detail: `${(rate * 100).toFixed((rate * 100) % 1 ? 1 : 0)}%${flat ? ' flat' : ' bracket'} · $${allowance.toLocaleString()} allowance`,
     });
   } else if (!stateRules) {
-    warnings.push(`Pebbles doesn't have detailed ${st.state} tax tables yet. Add your state's rate under Settings → Taxes & deductions.`);
+    // a rough rate for your state until a pay stub gives your real one
+    const approx = STATE_APPROX_RATE[st.state];
+    if (approx == null) warnings.push(`Pebbles doesn't have ${st.state} tax rates. Add your state's rate under Settings → Taxes & Deductions.`);
+    else if (approx > 0) {
+      const amt = round2((stateTaxable * approx) / 100 + (st.extraWithholding || 0));
+      taxes.push({ key: 'state', label: `${STATE_NAMES[st.state] ?? st.state} Income Tax`, amount: amt, detail: `about ${approx}% (an estimate; upload a pay stub to use your real rate)` });
+    }
   }
 
   // Colorado FAMLI (or similar paid-leave premium)
@@ -190,12 +186,7 @@ export function computeWithholding(
  * "No tax on overtime" (2025–2028): qualified overtime premium is deductible on your
  * federal return. Payroll withholding doesn't include it, so it usually shows up as a refund.
  */
-export function overtimeDeductionEstimate(
-  otPremiumAnnual: number,
-  annualGross: number,
-  settings: Settings,
-  rules: TaxYearRules,
-): { deduction: number; taxSaved: number } {
+export function overtimeDeductionEstimate(otPremiumAnnual: number, annualGross: number, settings: Settings, rules: TaxYearRules): { deduction: number; taxSaved: number } {
   const od = rules.federal.overtimeDeduction;
   if (!od || otPremiumAnnual <= 0) return { deduction: 0, taxSaved: 0 };
   const joint = settings.filingStatus === 'married_joint';

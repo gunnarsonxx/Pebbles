@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { COMMUNITY } from '../../core/edition';
 import { Camera, Check, ImagePlus, Minus, Plus, Tag, Trash2, TriangleAlert } from 'lucide-react';
 import { Field, NumberInput, Sheet, useConfirm, useToast } from '../components';
 import { mergeReceipts, parseReceipt, type ParsedReceipt } from '../../core/receipts';
@@ -444,7 +445,9 @@ export function ReceiptSheet({ data, existing, onClose }: { data: AppData; exist
             <div className="strong" style={{ marginTop: 6 }}>
               {progress ?? 'Take a photo or choose receipts'}
             </div>
-            <div className="small muted">Photos, screenshots or PDFs, one or a whole stack at once. For King Soopers orders, the PDF invoice from the app reads best. Read right on your device.</div>
+            <div className="small muted">
+              Photos, screenshots or PDFs, one or a whole stack at once. For Kroger-family orders (King Soopers and others), the PDF invoice from the app reads best. Read right on your device.
+            </div>
           </button>
           {error && <p className="small bad">{error}</p>}
           <p className="small ink2">For the best read: lay the receipt flat, fill the frame, and use good light. Long receipts can be photographed in two parts and saved separately.</p>
@@ -453,7 +456,7 @@ export function ReceiptSheet({ data, existing, onClose }: { data: AppData; exist
             style={{ alignSelf: 'flex-start' }}
             onClick={() =>
               setR({
-                store: 'King Soopers',
+                store: COMMUNITY ? '' : 'King Soopers',
                 date: data.today,
                 items: [],
                 subtotal: null,

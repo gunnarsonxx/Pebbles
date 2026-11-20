@@ -34,7 +34,10 @@ export const deleteBill = (id: string) => store.remove('bills', id);
 export const saveGoal = (g: Goal) => store.put('goals', g);
 export async function deleteGoal(id: string) {
   const contribs = store.list('contributions').filter((c) => c.goalId === id);
-  await store.remove('contributions', contribs.map((c) => c.id));
+  await store.remove(
+    'contributions',
+    contribs.map((c) => c.id),
+  );
   await store.remove('goals', id);
 }
 export const addContribution = (c: Contribution) => store.put('contributions', c);
@@ -126,7 +129,10 @@ export async function importTransactions(accountId: string, parsed: ParsedTxn[],
 }
 
 export async function undoImport(importId: string) {
-  const ids = store.list('transactions').filter((t) => t.importId === importId).map((t) => t.id);
+  const ids = store
+    .list('transactions')
+    .filter((t) => t.importId === importId)
+    .map((t) => t.id);
   await store.remove('transactions', ids);
   await store.remove('imports', importId);
 }
@@ -187,7 +193,11 @@ export async function receivePaycheck(opts: {
   const prev = store.get('paychecks', period.start);
   // replace earlier contributions from this paycheck if it's re-recorded
   const old = store.list('contributions').filter((c) => c.paycheckId === period.start);
-  if (old.length) await store.remove('contributions', old.map((c) => c.id));
+  if (old.length)
+    await store.remove(
+      'contributions',
+      old.map((c) => c.id),
+    );
   const date = period.payday <= today() ? period.payday : today();
   const contribs: Contribution[] = opts.allocations
     .filter((a) => a.amount > 0)
@@ -211,7 +221,10 @@ export async function receivePaycheck(opts: {
   });
   // mark goals completed
   for (const g of store.list('goals')) {
-    const bal = store.list('contributions').filter((c) => c.goalId === g.id).reduce((s, c) => s + c.amount, 0);
+    const bal = store
+      .list('contributions')
+      .filter((c) => c.goalId === g.id)
+      .reduce((s, c) => s + c.amount, 0);
     // the emergency fund steps its own target up, so autopilot decides when it's done
     if (!g.completedAt && bal >= g.target && !autoTarget(g)) await store.put('goals', { ...g, completedAt: Date.now() });
   }
@@ -234,7 +247,7 @@ export async function updateMarket(force = false): Promise<string[]> {
   if (!force && cur && Date.now() - cur.fetchedAt < 12 * 3600_000) return [];
   marketBusy = true;
   try {
-    const next = await refreshMarket(http, getSettings().integrations.eiaApiKey.trim() || BUILTIN_EIA_KEY, cur);
+    const next = await refreshMarket(http, getSettings().integrations.eiaApiKey.trim() || BUILTIN_EIA_KEY, cur, getSettings().stateTax.state);
     const gotSomething = next.gas !== cur?.gas || next.foodCpi !== cur?.foodCpi;
     if (gotSomething || force || next.errors.length === 0) await store.put('market', next);
     return next.errors;

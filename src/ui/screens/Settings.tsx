@@ -1,6 +1,24 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import QRCode from 'qrcode';
-import { CalendarClock, ChevronRight, Download, FolderOpen, Landmark, Laptop, Link2, MonitorSmartphone, Palette, Plug, Plus, RefreshCw, Smartphone, Trash2, Unlink, Upload, Wallet } from 'lucide-react';
+import {
+  CalendarClock,
+  ChevronRight,
+  Download,
+  FolderOpen,
+  Landmark,
+  Laptop,
+  Link2,
+  MonitorSmartphone,
+  Palette,
+  Plug,
+  Plus,
+  RefreshCw,
+  Smartphone,
+  Trash2,
+  Unlink,
+  Upload,
+  Wallet,
+} from 'lucide-react';
 import type { AppData } from '../../data/useData';
 import { useSync } from '../../data/useData';
 import { Field, NumberInput, Segmented, TextInput, ToggleRow, useConfirm, useToast } from '../components';
@@ -29,13 +47,14 @@ import { UpdateCard } from '../UpdateCard';
 import { ShiftSchedule } from '../ShiftSchedule';
 import { ACCENTS, PALETTES } from '../themes';
 import { ChecksCard } from '../ChecksCard';
-import { BankSettings, GasStationSettings, GroceryPriceSettings } from './ConnectionsSettings';
+import { BankSettings, GasStationSettings, GroceryPriceSettings, SetupGuide } from './ConnectionsSettings';
+import { COMMUNITY, PRICE_STORE_SHORT } from '../../core/edition';
 
 export const SETTINGS_SECTIONS: { id: string; title: string; hint: string; icon: typeof Wallet }[] = [
   { id: 'pay', title: 'Pay & Schedule', hint: 'Rate, shifts, pay periods, overtime, holidays', icon: CalendarClock },
-  { id: 'taxes', title: 'Taxes & Deductions', hint: 'Filing status, W-4, Colorado, 401(k), insurance', icon: Landmark },
+  { id: 'taxes', title: 'Taxes & Deductions', hint: 'Filing status, W-4, state, 401(k), insurance', icon: Landmark },
   { id: 'budget', title: 'Budget', hint: 'How each paycheck is split, household and car', icon: Wallet },
-  { id: 'connections', title: 'Connections', hint: 'Banks, King Soopers, gas prices, status checks', icon: Plug },
+  { id: 'connections', title: 'Connections', hint: `${COMMUNITY ? 'Set up your keys, banks' : 'Banks'}, ${PRICE_STORE_SHORT}, gas prices, status checks`, icon: Plug },
   { id: 'look', title: 'Appearance', hint: 'Your name, colors, light and dark mode, reminders', icon: Palette },
   { id: 'sync', title: 'Sync & Devices', hint: 'Pair your phone and computer', icon: MonitorSmartphone },
   { id: 'app', title: 'Updates & Backup', hint: 'Get the newest version, tax tables, back up your data', icon: Download },
@@ -85,6 +104,7 @@ export function SettingsScreen({ data, section, open }: { data: AppData; section
       )}
       {section === 'connections' && (
         <>
+          <SetupGuide s={s} />
           <ChecksCard />
           <BankSettings s={s} set={set} />
           <GroceryPriceSettings s={s} set={set} />
@@ -128,12 +148,7 @@ function PaySection({ s, set }: { s: Settings; set: (f: (s: Settings) => Setting
       <ShiftSchedule pay={p} onChange={(np) => set((x) => ({ ...x, pay: np }))} />
       <div className="form-grid two">
         <Field label="A Pay Period Started On" hint={`So periods run ${fmtDay(p.periodAnchor)} – ${fmtDay(periodEnd)}`}>
-          <input
-            className="input"
-            type="date"
-            value={p.periodAnchor}
-            onChange={(e) => e.target.value && set((x) => ({ ...x, pay: { ...x.pay, periodAnchor: e.target.value } }))}
-          />
+          <input className="input" type="date" value={p.periodAnchor} onChange={(e) => e.target.value && set((x) => ({ ...x, pay: { ...x.pay, periodAnchor: e.target.value } }))} />
         </Field>
         <Field label="…And That Period Was Paid On" hint={`${p.paydayOffset} day${p.paydayOffset === 1 ? '' : 's'} after it ends`}>
           <input
@@ -320,11 +335,19 @@ function TaxSection({ data, set }: { data: AppData; set: (f: (s: Settings) => Se
               <NumberInput value={st.extraWithholding} onChange={(v) => set((x) => ({ ...x, stateTax: { ...x.stateTax, extraWithholding: v ?? 0 } }))} prefix="$" />
             </Field>
           </div>
-          <ToggleRow title="Colorado FAMLI Premium" hint="Paid family & medical leave: most employers withhold the employee share" on={st.famliEnabled} onChange={(v) => set((x) => ({ ...x, stateTax: { ...x.stateTax, famliEnabled: v } }))} />
+          <ToggleRow
+            title="Colorado FAMLI Premium"
+            hint="Paid family & medical leave: most employers withhold the employee share"
+            on={st.famliEnabled}
+            onChange={(v) => set((x) => ({ ...x, stateTax: { ...x.stateTax, famliEnabled: v } }))}
+          />
         </>
       )}
       {!stateRules && (
-        <Field label={`${STATE_NAMES[st.state]} income tax rate`} hint="Pebbles models Colorado in detail. For other states, enter your effective rate from a pay stub.">
+        <Field
+          label={`${STATE_NAMES[st.state]} income tax rate`}
+          hint="Pebbles models Colorado in detail and estimates other states. Upload a pay stub and it fills in your real rate, or enter it here."
+        >
           <NumberInput value={st.customFlatRate} allowEmpty onChange={(v) => set((x) => ({ ...x, stateTax: { ...x.stateTax, customFlatRate: v } }))} suffix="%" />
         </Field>
       )}
@@ -356,7 +379,12 @@ function TaxSection({ data, set }: { data: AppData; set: (f: (s: Settings) => Se
           ))}
         </ul>
       </div>
-      <ToggleRow title="Check for Tax Changes Automatically" hint="Once a day when online" on={s.integrations.autoUpdate} onChange={(v) => set((x) => ({ ...x, integrations: { ...x.integrations, autoUpdate: v } }))} />
+      <ToggleRow
+        title="Check for Tax Changes Automatically"
+        hint="Once a day when online"
+        on={s.integrations.autoUpdate}
+        onChange={(v) => set((x) => ({ ...x, integrations: { ...x.integrations, autoUpdate: v } }))}
+      />
     </Section>
   );
 }
@@ -449,11 +477,7 @@ function HouseholdSection({ s, set }: { s: Settings; set: (f: (s: Settings) => S
         </Field>
       </div>
       <Field label="Grocery Comfort Level" hint={`USDA ${FOOD_PLAN_LABEL[h.foodPlan]} plan for your household ≈ ${usd(foodPlanMonthly(h), true)}/month`}>
-        <Segmented
-          value={h.foodPlan}
-          options={(['thrifty', 'low', 'moderate', 'liberal'] as const).map((p) => ({ value: p, label: FOOD_PLAN_LABEL[p] }))}
-          onChange={(v) => up({ foodPlan: v })}
-        />
+        <Segmented value={h.foodPlan} options={(['thrifty', 'low', 'moderate', 'liberal'] as const).map((p) => ({ value: p, label: FOOD_PLAN_LABEL[p] }))} onChange={(v) => up({ foodPlan: v })} />
       </Field>
       <div className="form-grid two">
         <Field label="Car Fuel Economy">
@@ -514,10 +538,22 @@ function PricesSection({ s, set }: { s: Settings; set: (f: (s: Settings) => Sett
   return (
     <Section title="Prices & Updates">
       <p className="small ink2">
-        Pebbles checks grocery inflation and staple prices from the U.S. Bureau of Labor Statistics, and gas prices from the U.S. Energy Information Administration, then adjusts your essentials so you’re always covered.
+        Pebbles checks grocery inflation and staple prices from the U.S. Bureau of Labor Statistics, and gas prices from the U.S. Energy Information Administration, then adjusts your essentials so
+        you’re always covered.
       </p>
-      <Field label="EIA API Key" hint="A key is built in for weekly Colorado gas prices. Paste your own only if you want to use a different one.">
-        <TextInput value={s.integrations.eiaApiKey} onChange={(v) => set((x) => ({ ...x, integrations: { ...x.integrations, eiaApiKey: v.trim() } }))} placeholder="Built-in key in use" />
+      <Field
+        label="EIA API Key"
+        hint={
+          COMMUNITY
+            ? 'Free from eia.gov/opendata (Register, then check your email). Gives weekly gas prices for your state or region.'
+            : 'A key is built in for weekly gas prices. Paste your own only if you want to use a different one.'
+        }
+      >
+        <TextInput
+          value={s.integrations.eiaApiKey}
+          onChange={(v) => set((x) => ({ ...x, integrations: { ...x.integrations, eiaApiKey: v.trim() } }))}
+          placeholder={COMMUNITY ? 'Paste your EIA key' : 'Built-in key in use'}
+        />
       </Field>
       <Field label="Tax Table Update Address">
         <TextInput value={s.integrations.taxRulesUrl} onChange={(v) => set((x) => ({ ...x, integrations: { ...x.integrations, taxRulesUrl: v.trim() } }))} />
@@ -639,7 +675,15 @@ function DataSection() {
         className="btn ghost danger small"
         style={{ alignSelf: 'flex-start' }}
         onClick={async () => {
-          if (!(await ask({ title: 'Erase this device?', body: 'Everything Pebbles stores on this device is deleted. Data already synced to your computer stays there.', confirm: 'Erase', danger: true }))) return;
+          if (
+            !(await ask({
+              title: 'Erase this device?',
+              body: 'Everything Pebbles stores on this device is deleted. Data already synced to your computer stays there.',
+              confirm: 'Erase',
+              danger: true,
+            }))
+          )
+            return;
           await store.wipe();
           location.reload();
         }}
@@ -682,7 +726,8 @@ export function PhoneSync() {
           <div className="card tint" style={{ padding: 14 }}>
             <div className="strong">Paired with {hub.hubName}</div>
             <div className="small muted">
-              {hub.host}:{hub.port} · {sync.lastSyncAt ? `last synced ${new Date(sync.lastSyncAt).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}` : 'not synced yet'}
+              {hub.host}:{hub.port} ·{' '}
+              {sync.lastSyncAt ? `last synced ${new Date(sync.lastSyncAt).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}` : 'not synced yet'}
             </div>
             {sync.message && <div className="small warn mt">{sync.message}</div>}
           </div>
@@ -854,7 +899,16 @@ export function DesktopSync() {
                   <div className="strong num" style={{ fontSize: 18 }}>
                     {pairing.addresses[0] ?? '?'}:{pairing.port}
                   </div>
-                  {pairing.addresses.length > 1 && <div className="tiny muted">If that doesn’t work, try {pairing.addresses.slice(1).map((a) => `${a}:${pairing.port}`).join(' or ')}. The QR code tries them all.</div>}
+                  {pairing.addresses.length > 1 && (
+                    <div className="tiny muted">
+                      If that doesn’t work, try{' '}
+                      {pairing.addresses
+                        .slice(1)
+                        .map((a) => `${a}:${pairing.port}`)
+                        .join(' or ')}
+                      . The QR code tries them all.
+                    </div>
+                  )}
                   <div className="small muted mt">Code</div>
                   <div className="num" style={{ fontSize: 34, fontWeight: 700, letterSpacing: '0.12em' }}>
                     {pairing.code.slice(0, 3)} {pairing.code.slice(3)}
@@ -870,7 +924,15 @@ export function DesktopSync() {
                   </div>
                 )}
               </div>
-              {pairing.addresses.length > 1 && <p className="tiny muted mt">If that address doesn’t work, try: {pairing.addresses.slice(1).map((a) => `${a}:${pairing.port}`).join(', ')}</p>}
+              {pairing.addresses.length > 1 && (
+                <p className="tiny muted mt">
+                  If that address doesn’t work, try:{' '}
+                  {pairing.addresses
+                    .slice(1)
+                    .map((a) => `${a}:${pairing.port}`)
+                    .join(', ')}
+                </p>
+              )}
               <button className="btn small mt" onClick={() => void desktop!.pairingStop().then(() => setPairing(null))}>
                 Cancel
               </button>
@@ -878,7 +940,12 @@ export function DesktopSync() {
           )}
           {info && (
             <>
-              <ToggleRow title="Keep Running in the Tray When Closed" hint="So your phone can sync any time this PC is on" on={info.closeToTray} onChange={(v) => void desktop!.setPrefs({ closeToTray: v }).then(refresh)} />
+              <ToggleRow
+                title="Keep Running in the Tray When Closed"
+                hint="So your phone can sync any time this PC is on"
+                on={info.closeToTray}
+                onChange={(v) => void desktop!.setPrefs({ closeToTray: v }).then(refresh)}
+              />
               <ToggleRow title="Start Pebbles with Windows" on={info.startWithWindows} onChange={(v) => void desktop!.setPrefs({ startWithWindows: v }).then(refresh)} />
             </>
           )}
@@ -895,7 +962,8 @@ export function DesktopSync() {
                   <div className="grow">
                     <div className="strong">{d.name}</div>
                     <div className="tiny muted">
-                      Paired {fmtLong(new Date(d.pairedAt).toISOString().slice(0, 10))} · {d.lastSeen ? `last sync ${new Date(d.lastSeen).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}` : 'never synced'}
+                      Paired {fmtLong(new Date(d.pairedAt).toISOString().slice(0, 10))} ·{' '}
+                      {d.lastSeen ? `last sync ${new Date(d.lastSeen).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}` : 'never synced'}
                     </div>
                   </div>
                   <button

@@ -1,4 +1,5 @@
 import { createRoot } from 'react-dom/client';
+import { APP_NAME } from './core/edition';
 import '@fontsource-variable/inter';
 import '@fontsource-variable/fraunces';
 import './ui/theme.css';
@@ -14,6 +15,7 @@ import { checkGuidelineUpdates, refreshStorePrices } from './data/groceryActions
 
 async function boot() {
   await store.init();
+  document.title = APP_NAME;
   const root = createRoot(document.getElementById('root')!);
   root.render(<App />);
   void syncClient.start();

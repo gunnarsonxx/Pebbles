@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { COMMUNITY } from '../../core/edition';
 import { CalendarPlus, ChevronLeft, ChevronRight, Plus, Search, Users, X } from 'lucide-react';
 import type { AppData } from '../../data/useData';
 import { CategoryIcon, Field, NumberInput, Segmented, Sheet, TextInput, ToggleRow, useToast } from '../components';
@@ -33,8 +34,7 @@ export function BillsView({ data }: { data: AppData }) {
   const first = makeDate(y, m, 1);
   const last = makeDate(y, m, daysInMonth(y, m));
   const due = new Map<ISODate, { bill: Bill; amount: number }[]>();
-  for (const b of data.bills.filter((x) => x.active))
-    for (const d of billDueDates(b, first, addDays(last, 1))) due.set(d, [...(due.get(d) ?? []), { bill: b, amount: yourAmount(b) }]);
+  for (const b of data.bills.filter((x) => x.active)) for (const d of billDueDates(b, first, addDays(last, 1))) due.set(d, [...(due.get(d) ?? []), { bill: b, amount: yourAmount(b) }]);
   const paydays = new Set<ISODate>();
   for (let k = -3; k <= 4; k++) {
     const p = periodByIndex(data.settings.pay, data.upcoming.period.index + k);
@@ -89,7 +89,14 @@ export function BillsView({ data }: { data: AppData }) {
             d ? (
               <button key={d} className={`day bill-day${d === data.today ? ' today' : ''}${picked === d ? ' edited' : ''}`} onClick={() => setPicked(picked === d ? null : d)} aria-label={fmtDay(d)}>
                 <span className="d">{Number(d.slice(8))}</span>
-                {due.has(d) && <span className="tiny strong num">{usd(due.get(d)!.reduce((s, x) => s + x.amount, 0), true)}</span>}
+                {due.has(d) && (
+                  <span className="tiny strong num">
+                    {usd(
+                      due.get(d)!.reduce((s, x) => s + x.amount, 0),
+                      true,
+                    )}
+                  </span>
+                )}
                 {paydays.has(d) && <span className="payday-tag">Pay</span>}
               </button>
             ) : (
@@ -217,7 +224,11 @@ export function BillsView({ data }: { data: AppData }) {
           </div>
         ) : (
           <p className="small muted" style={{ margin: 0 }}>
-            {data.txns.length ? (thorough ? 'Nothing else looks like a bill. You can also turn any transaction into a bill from Budget → Spending.' : 'Nothing new. Tap Look Again for a closer look.') : 'Connect a bank or import statements and Pebbles will find your bills.'}
+            {data.txns.length
+              ? thorough
+                ? 'Nothing else looks like a bill. You can also turn any transaction into a bill from Budget → Spending.'
+                : 'Nothing new. Tap Look Again for a closer look.'
+              : 'Connect a bank or import statements and Pebbles will find your bills.'}
           </p>
         )}
       </div>
@@ -295,7 +306,7 @@ export function BillSheet({ bill, onClose }: { bill: Bill; onClose: () => void }
     >
       <div className="col gap-l">
         <Field label="Name">
-          <TextInput value={b.name} onChange={(v) => setB({ ...b, name: v })} placeholder="Rent, Colorado Springs Utilities, phone…" autoFocus={!bill.name} />
+          <TextInput value={b.name} onChange={(v) => setB({ ...b, name: v })} placeholder={COMMUNITY ? 'Rent, electric, phone…' : 'Rent, Colorado Springs Utilities, phone…'} autoFocus={!bill.name} />
         </Field>
         <div className="form-grid two">
           <Field label="Amount" hint={split ? 'The full bill' : undefined}>
@@ -374,7 +385,11 @@ export function BillSheet({ bill, onClose }: { bill: Bill; onClose: () => void }
               <ToggleRow title="Take Their Share Out of Rent" hint="You pay the whole bill and send them that much less for rent" on={!!b.fromRent} onChange={(v) => setB({ ...b, fromRent: v })} />
             </div>
           )}
-          {b.toRoommate && <p className="tiny muted" style={{ margin: '8px 0 0' }}>Rent you send them (by Venmo, say). Split bills you take out of it are subtracted on the Bills page.</p>}
+          {b.toRoommate && (
+            <p className="tiny muted" style={{ margin: '8px 0 0' }}>
+              Rent you send them (by Venmo, say). Split bills you take out of it are subtracted on the Bills page.
+            </p>
+          )}
         </div>
 
         <ToggleRow

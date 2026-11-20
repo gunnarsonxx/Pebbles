@@ -8,6 +8,8 @@ import { pathToFileURL } from 'node:url';
 import { Hub } from './hub';
 import type { SyncRequest } from '../src/core/sync';
 
+// "Pebbles" or "Pebbles Community": each edition keeps its own data and window
+const NAME = app.getName();
 process.on('unhandledRejection', (e) => console.error('Pebbles: unhandled', e));
 
 const SCHEME = 'pebbles-app';
@@ -92,7 +94,7 @@ function createWindow() {
     ...b,
     minWidth: 380,
     minHeight: 560,
-    title: 'Pebbles',
+    title: NAME,
     backgroundColor: '#F3EFE6',
     icon: asset('icon.png'),
     autoHideMenuBar: true,
@@ -138,12 +140,12 @@ function createTray() {
   try {
     const img = nativeImage.createFromPath(asset('tray.png'));
     tray = new Tray(img.isEmpty() ? nativeImage.createEmpty() : img);
-    tray.setToolTip('Pebbles');
+    tray.setToolTip(NAME);
     const menu: MenuItemConstructorOptions[] = [
-      { label: 'Open Pebbles', click: showWindow },
+      { label: `Open ${NAME}`, click: showWindow },
       { type: 'separator' },
       {
-        label: 'Quit Pebbles',
+        label: `Quit ${NAME}`,
         click: () => {
           quitting = true;
           app.quit();
@@ -219,7 +221,7 @@ app.on('window-all-closed', () => {
 // Phones reach Pebbles over your home Wi-Fi. Windows blocks that unless there's a rule for it
 // (the "allow access" prompt is easy to miss, and networks marked Public block it anyway).
 
-const RULE = 'Pebbles (phone sync)';
+const RULE = `${NAME} (phone sync)`;
 
 function run(cmd: string, args: string[]): Promise<{ code: number; out: string }> {
   return new Promise((resolve) => {
@@ -241,12 +243,15 @@ async function firewallStatus(): Promise<{ supported: boolean; allowed: boolean;
   const exe = process.execPath;
   // Windows saves a hidden *block* rule for an app if its "Allow access?" popup was closed;
   // block rules win over allow rules, so look for those first
-  const r = await run('powershell.exe', ps(`
+  const r = await run(
+    'powershell.exe',
+    ps(`
 $exe = ${q(exe)}
 $rules = Get-NetFirewallApplicationFilter -Program $exe -ErrorAction SilentlyContinue | Get-NetFirewallRule -ErrorAction SilentlyContinue | Where-Object { $_.Direction -eq 'Inbound' -and $_.Enabled -eq 'True' }
 if ($rules | Where-Object { $_.Action -eq 'Block' }) { 'BLOCKED' }
 elseif (($rules | Where-Object { $_.Action -eq 'Allow' }) -or (Get-NetFirewallRule -DisplayName ${q(RULE)} -ErrorAction SilentlyContinue)) { 'ALLOWED' }
-else { 'NONE' }`));
+else { 'NONE' }`),
+  );
   const out = r.out.trim();
   return { supported: true, allowed: /ALLOWED/.test(out), blocked: /BLOCKED/.test(out) };
 }

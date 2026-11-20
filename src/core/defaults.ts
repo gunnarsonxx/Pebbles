@@ -1,8 +1,9 @@
+import { COMMUNITY } from './edition';
 import type { IntegrationSettings, PayRate, Settings } from './types';
 
-
 // Free U.S. EIA open-data key (read-only public gas prices). Your own key in Settings overrides it.
-export const BUILTIN_EIA_KEY = 'CNMWTKhfFBG8krrGRmjrcrmLnQhdWt8RdJR6wRQn';
+// The Community build has none: everyone there uses their own (free, takes a minute).
+export const BUILTIN_EIA_KEY = import.meta.env?.VITE_EDITION === 'community' ? '' : 'CNMWTKhfFBG8krrGRmjrcrmLnQhdWt8RdJR6wRQn';
 
 export const TAX_RULES_URL = 'https://raw.githubusercontent.com/gunnarsonxx/Pebbles/main/data/tax-rules.json';
 
@@ -29,8 +30,8 @@ export function defaultSettings(): Settings {
     },
     stateTax: {
       state: 'CO',
-      city: 'Colorado Springs',
-      county: 'El Paso',
+      city: COMMUNITY ? '' : 'Colorado Springs',
+      county: COMMUNITY ? '' : 'El Paso',
       dr0004Allowance: null,
       extraWithholding: 0,
       customFlatRate: null,
@@ -84,7 +85,7 @@ export function defaultSettings(): Settings {
       krogerLocationId: '',
       krogerLocationName: '',
       krogerStores: [],
-      zip: '80903',
+      zip: COMMUNITY ? '' : '80903',
       homeAddress: '',
       homeLat: null,
       homeLon: null,

@@ -22,6 +22,8 @@ A calm, earthy money tracker and paycheck planner, for your Android phone and yo
 
 ## Install
 
+> **Not the owner?** Use **Pebbles Community** (`Pebbles-Community.apk` / `Pebbles-Community-Setup.exe` on the Releases page). It has nothing personal built in and walks you through setting it up for yourself. See [COMMUNITY.md](COMMUNITY.md).
+
 Every push to this repository builds both apps on GitHub. Open the repository's **Releases** page (right side of the repo home page) and pick the newest **Pebbles build**.
 
 ### Windows computer

@@ -13,7 +13,11 @@ import { defaultSettings } from './defaults';
 import type { HttpFn } from './market';
 import type { Account, Goal, Receipt, Transaction } from './types';
 
-const L = (s: string, confidence = 95): OcrLine[] => s.trim().split('\n').map((text) => ({ text: text.trim(), confidence }));
+const L = (s: string, confidence = 95): OcrLine[] =>
+  s
+    .trim()
+    .split('\n')
+    .map((text) => ({ text: text.trim(), confidence }));
 
 // ---------------- Plaid ----------------
 
@@ -67,7 +71,18 @@ describe('plaid', () => {
         const first = !b.cursor;
         return {
           json: {
-            added: [{ transaction_id: first ? 't1' : 't2', account_id: 'a1', amount: first ? 82.14 : -1384.22, date: '2026-11-03', name: first ? 'KING SOOPERS #12' : 'ACME PAYROLL', merchant_name: first ? 'King Soopers' : null, pending: false, personal_finance_category: first ? { primary: 'FOOD_AND_DRINK', detailed: 'FOOD_AND_DRINK_GROCERIES' } : { primary: 'INCOME', detailed: 'INCOME_WAGES' } }],
+            added: [
+              {
+                transaction_id: first ? 't1' : 't2',
+                account_id: 'a1',
+                amount: first ? 82.14 : -1384.22,
+                date: '2026-11-03',
+                name: first ? 'KING SOOPERS #12' : 'ACME PAYROLL',
+                merchant_name: first ? 'King Soopers' : null,
+                pending: false,
+                personal_finance_category: first ? { primary: 'FOOD_AND_DRINK', detailed: 'FOOD_AND_DRINK_GROCERIES' } : { primary: 'INCOME', detailed: 'INCOME_WAGES' },
+              },
+            ],
             modified: [],
             removed: [],
             accounts: [{ account_id: 'a1', name: 'Checking', mask: '1234', type: 'depository', subtype: 'checking', balances: { current: 1000, available: 990 } }],
@@ -88,7 +103,19 @@ describe('plaid', () => {
   });
 
   it('spots transactions already imported from a statement', () => {
-    const plaidTxn = { id: 'p_x', accountId: 'pa', date: '2026-11-04', description: 'King Soopers · KING SOOPERS #12', merchant: 'King Soopers', amount: -82.14, category: 'groceries', importId: null, excluded: false, note: '', source: 'plaid' } as Transaction;
+    const plaidTxn = {
+      id: 'p_x',
+      accountId: 'pa',
+      date: '2026-11-04',
+      description: 'King Soopers · KING SOOPERS #12',
+      merchant: 'King Soopers',
+      amount: -82.14,
+      category: 'groceries',
+      importId: null,
+      excluded: false,
+      note: '',
+      source: 'plaid',
+    } as Transaction;
     const imported = { ...plaidTxn, id: 't1', date: '2026-11-03', description: 'KING SOOPERS #0123 COLORADO SPRI CO', source: 'import' } as Transaction;
     expect(looksLikeDuplicate(plaidTxn, [imported])).toBe(true);
     expect(looksLikeDuplicate({ ...plaidTxn, amount: -10 }, [imported])).toBe(false);
@@ -140,7 +167,8 @@ describe('receipts', () => {
   });
 
   it('reads a Walmart receipt with UPCs and flags', () => {
-    const r = parseReceipt(L(`
+    const r = parseReceipt(
+      L(`
 Walmart
 Save money. Live better.
 GV WHOLE MILK 007874235187 F 3.48 N
@@ -150,7 +178,8 @@ SUBTOTAL 7.84
 TAX 1 4.070 % 0.00
 TOTAL 7.84
 11/16/26 12:01:15
-`));
+`),
+    );
     expect(r.store).toBe('Walmart');
     expect(r.items.map((i) => i.name)).toEqual(['Milk', 'Bananas', 'Eggs']);
     expect(r.items[0].price).toBe(3.48);
@@ -170,7 +199,10 @@ TOTAL 7.84
       id: date,
       store: 'King Soopers',
       date,
-      items: [...base.items.filter((i) => i.dept !== 'snacks'), ...(extra ? [{ raw: extra[0], ...cleanItemName(extra[0]), price: extra[1], qty: 1, dept: deptFor(extra[0], cleanItemName(extra[0]).key) }] : [])],
+      items: [
+        ...base.items.filter((i) => i.dept !== 'snacks'),
+        ...(extra ? [{ raw: extra[0], ...cleanItemName(extra[0]), price: extra[1], qty: 1, dept: deptFor(extra[0], cleanItemName(extra[0]).key) }] : []),
+      ],
       subtotal: null,
       tax: 0.31,
       total: null,
@@ -249,14 +281,43 @@ describe('savings account', () => {
     expect(p[12].interestTotal).toBeGreaterThan(200);
   });
   it('splits interest across goals by balance, to the cent', () => {
-    const s = splitAcrossGoals(12.34, goals, new Map([['a', 1000], ['b', 3000]]));
+    const s = splitAcrossGoals(
+      12.34,
+      goals,
+      new Map([
+        ['a', 1000],
+        ['b', 3000],
+      ]),
+    );
     expect(s.reduce((x, y) => x + y.amount, 0)).toBeCloseTo(12.34, 2);
     expect(s.find((x) => x.goalId === 'b')!.amount).toBeCloseTo(9.25, 1);
   });
   it('turns interest payments into pebbles once', () => {
     const marcus: Account = { id: 'm', name: 'Marcus Online Savings', type: 'savings', holdsGoals: true };
-    const txns = [{ id: 'i1', accountId: 'm', date: '2026-10-31', description: 'Interest Paid', merchant: 'Interest', amount: 10, category: 'income_other', importId: null, excluded: false, note: '' } as Transaction];
-    const first = interestContributions(txns, marcus, goals, [], new Map([['a', 500], ['b', 500]]));
+    const txns = [
+      {
+        id: 'i1',
+        accountId: 'm',
+        date: '2026-10-31',
+        description: 'Interest Paid',
+        merchant: 'Interest',
+        amount: 10,
+        category: 'income_other',
+        importId: null,
+        excluded: false,
+        note: '',
+      } as Transaction,
+    ];
+    const first = interestContributions(
+      txns,
+      marcus,
+      goals,
+      [],
+      new Map([
+        ['a', 500],
+        ['b', 500],
+      ]),
+    );
     expect(first.reduce((s, c) => s + c.amount, 0)).toBeCloseTo(10, 2);
     expect(interestContributions(txns, marcus, goals, first, new Map())).toEqual([]);
     expect(goalsAccount([{ id: 'x', name: 'Marcus Savings', type: 'savings' }])?.id).toBe('x');
@@ -269,7 +330,9 @@ describe('savings account', () => {
 describe('payday moves', () => {
   const s = defaultSettings();
   const essentials = estimateEssentials(s, [], null, '2026-11-19');
-  const goals: Goal[] = [{ id: 'g', name: 'Ring', target: 4500, targetDate: null, image: null, gem: 'sapphire', priority: 2, isEmergency: false, createdAt: 0, completedAt: null, archived: false, note: '' }];
+  const goals: Goal[] = [
+    { id: 'g', name: 'Ring', target: 4500, targetDate: null, image: null, gem: 'sapphire', priority: 2, isEmergency: false, createdAt: 0, completedAt: null, archived: false, note: '' },
+  ];
   const plan = buildPlan({ settings: s, net: 1400, payday: '2026-11-27', nextPayday: '2026-12-11', bills: [], essentials, goals, contributions: [] });
   const period = { index: 0, start: '2026-11-08', end: '2026-11-21', payday: '2026-11-27' };
   it('tells you what to move', () => {
@@ -291,8 +354,27 @@ describe('payday moves', () => {
 
 describe('updates', () => {
   const json = [
-    { tag_name: 'build-5', name: 'Pebbles build 5', published_at: '2026-11-20', prerelease: true, draft: false, html_url: 'u5', assets: [{ name: 'Pebbles.apk', browser_download_url: 'https://github.com/x/apk5', size: 1, digest: 'sha256:abc' }] },
-    { tag_name: 'build-4', name: 'Pebbles build 4', published_at: '2026-11-19', prerelease: true, draft: false, html_url: 'u4', assets: [{ name: 'Pebbles.apk', browser_download_url: 'a4', size: 1 }, { name: 'Pebbles-Setup.exe', browser_download_url: 'e4', size: 1 }] },
+    {
+      tag_name: 'build-5',
+      name: 'Pebbles build 5',
+      published_at: '2026-11-20',
+      prerelease: true,
+      draft: false,
+      html_url: 'u5',
+      assets: [{ name: 'Pebbles.apk', browser_download_url: 'https://github.com/x/apk5', size: 1, digest: 'sha256:abc' }],
+    },
+    {
+      tag_name: 'build-4',
+      name: 'Pebbles build 4',
+      published_at: '2026-11-19',
+      prerelease: true,
+      draft: false,
+      html_url: 'u4',
+      assets: [
+        { name: 'Pebbles.apk', browser_download_url: 'a4', size: 1 },
+        { name: 'Pebbles-Setup.exe', browser_download_url: 'e4', size: 1 },
+      ],
+    },
   ];
   it('finds the newest build for each platform', () => {
     const r = parseReleases(json);
@@ -440,8 +522,33 @@ describe('pay stub columns: this period vs. year to date', async () => {
   };
   row(['Pay Period: 11/1/2026 THRU 11/14/2026', 700]);
   row(['CURRENT', 290], ['YTD', 455], ['This', 690], ['This', 935]);
-  row(['Description', 40], ['Rate', 245], ['Hours', 290], ['Earnings', 340], ['Hours', 410], ['Earnings', 480], ['Description', 545], ['Period', 690], ['YTD', 760], ['Description', 800], ['Period', 935], ['YTD', 1010]);
-  row(['Regular', 40], ['22.500', 245], ['58.50', 300], ['1316.25', 355], ['1667.00', 430], ['38447.54', 495], ['Reimbursement', 545], ['181.18', 760], ['Federal W/H', 800], ['119.84', 935], ['3298.76', 1010]);
+  row(
+    ['Description', 40],
+    ['Rate', 245],
+    ['Hours', 290],
+    ['Earnings', 340],
+    ['Hours', 410],
+    ['Earnings', 480],
+    ['Description', 545],
+    ['Period', 690],
+    ['YTD', 760],
+    ['Description', 800],
+    ['Period', 935],
+    ['YTD', 1010],
+  );
+  row(
+    ['Regular', 40],
+    ['22.500', 245],
+    ['58.50', 300],
+    ['1316.25', 355],
+    ['1667.00', 430],
+    ['38447.54', 495],
+    ['Reimbursement', 545],
+    ['181.18', 760],
+    ['Federal W/H', 800],
+    ['119.84', 935],
+    ['3298.76', 1010],
+  );
   row(['Regular', 40], ['24.500', 245], ['14.50', 300], ['355.25', 360], ['FICA', 800], ['103.64', 935], ['2723.85', 1010]);
   row(['Holiday', 40], ['32.00', 430], ['1096.52', 495], ['Medicare', 800], ['24.24', 940], ['637.02', 1010]);
   row(['Overtime', 40], ['53.25', 430], ['1909.69', 495], ['CO W/H', 800], ['65.00', 940], ['1707.00', 1010]);
@@ -502,5 +609,51 @@ describe('plain item names', () => {
       ['EGG ROLLS', 'Egg Rolls'],
     ];
     for (const [raw, want] of cases) expect([raw, cleanItemName(raw).name]).toEqual([raw, want]);
+  });
+});
+
+describe('Community edition pieces', () => {
+  it('picks a gas series and food region for any state', async () => {
+    const { gasSeries, blsRegion, STATE_APPROX_RATE } = await import('./regions');
+    const { STATE_NAMES } = await import('./taxrules');
+    expect(gasSeries('CO').series).toBe('EMM_EPMR_PTE_SCO_DPG');
+    expect(gasSeries('GA').series).toBe('EMM_EPMR_PTE_R1Z_DPG');
+    expect(gasSeries('AZ').label).toBe('West Coast Average');
+    expect(blsRegion('NY').code).toBe('0100');
+    for (const st of Object.keys(STATE_NAMES)) {
+      expect(gasSeries(st).series).not.toBe('EMM_EPMR_PTE_NUS_DPG');
+      expect(STATE_APPROX_RATE[st]).toBeTypeOf('number');
+    }
+  });
+  it('estimates state tax for a state without tables', async () => {
+    const { computeWithholding } = await import('./tax');
+    const { defaultSettings } = await import('./defaults');
+    const { BUNDLED_RULES, rulesForYear } = await import('./taxrules');
+    const s = defaultSettings();
+    s.stateTax = { ...s.stateTax, state: 'GA', famliEnabled: false };
+    const w = computeWithholding(2000, s, rulesForYear(BUNDLED_RULES, 2026).rules);
+    const st = w.taxes.find((t) => t.key === 'state')!;
+    expect(st.amount).toBeGreaterThan(80);
+    expect(st.detail).toMatch(/estimate/);
+    expect(w.warnings.join(' ')).not.toMatch(/doesn't have/);
+  });
+  it('only installs its own edition’s files', async () => {
+    const { parseReleases } = await import('./updates');
+    const rel = [
+      {
+        tag_name: 'build-50',
+        name: 'b',
+        published_at: '',
+        prerelease: true,
+        draft: false,
+        html_url: '',
+        assets: [
+          { name: 'Pebbles.apk', browser_download_url: 'p', size: 1 },
+          { name: 'Pebbles-Community.apk', browser_download_url: 'c', size: 1 },
+        ],
+      },
+    ];
+    expect(parseReleases(rel)[0].apk?.url).toBe('p');
+    expect(parseReleases(rel, { apk: 'Pebbles-Community.apk', exe: 'x' })[0].apk?.url).toBe('c');
   });
 });

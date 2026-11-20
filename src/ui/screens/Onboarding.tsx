@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { APP_NAME, COMMUNITY } from '../../core/edition';
 import { ArrowRight, ChevronLeft } from 'lucide-react';
 import type { AppData } from '../../data/useData';
 import { Field, NumberInput, PebbleLogo, Segmented, TextInput, ToggleRow } from '../components';
@@ -49,10 +50,14 @@ export function Onboarding({ data }: { data: AppData }) {
         {step === 0 && (
           <div className="col gap-l">
             <PebbleLogo size={56} />
-            <h1>Welcome to Pebbles</h1>
-            <p className="ink2">
-              A calm place for your money. Know exactly what payday will bring, see where it goes, and build your savings one pebble at a time.
-            </p>
+            <h1>Welcome to {APP_NAME}</h1>
+            <p className="ink2">A calm place for your money. Know exactly what payday will bring, see where it goes, and build your savings one pebble at a time.</p>
+            {COMMUNITY && (
+              <p className="small ink2" style={{ margin: 0 }}>
+                Everything here is set up by you, for you: your state’s taxes, your pay, your stores. Nothing is shared, and the optional connections (banks, grocery and gas prices) use your own free
+                keys. Settings → Connections walks you through them.
+              </p>
+            )}
             <Field label="What should we call you?">
               <TextInput value={s.name} onChange={(v) => setS({ ...s, name: v })} placeholder="First name" autoFocus />
             </Field>
@@ -68,7 +73,8 @@ export function Onboarding({ data }: { data: AppData }) {
               (pairFirst ? (
                 <div className="col">
                   <p className="small ink2">
-                    Click <strong>Pair a phone</strong>, then on your phone open <strong>Settings → Sync & devices</strong> and enter the address and code (or scan the QR code). Everything from your phone appears here in a few seconds.
+                    Click <strong>Pair a phone</strong>, then on your phone open <strong>Settings → Sync & devices</strong> and enter the address and code (or scan the QR code). Everything from your
+                    phone appears here in a few seconds.
                   </p>
                   <DesktopSync />
                 </div>
@@ -92,21 +98,14 @@ export function Onboarding({ data }: { data: AppData }) {
             <div className="card tint" style={{ padding: 14 }}>
               <div className="small muted">Base pay per paycheck</div>
               <div className="big-number">{usd(p.workDays.length * 2 * shiftHours(p) * p.baseRate)}</div>
-              <div className="small muted">
-                {p.workDays.length * 2 * shiftHours(p)} hours every two weeks. Different-rate days and missed days get adjusted from here.
-              </div>
+              <div className="small muted">{p.workDays.length * 2 * shiftHours(p)} hours every two weeks. Different-rate days and missed days get adjusted from here.</div>
             </div>
             <div className="form-grid two">
               <Field label="First Day of a Recent Pay Period">
                 <input className="input" type="date" value={p.periodAnchor} onChange={(e) => e.target.value && setS({ ...s, pay: { ...p, periodAnchor: e.target.value } })} />
               </Field>
               <Field label="Payday for That Period">
-                <input
-                  className="input"
-                  type="date"
-                  value={payday}
-                  onChange={(e) => e.target.value && setS({ ...s, pay: { ...p, paydayOffset: Math.max(0, diffDays(e.target.value, periodEnd)) } })}
-                />
+                <input className="input" type="date" value={payday} onChange={(e) => e.target.value && setS({ ...s, pay: { ...p, paydayOffset: Math.max(0, diffDays(e.target.value, periodEnd)) } })} />
               </Field>
             </div>
             <p className="small ink2">
@@ -121,7 +120,11 @@ export function Onboarding({ data }: { data: AppData }) {
             <p className="ink2">Pebbles estimates federal, Social Security, Medicare, state and local taxes for every paycheck, and checks online for tax changes.</p>
             <div className="form-grid two">
               <Field label="State You Work In">
-                <select className="input" value={s.stateTax.state} onChange={(e) => setS({ ...s, stateTax: { ...s.stateTax, state: e.target.value, localTax: null } })}>
+                <select
+                  className="input"
+                  value={s.stateTax.state}
+                  onChange={(e) => setS({ ...s, stateTax: { ...s.stateTax, state: e.target.value, localTax: null, famliEnabled: e.target.value === 'CO' } })}
+                >
                   {Object.entries(STATE_NAMES).map(([k, v]) => (
                     <option key={k} value={k}>
                       {v}
@@ -131,6 +134,9 @@ export function Onboarding({ data }: { data: AppData }) {
               </Field>
               <Field label="City">
                 <TextInput value={s.stateTax.city} onChange={(v) => setS({ ...s, stateTax: { ...s.stateTax, city: v } })} />
+              </Field>
+              <Field label="ZIP Code" hint="For nearby stores and gas stations">
+                <TextInput value={s.integrations.zip} onChange={(v) => setS({ ...s, integrations: { ...s.integrations, zip: v.trim() } })} />
               </Field>
             </div>
             <Field label="Filing Status on Your W-4">

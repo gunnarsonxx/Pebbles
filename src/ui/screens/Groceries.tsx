@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { PRICE_STORE, PRICE_STORE_SHORT } from '../../core/edition';
 import { Camera, RefreshCw, ShoppingBasket, Store, Tag } from 'lucide-react';
 import type { AppData } from '../../data/useData';
 import { Empty, Segmented, useToast } from '../components';
@@ -69,7 +70,7 @@ export function GroceriesView({ data, openSettings }: { data: AppData; openSetti
       <>
         <div className="card">
           <Empty icon={<ShoppingBasket className="big" />} title="Snap your grocery receipts">
-            Pebbles learns what you buy on a normal trip, notices the extras, figures out your real grocery budget with tax, and can check King Soopers prices for the things you buy most.
+            Pebbles learns what you buy on a normal trip, notices the extras, figures out your real grocery budget with tax, and can check {PRICE_STORE} prices for the things you buy most.
           </Empty>
           <div className="center">
             <button className="btn primary" onClick={() => setScanning(true)}>
@@ -113,7 +114,14 @@ export function GroceriesView({ data, openSettings }: { data: AppData; openSetti
                 {g.usual.length > 0 && (
                   <div className="row between small" style={{ alignItems: 'flex-start', gap: 10 }}>
                     <span>
-                      On almost every trip: <span className="ink2">{g.usual.slice(0, 5).map((u) => u.name).join(', ')}{g.usual.length > 5 ? '…' : ''}</span>
+                      On almost every trip:{' '}
+                      <span className="ink2">
+                        {g.usual
+                          .slice(0, 5)
+                          .map((u) => u.name)
+                          .join(', ')}
+                        {g.usual.length > 5 ? '…' : ''}
+                      </span>
                     </span>
                     <span className="num strong">{usd(g.usualTrip * (1 + taxRate))}</span>
                   </div>
@@ -129,9 +137,11 @@ export function GroceriesView({ data, openSettings }: { data: AppData; openSetti
                 {showMath && (
                   <div className="coverage-math mt-s tiny ink2" style={{ gap: 6 }}>
                     <div>
-                      <strong>Grocery budget:</strong> everything on your receipts from the last {Math.min(120, g.spanDays)} days that’s a need (not snacks, drinks, alcohol, nicotine or hot food), ÷ {g.spanDays} days × 30.4 days, plus {(taxRate * 100).toFixed(1)}% tax
+                      <strong>Grocery budget:</strong> everything on your receipts from the last {Math.min(120, g.spanDays)} days that’s a need (not snacks, drinks, alcohol, nicotine or hot food), ÷{' '}
+                      {g.spanDays} days × 30.4 days, plus {(taxRate * 100).toFixed(1)}% tax
                       {need != null ? ` = ${usd(need)} a month` : ''}. It’s never set below the USDA Thrifty plan for your household
-                      {need != null && data.essentials.groceriesMonthly > need + 1 ? ` (${usd(data.essentials.groceriesMonthly, true)}), so that’s what’s used for now` : ''}. {need == null ? 'Until you have three receipts it uses the USDA plan.' : ''}
+                      {need != null && data.essentials.groceriesMonthly > need + 1 ? ` (${usd(data.essentials.groceriesMonthly, true)}), so that’s what’s used for now` : ''}.{' '}
+                      {need == null ? 'Until you have three receipts it uses the USDA plan.' : ''}
                     </div>
                     <div>
                       <strong>Average trip:</strong> the totals of your {g.trips} receipts ÷ {g.trips}.
@@ -144,7 +154,8 @@ export function GroceriesView({ data, openSettings }: { data: AppData; openSetti
                     </div>
                     {g.usual.length > 0 && (
                       <div>
-                        <strong>On almost every trip:</strong> items on {g.trips >= 3 ? 'at least 40% of your trips (or 3+ of them)' : 'both of your trips'}: {g.usual.map((u) => `${u.name} ${usd(u.avgPrice)} × ${Math.round(u.share * 100)}% of trips`).join(', ')}, plus tax. That’s just your regulars, not a whole trip.
+                        <strong>On almost every trip:</strong> items on {g.trips >= 3 ? 'at least 40% of your trips (or 3+ of them)' : 'both of your trips'}:{' '}
+                        {g.usual.map((u) => `${u.name} ${usd(u.avgPrice)} × ${Math.round(u.share * 100)}% of trips`).join(', ')}, plus tax. That’s just your regulars, not a whole trip.
                       </div>
                     )}
                     <div className="muted">Backlog receipts count from the oldest one, so if you skip trips in between, the monthly numbers come out low until newer receipts fill in.</div>
@@ -206,7 +217,7 @@ export function GroceriesView({ data, openSettings }: { data: AppData; openSetti
               </button>
             ) : (
               <button className="btn small" onClick={openSettings}>
-                <Store /> Add King Soopers Prices
+                <Store /> Add {PRICE_STORE_SHORT} Prices
               </button>
             )}
           </div>
@@ -226,7 +237,7 @@ export function GroceriesView({ data, openSettings }: { data: AppData; openSetti
           {deals.length > 0 && (
             <div style={{ marginBottom: 12 }}>
               <div className="row gap-s small strong" style={{ marginBottom: 4 }}>
-                <Tag size={15} /> On sale this week at King Soopers
+                <Tag size={15} /> On sale this week at {PRICE_STORE_SHORT}
               </div>
               {deals.map(({ u, p }) => (
                 <div key={p.id} className="row between small" style={{ padding: '4px 0' }}>

@@ -5,7 +5,8 @@ import { http } from '../platform';
 import { plaidCreds } from './bank';
 import { createHostedLink } from '../core/plaid';
 import { krogerPrice, krogerToken } from '../core/kroger';
-import { fetchBls, fetchEiaColoradoGas } from '../core/market';
+import { fetchBls, fetchEiaGas } from '../core/market';
+import { gasSeries } from '../core/regions';
 import { BUILTIN_EIA_KEY, krogerStoresOf } from '../core/defaults';
 import { RELEASES_API } from '../core/updates';
 import { googleStations, placesFuelSummary } from '../core/gas';
@@ -23,7 +24,7 @@ export interface CheckResult {
 export const CHECK_LABELS: Record<CheckId, string> = {
   plaid: 'Plaid (Bank Connections)',
   kroger: 'Kroger (King Soopers Prices)',
-  eia: 'EIA (Colorado Gas Prices)',
+  eia: 'EIA (Gas Prices)',
   bls: 'BLS (Grocery Price Trends)',
   google: 'Google Maps (Gas Station Prices)',
   github: 'Pebbles Updates & Tax Tables',
@@ -71,8 +72,11 @@ async function attempt(id: CheckId): Promise<CheckResult> {
         return done(true, `Keys accepted · ${stores.length} store${stores.length === 1 ? '' : 's'}${p?.regular ? ` · milk ${'$' + p.regular.toFixed(2)} at ${stores[0].name}` : ''}`);
       }
       case 'eia': {
-        const g = await fetchEiaColoradoGas(http, s.eiaApiKey.trim() || BUILTIN_EIA_KEY);
-        return done(true, `Colorado regular $${g.price.toFixed(2)}/gal (week of ${g.asOf})`);
+        const key = s.eiaApiKey.trim() || BUILTIN_EIA_KEY;
+        if (!key) return done(null, 'Not set up yet: add your free EIA key');
+        const area = gasSeries(getSettings().stateTax.state);
+        const g = await fetchEiaGas(http, key, area.series);
+        return done(true, `${area.label.replace(' Average', '')} regular $${g.price.toFixed(2)}/gal (week of ${g.asOf})`);
       }
       case 'bls': {
         const series = await fetchBls(http, ['CUUR0400SAF11']);

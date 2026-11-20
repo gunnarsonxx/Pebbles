@@ -1,4 +1,5 @@
-// Finding newer builds of Pebbles on the repository's Releases page.
+// Finding newer builds of Pebbles on the repository's Releases page. Each edition only installs its own files.
+import { ASSET_APK, ASSET_EXE } from './edition';
 export const REPO = 'gunnarsonxx/Pebbles';
 export const RELEASES_API = `https://api.github.com/repos/${REPO}/releases?per_page=15`;
 export const RELEASES_PAGE = `https://github.com/${REPO}/releases`;
@@ -45,7 +46,7 @@ function asset(list: GhAsset[], name: string): ReleaseAsset | null {
   return { url: a.browser_download_url, sha256: sha, size: a.size };
 }
 
-export function parseReleases(json: unknown): ReleaseInfo[] {
+export function parseReleases(json: unknown, names: { apk: string; exe: string } = { apk: ASSET_APK, exe: ASSET_EXE }): ReleaseInfo[] {
   if (!Array.isArray(json)) return [];
   return (json as GhRelease[])
     .filter((r) => !r.draft && /^build-\d+$/.test(r.tag_name))
@@ -56,8 +57,8 @@ export function parseReleases(json: unknown): ReleaseInfo[] {
       publishedAt: r.published_at ?? '',
       prerelease: r.prerelease,
       pageUrl: r.html_url,
-      apk: asset(r.assets ?? [], 'Pebbles.apk'),
-      exe: asset(r.assets ?? [], 'Pebbles-Setup.exe'),
+      apk: asset(r.assets ?? [], names.apk),
+      exe: asset(r.assets ?? [], names.exe),
     }))
     .sort((a, b) => b.build - a.build);
 }
