@@ -118,6 +118,11 @@ export function detectRecurring(txns: Transaction[], bills: Bill[] = [], asOf?: 
   for (const [key, list] of groups) {
     list.sort((a, b) => a.date.localeCompare(b.date));
     if (opts.dismissed?.has(key)) continue;
+    // the same charge seen in two accounts (your bank and PayPal): keep one
+    for (let i = list.length - 1; i > 0; i--) {
+      const dup = list.findIndex((x, j) => j < i && x.accountId !== list[i].accountId && Math.abs(x.amount - list[i].amount) < 0.01 && Math.abs(diffDays(list[i].date, x.date)) <= 10);
+      if (dup >= 0) list.splice(i, 1);
+    }
     if (list.length < 2) {
       // one charge from a name that's almost always a subscription
       const only = list[0];

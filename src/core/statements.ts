@@ -316,6 +316,8 @@ const PREFIXES = [
   /^\d{1,2}\/\d{1,2}\s+/,
   /^(SQ|TST|PP|SP|PY|IN|DD|BT)\s?\*\s*/,
   /^PAYPAL\s?\*\s*/,
+  // how PayPal itself words purchases
+  /^(PAYMENT TO|PAYMENT FROM|PREAPPROVED PAYMENT( BILL USER PAYMENT)?|EXPRESS CHECKOUT PAYMENT|SUBSCRIPTION PAYMENT|WEBSITE PAYMENT|MOBILE PAYMENT|PAYPAL PAYMENT TO)\s*:?\s*/,
 ];
 
 // Well-known merchants get a friendly, consistent name.

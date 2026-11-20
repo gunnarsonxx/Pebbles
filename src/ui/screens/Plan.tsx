@@ -4,7 +4,7 @@ import type { GoTo } from '../App';
 import { SplitBar } from '../charts';
 import { CategoryIcon, GemIcon } from '../components';
 import { InsightList } from '../InsightList';
-import { GuidelinesCard } from '../AutopilotCards';
+import { CoverageCard, GuidelinesCard } from '../AutopilotCards';
 import { monthlyBillsTotal } from '../../core/budget';
 import { detectRecurring } from '../../core/analytics';
 import { fmtDay, fmtShort, addDays } from '../../core/dates';
@@ -20,6 +20,8 @@ export function PlanScreen({ data, go }: { data: AppData; go: GoTo }) {
 
   return (
     <div>
+      <CoverageCard data={data} />
+      <div className="mt" />
       <div className="card">
         <div className="card-head">
           <div>

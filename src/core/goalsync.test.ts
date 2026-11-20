@@ -148,3 +148,56 @@ describe('PayPal purchases count once', async () => {
     expect(dedupePaypal(applied, accounts)).toEqual([]);
   });
 });
+
+describe('one subscription, two accounts', async () => {
+  const { detectRecurring } = await import('./analytics');
+  const { cleanMerchant } = await import('./statements');
+  it('PayPal’s “Payment To” and the bank’s “PAYPAL *” are the same merchant, counted once', () => {
+    expect(cleanMerchant('Payment To Crunchyroll')).toBe(cleanMerchant('PAYPAL *CRUNCHYROLL'));
+    const t = (id: string, accountId: string, date: string, description: string) => ({ id, accountId, date, description, merchant: '', amount: -10.8, category: 'subscriptions', importId: null, excluded: false, note: '' });
+    const txns = [
+      t('a', 'usaa', '2026-09-09', 'PAYPAL *CRUNCHYROLL'),
+      t('b', 'pp', '2026-09-08', 'Payment To Crunchyroll'),
+      t('c', 'usaa', '2026-10-09', 'PAYPAL *CRUNCHYROLL'),
+      t('d', 'pp', '2026-10-08', 'Payment To Crunchyroll'),
+      t('e', 'usaa', '2026-11-09', 'PAYPAL *CRUNCHYROLL'),
+      t('f', 'pp', '2026-11-08', 'Payment To Crunchyroll'),
+    ];
+    const subs = detectRecurring(txns, [], '2026-11-20');
+    expect(subs).toHaveLength(1);
+    expect(subs[0]).toMatchObject({ amount: 10.8, frequency: 'monthly', count: 3 });
+  });
+});
+
+describe('bills covered before payday', async () => {
+  const { coverage } = await import('./coverage');
+  const bill = (p: Partial<import('./types').Bill>) => ({ id: p.name ?? 'b', name: 'Bill', amount: 0, dueDay: 1, dueMonth: null, anchorDate: null, frequency: 'monthly' as const, category: 'utilities', autopay: false, active: true, matchPattern: '', ...p });
+  const usaa = { id: 'usaa', name: 'Checking', institution: 'USAA', type: 'checking' as const, balance: 1300, available: 1250, balanceDate: '2026-11-25' };
+  const bills = [
+    bill({ name: 'Rent', amount: 1000, dueDay: 1, toRoommate: true, category: 'housing', matchPattern: 'VENMO' }),
+    bill({ name: 'Internet', amount: 70, dueDay: 3, yourSharePct: 50, fromRent: true }),
+    bill({ name: 'Crunchyroll', amount: 10.8, dueDay: 9, matchPattern: 'CRUNCHYROLL' }),
+  ];
+  it('subtracts what leaves the account before payday and groceries/gas until then', () => {
+    const c = coverage({ account: usaa, bills, txns: [], today: '2026-11-25', nextPayday: '2026-12-04', essentialsMonthly: 608 })!;
+    // rent goes out as $965 (their $35 of internet comes off), internet is paid in full
+    expect(c.bills.map((b) => [b.bill.name, b.amount])).toEqual([
+      ['Rent', 965],
+      ['Internet', 70],
+    ]);
+    expect(c.billsLeft).toBe(1035);
+    expect(c.living).toBe(180); // 9 days of $608/month
+    expect(c.left).toBe(1250 - 1035 - 180);
+    expect(c.status).toBe('tight');
+  });
+  it('a bill already paid isn’t counted again, and a shortfall shows', () => {
+    const paid = [{ id: 't', accountId: 'usaa', date: '2026-11-28', description: 'VENMO PAYMENT', merchant: '', amount: -965, category: 'p2p', importId: null, excluded: false, note: '' }];
+    const c = coverage({ account: { ...usaa, available: 400 }, bills, txns: paid, today: '2026-11-29', nextPayday: '2026-12-04', essentialsMonthly: 608 })!;
+    expect(c.bills.find((b) => b.bill.name === 'Rent')?.paid).toBe(true);
+    expect(c.billsLeft).toBe(70);
+    expect(c.status).toBe('ok');
+    const short = coverage({ account: { ...usaa, available: 500 }, bills, txns: [], today: '2026-11-29', nextPayday: '2026-12-04', essentialsMonthly: 608 })!;
+    expect(short.status).toBe('short');
+    expect(short.left).toBeLessThan(0);
+  });
+});

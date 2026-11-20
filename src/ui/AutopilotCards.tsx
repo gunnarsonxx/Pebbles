@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Check, Circle, Compass, PiggyBank, TriangleAlert, CircleCheck, CircleDot, SlidersHorizontal } from 'lucide-react';
 import { GemIcon, NumberInput, Sheet, useToast } from './components';
 import { store } from '../data/store';
+import { saveSettings } from '../data/actions';
 import { setGoalSplit } from '../core/savingsAccount';
 import { round2 } from '../core/money';
 import type { Account, Goal } from '../core/types';
@@ -274,6 +275,102 @@ export function GuidelinesCard({ data }: { data: AppData }) {
           ))}
         </ul>
       </details>
+    </div>
+  );
+}
+
+/** Before payday: is what's in checking enough for the bills still due, plus groceries and gas? */
+export function CoverageCard({ data, compact }: { data: AppData; compact?: boolean }) {
+  const [open, setOpen] = useState(!compact);
+  const c = data.coverage;
+  const checking = data.accounts.filter((a) => a.type === 'checking' && (a.available ?? a.balance) != null);
+  if (!c) return null;
+  const payday = data.upcoming.period.payday > data.today ? data.upcoming.period.payday : data.afterUpcoming.payday;
+  const unpaid = c.bills.filter((b) => !b.paid);
+  const savings = data.goalsAccount?.balance ?? 0;
+  const need = Math.ceil(-c.left / 5) * 5;
+  const tone = c.status === 'short' ? 'bad' : c.status === 'tight' ? 'warn' : 'good';
+  return (
+    <div className={`card coverage cov-${tone} mt`}>
+      <div className="card-head">
+        <div>
+          <div className="eyebrow">Before Payday · {fmtDay(payday)}</div>
+          <div className={`strong ${c.status === 'short' ? 'bad' : ''}`} style={{ fontSize: 17, marginTop: 2 }}>
+            {c.status === 'short'
+              ? `Short ${usd(-c.left, true)} until payday`
+              : unpaid.length
+                ? `Bills are covered · ${usd(c.left, true)} left for you`
+                : `No bills left before payday · ${usd(c.left, true)} left for you`}
+          </div>
+        </div>
+        {checking.length > 1 && (
+          <select
+            className="input coverage-pick"
+            value={c.account.id}
+            aria-label="Account bills come out of"
+            onChange={(e) => void saveSettings((s) => ({ ...s, budget: { ...s.budget, billsAccountId: e.target.value } }))}
+          >
+            {checking.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.institution ? `${a.institution} ` : ''}
+                {a.name}
+                {a.mask ? ` ••${a.mask}` : ''}
+              </option>
+            ))}
+          </select>
+        )}
+      </div>
+      <div className="coverage-math">
+        <div className="row between small">
+          <span>{c.account.institution ?? ''} {c.account.name} now</span>
+          <span className="num strong">{usd(c.balance)}</span>
+        </div>
+        <div className="row between small">
+          <span>Bills still due ({unpaid.length})</span>
+          <span className="num">−{usd(c.billsLeft)}</span>
+        </div>
+        <div className="row between small">
+          <span>Groceries, gas & basics · {c.days} day{c.days === 1 ? '' : 's'}</span>
+          <span className="num">−{usd(c.living)}</span>
+        </div>
+        <div className="divider" style={{ margin: '6px 0' }} />
+        <div className="row between small">
+          <span className="strong">{c.left >= 0 ? 'Left for you' : 'Short by'}</span>
+          <span className={`num strong ${tone}`}>{usd(Math.abs(c.left))}</span>
+        </div>
+      </div>
+      {c.status === 'short' && (
+        <p className="small ink2" style={{ margin: '8px 0 0' }}>
+          {savings >= need
+            ? `Move ${usd(need, true)} from ${data.goalsAccount?.name ?? 'savings'} to checking to cover it. It comes out of your goals, and Pebbles will rebuild them from the next checks.`
+            : `Move what you can from savings, and hold off on spending money until ${fmtDay(payday)}. If a bill allows it, pay it the day after payday.`}
+        </p>
+      )}
+      {c.status === 'tight' && <p className="small ink2" style={{ margin: '8px 0 0' }}>Covered, with only a little to spare. Go easy on extras until payday.</p>}
+      {c.bills.length > 0 && (
+        <>
+          <button className="link-btn small mt" onClick={() => setOpen(!open)}>
+            {open ? 'Hide bills' : `Show the ${c.bills.length} bill${c.bills.length === 1 ? '' : 's'}`}
+          </button>
+          {open && (
+            <div className="list mt-s">
+              {c.bills.map((b) => (
+                <div key={`${b.bill.id}${b.date}`} className="row between small" style={{ padding: '4px 0', opacity: b.paid ? 0.55 : 1 }}>
+                  <span>
+                    {b.paid ? '✓ ' : ''}
+                    {b.bill.name} · {fmtDay(b.date)}
+                    {b.bill.toRoommate ? ' · to roommate' : ''}
+                  </span>
+                  <span className="num">{b.paid ? 'paid' : usd(b.amount)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+      <p className="tiny muted" style={{ margin: '8px 0 0' }}>
+        {c.asOf ? `Balance as of ${fmtShort(c.asOf)}. ` : ''}Uses the available balance, so pending charges are already out.
+      </p>
     </div>
   );
 }

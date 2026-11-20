@@ -1786,3 +1786,26 @@ svg.spin {
   color: var(--ink-2);
   font-style: italic;
 }
+.coverage {
+  border-left: 4px solid var(--good);
+}
+.coverage.cov-warn {
+  border-left-color: var(--warn);
+}
+.coverage.cov-bad {
+  border-left-color: var(--bad);
+}
+.coverage-math {
+  background: var(--card-2);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.coverage-pick {
+  max-width: 150px;
+  min-height: 34px;
+  font-size: 12px;
+  padding: 4px 8px;
+}

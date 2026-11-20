@@ -16,6 +16,7 @@ import { goalsAccount, interestNextMonth, reconcile, type Reconcile } from '../c
 import { paydayMoves, type Move } from '../core/moves';
 import { threePaycheckMonths } from '../core/budget';
 import type { GasPrice, PantryItem, ShopItem } from '../core/types';
+import { billsAccount, coverage, type Coverage } from '../core/coverage';
 
 export function useVersion(): number {
   return useSyncExternalStore(store.subscribe, store.getVersion);
@@ -65,6 +66,7 @@ export interface AppData {
   interestMonthly: number;
   reconcile: Reconcile | null;
   movesFor: { period: Period; estimate: PaycheckEstimate; plan: PaycheckPlan; moves: Move[]; isPast: boolean } | null;
+  coverage: Coverage | null;
   pantry: PantryItem[];
   shoplist: ShopItem[];
   gasPrices: GasPrice[];
@@ -289,6 +291,14 @@ export function computeData(version: number, today: ISODate): AppData {
     interestMonthly: interestNextMonth(gAcct?.balance ?? saved, gAcct?.apy),
     reconcile: reconcile(gAcct, saved),
     movesFor,
+    coverage: coverage({
+      account: billsAccount(accounts, settings.budget.billsAccountId),
+      bills,
+      txns,
+      today,
+      nextPayday: upPeriod.payday > today ? upPeriod.payday : afterUpcoming.payday,
+      essentialsMonthly: essentials.totalMonthly,
+    }),
     pantry: store.list('pantry').filter((p) => !p.archived).sort((a, b) => a.name.localeCompare(b.name)),
     shoplist: store.list('shoplist').sort((a, b) => a.addedAt - b.addedAt),
     gasPrices,

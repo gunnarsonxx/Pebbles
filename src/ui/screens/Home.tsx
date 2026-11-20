@@ -7,7 +7,7 @@ import { PebblePile } from '../PebblePile';
 import { CategoryIcon, GemIcon, Progress } from '../components';
 import { InsightList } from '../InsightList';
 import { UpdateBanner } from '../UpdateCard';
-import { MovesCard } from '../AutopilotCards';
+import { CoverageCard, MovesCard } from '../AutopilotCards';
 import { ReceiveSheet } from '../sheets/ReceiveSheet';
 import { fmtDay, fmtShort, relativeDays, addDays, diffDays } from '../../core/dates';
 import { billsDueBetween } from '../../core/budget';
@@ -143,6 +143,7 @@ export function HomeScreen({ data, go }: { data: AppData; go: GoTo }) {
         </div>
       </div>
 
+      <CoverageCard data={data} compact />
       <MovesCard data={data} />
 
       <div className="card mt">
