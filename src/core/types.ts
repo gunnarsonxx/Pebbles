@@ -88,6 +88,7 @@ export interface BudgetSettings {
   roundTo: number; // round suggestions to $5
   billsAccountId?: string | null; // the account that holds bill money only
   spendingAccountId?: string | null; // the account for everything else
+  paypalFromAccountId?: string | null; // the bank account PayPal pulls from ('paypal-balance' = PayPal's own balance)
 }
 
 export interface IntegrationSettings {

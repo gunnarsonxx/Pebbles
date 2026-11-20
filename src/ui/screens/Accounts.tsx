@@ -6,6 +6,7 @@ import { bankLog, connectBank, cancelConnect, disconnectBank, plaidCreds, syncAl
 import { store } from '../../data/store';
 import { usd } from '../../core/money';
 import { fmtShort } from '../../core/dates';
+import type { InFlight } from '../../core/paypal';
 import type { Account, BankLink } from '../../core/types';
 
 export function AccountsView({ data, openSettings }: { data: AppData; openSettings: () => void }) {
@@ -101,7 +102,7 @@ export function AccountsView({ data, openSettings }: { data: AppData; openSettin
                     </button>
                   </div>
                 )}
-                <AccountRows accounts={byLink.get(l.id) ?? []} onEdit={setEditing} />
+                <AccountRows accounts={byLink.get(l.id) ?? []} onEdit={setEditing} inFlight={data.inFlight} />
               </div>
             ))}
             {status ? (
@@ -148,7 +149,7 @@ export function AccountsView({ data, openSettings }: { data: AppData; openSettin
           <div className="eyebrow" style={{ marginBottom: 6 }}>
             From Imported Statements
           </div>
-          <AccountRows accounts={byLink.get('manual') ?? []} onEdit={setEditing} />
+          <AccountRows accounts={byLink.get('manual') ?? []} onEdit={setEditing} inFlight={data.inFlight} />
         </div>
       )}
 
@@ -157,7 +158,7 @@ export function AccountsView({ data, openSettings }: { data: AppData; openSettin
   );
 }
 
-function AccountRows({ accounts, onEdit }: { accounts: Account[]; onEdit: (a: Account) => void }) {
+function AccountRows({ accounts, onEdit, inFlight }: { accounts: Account[]; onEdit: (a: Account) => void; inFlight?: InFlight | null }) {
   if (!accounts.length) return null;
   return (
     <div className="list mt">
@@ -176,7 +177,16 @@ function AccountRows({ accounts, onEdit }: { accounts: Account[]; onEdit: (a: Ac
               {a.balanceDate ? ` · as of ${fmtShort(a.balanceDate)}` : ''}
             </div>
           </div>
-          {a.balance != null && <div className="amount">{usd(a.balance)}</div>}
+          {a.balance != null && (
+            <div style={{ textAlign: 'right' }}>
+              <div className="amount">{usd(a.balance)}</div>
+              {inFlight?.accountId === a.id && (
+                <div className="tiny muted" title="PayPal purchases your bank hasn’t taken out yet">
+                  ≈ {usd((a.available ?? a.balance) - inFlight.amount)} after PayPal
+                </div>
+              )}
+            </div>
+          )}
         </button>
       ))}
     </div>

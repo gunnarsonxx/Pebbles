@@ -41,3 +41,56 @@ export function dedupePaypal(txns: Transaction[], accounts: Account[]): PaypalUp
   }
   return out;
 }
+
+// ---------- PayPal purchases your bank hasn't caught up with ----------
+// PayPal reports a purchase right away; your bank's balance (through Plaid) can lag a day or more.
+// Until the bank's own PAYPAL line shows up, the purchase is "in flight": take it off the funding account.
+
+export interface InFlight {
+  accountId: string; // the bank account PayPal pulls from
+  amount: number; // total still to come out (positive)
+  txns: Transaction[];
+}
+
+/** The bank account PayPal pulls from: your pick, else the one that has paid PayPal most, else the fallback. */
+export function paypalFundingAccount(accounts: Account[], txns: Transaction[], chosenId: string | null | undefined, fallback: Account | null): Account | null {
+  if (chosenId === 'paypal-balance') return null;
+  const chosen = chosenId ? accounts.find((a) => a.id === chosenId) : null;
+  if (chosen) return chosen;
+  const counts = new Map<string, number>();
+  for (const t of txns) if (t.dupOf || (t.amount < 0 && BANK_PAYPAL.test(t.description))) counts.set(t.accountId, (counts.get(t.accountId) ?? 0) + 1);
+  const ranked = accounts.filter((a) => !isPaypalAccount(a) && a.type === 'checking' && counts.has(a.id)).sort((a, b) => (counts.get(b.id) ?? 0) - (counts.get(a.id) ?? 0));
+  return ranked[0] ?? fallback;
+}
+
+export function paypalInFlight(txns: Transaction[], accounts: Account[], funding: Account | null, today: string): InFlight | null {
+  if (!funding) return null;
+  const ppIds = new Set(accounts.filter(isPaypalAccount).map((a) => a.id));
+  if (!ppIds.size) return null;
+  const matched = new Set(txns.filter((t) => t.dupOf).map((t) => t.dupOf as string));
+  const open = txns.filter(
+    (t) =>
+      ppIds.has(t.accountId) &&
+      t.amount < 0 &&
+      !matched.has(t.id) && // the bank line is in: the bank balance has it
+      !FUNDING.test(`${t.description} ${t.merchant}`) &&
+      diffDays(today, t.date) <= 7 && // past a week the bank has surely posted it (or PayPal used its own balance)
+      diffDays(today, t.date) >= 0,
+  );
+  if (!open.length) return null;
+  return { accountId: funding.id, amount: Math.round(open.reduce((s, t) => s - t.amount, 0) * 100) / 100, txns: open };
+}
+
+/** Accounts with in-flight PayPal purchases taken off (for planning only; never saved). */
+export function withInFlight(accounts: Account[], f: InFlight | null): Account[] {
+  if (!f) return accounts;
+  return accounts.map((a) =>
+    a.id !== f.accountId
+      ? a
+      : {
+          ...a,
+          balance: a.balance != null ? Math.round((a.balance - f.amount) * 100) / 100 : a.balance,
+          available: a.available != null ? Math.round((a.available - f.amount) * 100) / 100 : a.available,
+        },
+  );
+}

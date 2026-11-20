@@ -16,6 +16,7 @@ import { goalsAccount, interestNextMonth, reconcile, type Reconcile } from '../c
 import { paydayMoves, type Move } from '../core/moves';
 import { threePaycheckMonths } from '../core/budget';
 import type { GasPrice, PantryItem, ShopItem } from '../core/types';
+import { paypalFundingAccount, paypalInFlight, withInFlight, type InFlight } from '../core/paypal';
 import { emergencyStatus, type EmergencyStatus } from '../core/emergency';
 import { billsAccount, coverage, spendingAccount, type Coverage } from '../core/coverage';
 
@@ -68,6 +69,8 @@ export interface AppData {
   reconcile: Reconcile | null;
   movesFor: { period: Period; estimate: PaycheckEstimate; plan: PaycheckPlan; moves: Move[]; isPast: boolean } | null;
   coverage: Coverage;
+  inFlight: InFlight | null; // PayPal purchases your bank's balance doesn't show yet
+  paypalFrom: Account | null;
   emergency: EmergencyStatus | null;
   pantry: PantryItem[];
   shoplist: ShopItem[];
@@ -150,12 +153,17 @@ export function computeData(version: number, today: ISODate): AppData {
       : null,
   );
   // Bills account vs Spending account: what's due through the check after next, and what's yours
-  const bAcct = billsAccount(accounts, settings.budget.billsAccountId);
+  // PayPal purchases the bank's balance doesn't show yet come off the account PayPal pulls from
+  const rawBills = billsAccount(accounts, settings.budget.billsAccountId);
+  const paypalFrom = paypalFundingAccount(accounts, txns, settings.budget.paypalFromAccountId, spendingAccount(accounts, settings.budget.spendingAccountId, rawBills) ?? rawBills);
+  const inFlight = paypalInFlight(txns, accounts, paypalFrom, today);
+  const planAccounts = withInFlight(accounts, inFlight);
+  const bAcct = billsAccount(planAccounts, settings.budget.billsAccountId);
   const nextPayday = upPeriod.payday >= today ? upPeriod.payday : afterUpcoming.payday;
   const followingPayday = periodByIndex(settings.pay, upPeriod.index + (nextPayday === upPeriod.payday ? 1 : 2)).payday;
   const cov = coverage({
     billsAccount: bAcct,
-    spendingAccount: spendingAccount(accounts, settings.budget.spendingAccountId, bAcct),
+    spendingAccount: spendingAccount(planAccounts, settings.budget.spendingAccountId, bAcct),
     bills,
     txns,
     today,
@@ -316,6 +324,8 @@ export function computeData(version: number, today: ISODate): AppData {
     reconcile: reconcile(gAcct, saved),
     movesFor,
     coverage: cov,
+    inFlight,
+    paypalFrom,
     emergency: emergencyStatus(emergency, emergency ? (balances.get(emergency.id) ?? 0) : 0, monthlyBillsTotal(bills) + essentials.totalMonthly, settings.budget.emergencyMonths),
     pantry: store.list('pantry').filter((p) => !p.archived).sort((a, b) => a.name.localeCompare(b.name)),
     shoplist: store.list('shoplist').sort((a, b) => a.addedAt - b.addedAt),

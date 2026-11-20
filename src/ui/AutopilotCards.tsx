@@ -302,6 +302,21 @@ export function CoverageCard({ data, compact }: { data: AppData; compact?: boole
   const tone = b.status === 'short' ? 'bad' : b.status === 'topup' ? 'warn' : 'good';
   const name = (a: Account) => `${a.institution && !a.name.includes(a.institution) ? `${a.institution} ` : ''}${a.name}`;
   const cover = Math.ceil(b.shortNow / 5) * 5;
+  // PayPal purchases the bank hasn't taken out yet are already subtracted; say so under that account
+  const fl = data.inFlight;
+  const flNote = (a: Account) => {
+    if (!fl || fl.accountId !== a.id) return null;
+    const raw = data.accounts.find((x) => x.id === a.id);
+    const bank = raw ? (raw.available ?? raw.balance) : null;
+    const what = fl.txns.length === 1 ? `${fl.txns[0].merchant || 'a PayPal purchase'} (${usd(fl.amount)})` : `${fl.txns.length} PayPal purchases (${usd(fl.amount)})`;
+    return (
+      <div className="tiny muted" style={{ marginTop: -2 }}>
+        {bank != null ? `Bank shows ${usd(bank)}; ` : ''}
+        {what} went through PayPal and hasn’t reached {a.name} yet, so it’s already taken off.
+      </div>
+    );
+  };
+  const hasPaypal = data.accounts.some((a) => /paypal/i.test(`${a.name} ${a.institution ?? ''}`));
   const pick = (key: 'billsAccountId' | 'spendingAccountId', id: string) =>
     void saveSettings((s) => ({
       ...s,
@@ -336,6 +351,7 @@ export function CoverageCard({ data, compact }: { data: AppData; compact?: boole
           <span>{name(b.account)} now</span>
           <span className="num strong">{usd(b.balance)}</span>
         </div>
+        {flNote(b.account)}
         {!(isToday && !before.length) && (
           <div className="row between small">
             <span>{isToday ? `Bills still due before today` : `Bills before ${next}`} ({before.length})</span>
@@ -401,6 +417,7 @@ export function CoverageCard({ data, compact }: { data: AppData; compact?: boole
               <span>{name(sp.account)} now</span>
               <span className="num strong">{usd(sp.balance)}</span>
             </div>
+            {flNote(sp.account)}
             <div className="row between small">
               <span>
                 Groceries, gas & basics · {sp.days} day{sp.days === 1 ? '' : 's'}
@@ -447,6 +464,25 @@ export function CoverageCard({ data, compact }: { data: AppData; compact?: boole
         {!chosen && <p className="small ink2" style={{ margin: '0 0 6px' }}>Which account is only for bills? Once you pick it, the payday plan counts what’s already in it and only tops it up.</p>}
         {select('billsAccountId', b.account.id, 'Bills Account', false)}
         {select('spendingAccountId', sp?.account.id ?? '', 'Spending Account', true)}
+        {hasPaypal && (
+          <label className="row between small" style={{ gap: 8 }}>
+            <span className="ink2">PayPal Pays From</span>
+            <select
+              className="input coverage-pick"
+              value={data.settings.budget.paypalFromAccountId ?? data.paypalFrom?.id ?? 'paypal-balance'}
+              aria-label="PayPal Pays From"
+              onChange={(e) => void saveSettings((s) => ({ ...s, budget: { ...s.budget, paypalFromAccountId: e.target.value } }))}
+            >
+              {pickable.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {name(a)}
+                  {a.mask ? ` ••${a.mask}` : ''}
+                </option>
+              ))}
+              <option value="paypal-balance">PayPal Balance</option>
+            </select>
+          </label>
+        )}
         {!chosen && (
           <button className="btn small mt-s" onClick={() => pick('billsAccountId', b.account.id)}>
             Use These Accounts
