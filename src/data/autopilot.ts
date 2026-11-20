@@ -2,6 +2,7 @@
 // thing you do is move the money Pebbles tells you to.
 import { store } from './store';
 import { emergencyGoalUpdate } from '../core/emergency';
+import { looksVariable } from '../core/billPrompt';
 import { computeData } from './useData';
 import { today } from '../core/dates';
 import { dedupePaypal } from '../core/paypal';
@@ -58,6 +59,13 @@ export async function runAutopilot(): Promise<void> {
   try {
     const d = computeData(store.version, today());
     if (!d.settings.onboarded) return;
+
+    // 0a) utility bills change every month: ask for the amount on the 9th at 10am (once, as a starting point)
+    if (!(await store.getMeta<boolean>('billPromptSetup:v1'))) {
+      const util = d.bills.filter((b) => b.active && !b.amountReminder && looksVariable(b));
+      if (util.length) await store.putMany('bills', util.map((b) => ({ ...b, amountReminder: { day: 9, time: '10:00' } })));
+      await store.setMeta('billPromptSetup:v1', true);
+    }
 
     // 0) a PayPal purchase shows up at PayPal and at your bank: count it once
     const dups = dedupePaypal(d.txns, d.accounts);

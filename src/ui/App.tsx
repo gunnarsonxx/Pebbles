@@ -1,3 +1,4 @@
+import { BillAmountPrompt } from './BillPrompt';
 import { useEffect, useState } from 'react';
 import { CalendarDays, Gem, House, Moon, PieChart, Settings as SettingsIcon, ShoppingBasket, ChevronLeft, Sun } from 'lucide-react';
 import { saveSettings } from '../data/actions';
@@ -136,6 +137,7 @@ export function App() {
 
   return (
     <ToastProvider>
+      <BillAmountPrompt data={data} />
       <div className="app">
         <nav className="sidebar" aria-label="Main">
           <div className="brand">

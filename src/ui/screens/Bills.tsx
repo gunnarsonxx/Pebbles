@@ -10,6 +10,7 @@ import { usd } from '../../core/money';
 import { billsCalendar } from '../../core/ics';
 import { periodByIndex } from '../../core/pay';
 import { deleteBill, dismissInsight, newBill, saveBill } from '../../data/actions';
+import { looksVariable, ym } from '../../core/billPrompt';
 import { openTextFile } from '../../platform/files';
 import { store } from '../../data/store';
 import type { Bill, BillFrequency, ISODate, Transaction } from '../../core/types';
@@ -281,7 +282,9 @@ export function BillSheet({ bill, onClose }: { bill: Bill; onClose: () => void }
             className="btn primary"
             disabled={!b.name.trim() || !(b.amount > 0)}
             onClick={async () => {
-              await saveBill({ ...b, name: b.name.trim() });
+              // a new utility bill: ask for its amount each month from next month on (you just entered this one)
+              const auto = b.amountReminder === undefined && looksVariable(b) ? { amountReminder: { day: 9, time: '10:00', doneMonth: ym(new Date()) } } : {};
+              await saveBill({ ...b, ...auto, name: b.name.trim() });
               onClose();
             }}
           >
@@ -374,6 +377,22 @@ export function BillSheet({ bill, onClose }: { bill: Bill; onClose: () => void }
           {b.toRoommate && <p className="tiny muted" style={{ margin: '8px 0 0' }}>Rent you send them (by Venmo, say). Split bills you take out of it are subtracted on the Bills page.</p>}
         </div>
 
+        <ToggleRow
+          title="Ask Me for the Amount Each Month"
+          hint="For bills that change, like utilities. Pebbles pops up on the day you pick; Not Posted asks again in 24 hours."
+          on={!!b.amountReminder}
+          onChange={(v) => setB({ ...b, amountReminder: v ? { day: 9, time: '10:00', ...(bill.amountReminder ?? {}) } : null })}
+        />
+        {b.amountReminder && (
+          <div className="form-grid two">
+            <Field label="Day of the Month">
+              <NumberInput value={b.amountReminder.day} onChange={(v) => setB({ ...b, amountReminder: { ...b.amountReminder!, day: Math.min(31, Math.max(1, Math.round(v ?? 9))) } })} />
+            </Field>
+            <Field label="Time">
+              <input className="input" type="time" value={b.amountReminder.time} onChange={(e) => setB({ ...b, amountReminder: { ...b.amountReminder!, time: e.target.value || '10:00' } })} />
+            </Field>
+          </div>
+        )}
         <ToggleRow title="Autopay" hint="No reminder needed" on={b.autopay} onChange={(v) => setB({ ...b, autopay: v })} />
         <ToggleRow title="Active" on={b.active} onChange={(v) => setB({ ...b, active: v })} />
         <p className="small muted center">

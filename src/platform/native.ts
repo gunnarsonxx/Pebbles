@@ -1,5 +1,6 @@
 // Android-only niceties: status bar colors, back button, and payday / bill reminders.
 import { App as CapApp } from '@capacitor/app';
+import { nextPromptTime } from '../core/billPrompt';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { Browser } from '@capacitor/browser';
 import { StatusBar, Style } from '@capacitor/status-bar';
@@ -102,6 +103,15 @@ async function scheduleReminders() {
       if (remind.getTime() > now)
         list.push({ id: 2000 + i, title: `${b.bill.name} Is Due in 2 Days`, body: `${usd(b.amount)} on ${b.date.slice(5).replace('-', '/')}.`, schedule: { at: remind } });
     });
+    // bills that change every month: ask for the amount (the app shows the prompt when opened)
+    data.bills
+      .filter((b) => b.amountReminder && b.active)
+      .slice(0, 10)
+      .forEach((b, i) => {
+        const when = nextPromptTime(b, new Date());
+        if (when && when.getTime() > now)
+          list.push({ id: 3000 + i, title: `Has ${b.name} Posted?`, body: 'Tap to enter this month’s amount so your plan stays right.', schedule: { at: when } });
+      });
     if (list.length) await LocalNotifications.schedule({ notifications: list });
   } catch (e) {
     console.warn('reminders', e);
