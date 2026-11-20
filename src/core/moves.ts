@@ -7,7 +7,7 @@ import type { Period } from './pay';
 import { round2, usd } from './money';
 import type { Goal, ISODate, MoveState, Transaction } from './types';
 
-export type MoveKey = 'save' | 'bills' | 'essentials' | 'spend' | 'bonus';
+export type MoveKey = 'save' | 'bills' | 'essentials' | 'spend' | 'bonus' | 'sweep';
 
 export interface Move {
   key: MoveKey;
@@ -33,6 +33,7 @@ export function paydayMoves(opts: {
   billsAccountName?: string | null; // a bills-only account you top up from each check
   billsThrough?: ISODate; // the top-up covers bills due before this payday
   billsSteady?: boolean; // the same amount every check
+  sweep?: { amount: number; from: string } | null; // last check's money you didn't spend, to save
 }): Move[] {
   const { period, plan, goals, savingsName, states, bonusMonth } = opts;
   const st = (k: MoveKey) => states.get(moveId(period, k));
@@ -48,6 +49,17 @@ export function paydayMoves(opts: {
       checkable: true,
       done: !!st('save')?.done,
       auto: !!st('save')?.auto,
+    });
+  }
+  if (opts.sweep && opts.sweep.amount > 0) {
+    moves.push({
+      key: 'sweep',
+      title: `Move ${usd(opts.sweep.amount, true)} Left Over in ${opts.sweep.from} to ${savingsName}`,
+      detail: 'Grocery, gas and fun money from last check that you didn’t spend. It goes to your goals instead of sitting there.',
+      amount: opts.sweep.amount,
+      checkable: true,
+      done: !!st('sweep')?.done,
+      auto: !!st('sweep')?.auto,
     });
   }
   if (opts.billsAccountName && plan.billsTopUp) {

@@ -52,6 +52,7 @@ export function defaultSettings(): Settings {
       overtime: { weeklyThreshold: 40, dailyThreshold: 12, multiplier: 1.5, method: 'weighted' },
       holidayMultiplier: 1.5,
       holidays: { ids: [], observed: false, rule: 'calendar', confirmed: false },
+      dailyPay: { enabled: false, fee: 3.49 },
     },
     household: {
       adults: 1,

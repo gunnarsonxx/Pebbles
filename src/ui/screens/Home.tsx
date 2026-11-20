@@ -169,6 +169,11 @@ export function HomeScreen({ data, go }: { data: AppData; go: GoTo }) {
             { key: 'save', label: 'Savings', value: plan.savings, color: 'var(--jade)', hint: `${Math.round(plan.savingsRate * 100)}% of take-home` },
           ]}
         />
+        {data.advances && data.advances.taken > 0 && planPayday === data.upcoming.period.payday && (
+          <p className="tiny muted mt-s">
+            {usd(data.advances.taken)} already taken early with DailyPay{data.advances.fees ? ` (+${usd(data.advances.fees)} fees)` : ''}, so this check is that much smaller.
+          </p>
+        )}
         {plan.shortfall > 0 && <p className="small bad mt">Short by {usd(plan.shortfall)} this check. See Plan for ideas.</p>}
       </div>
 

@@ -178,6 +178,17 @@ function PaySection({ s, set }: { s: Settings; set: (f: (s: Settings) => Setting
         </div>
       </details>
       <HolidaySettings p={p} set={set} />
+      <ToggleRow
+        title="My Job Offers DailyPay"
+        hint="Pay you can take before payday. Pebbles counts what you take against your next check, and only suggests it when bills can’t be covered any other way, and only the minimum."
+        on={!!p.dailyPay?.enabled}
+        onChange={(v) => set((x) => ({ ...x, pay: { ...x.pay, dailyPay: { fee: x.pay.dailyPay?.fee ?? 3.49, enabled: v } } }))}
+      />
+      {p.dailyPay?.enabled && (
+        <Field label="Fee per Instant Transfer" hint="What DailyPay charges to send it right away">
+          <NumberInput value={p.dailyPay.fee} onChange={(v) => set((x) => ({ ...x, pay: { ...x.pay, dailyPay: { enabled: true, fee: Math.max(0, v ?? 0) } } }))} prefix="$" money />
+        </Field>
+      )}
     </Section>
   );
 }

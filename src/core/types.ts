@@ -66,6 +66,7 @@ export interface PaySettings {
     rule: 'calendar' | 'shiftStart'; // hours worked on the holiday's date, or whole shifts that start on it
     confirmed: boolean; // you said which holidays your job pays (until then, no automatic holiday pay)
   };
+  dailyPay?: { enabled: boolean; fee: number }; // your job offers DailyPay (pay before payday), and its fee per instant transfer
 }
 
 export interface HouseholdSettings {
@@ -421,6 +422,7 @@ export interface MoveState {
   done: boolean;
   at: number;
   auto: boolean; // checked off automatically from bank data
+  amount?: number; // for a move whose amount is worked out once (what was left over last check)
 }
 
 export interface Transaction {

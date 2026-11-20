@@ -11,6 +11,7 @@ import { setBonusMove, setMove } from '../data/autopilot';
 import { fmtDay, fmtDayOrd, fmtShort } from '../core/dates';
 import { usd } from '../core/money';
 import { monthlyRate, projectSavings } from '../core/savingsAccount';
+import { minimumAdvance } from '../core/dailypay';
 import type { Standing } from '../core/guidelines';
 
 /** Home: what to do with this paycheck. The only part of money you have to think about. */
@@ -44,7 +45,7 @@ export function MovesCard({ data }: { data: AppData }) {
                   if (mv.key === 'bonus') {
                     const g = data.goals.find((x) => !x.archived && !x.completedAt && !x.isEmergency) ?? data.goals.find((x) => !x.archived);
                     void setBonusMove(period, mv.amount, g?.id ?? null, !mv.done);
-                  } else void setMove(period, plan, mv.key, !mv.done);
+                  } else void setMove(period, plan, mv.key, !mv.done, false, mv.key === 'sweep' && data.goalsAccount?.source === 'plaid');
                 }}
               >
                 {mv.done ? <CircleCheck style={{ color: 'var(--good)' }} /> : <Circle />}
@@ -347,6 +348,9 @@ export function CoverageCard({ data, compact }: { data: AppData; compact?: boole
   const tone = b.status === 'short' ? 'bad' : b.status === 'topup' ? 'warn' : 'good';
   const name = (a: Account) => `${a.institution && !a.name.includes(a.institution) ? `${a.institution} ` : ''}${a.name}`;
   const cover = Math.ceil(b.shortNow / 5) * 5;
+  // DailyPay, only as a last resort and only the minimum: what's short after what the Spending account can give
+  const dp = data.settings.pay.dailyPay?.enabled ? data.settings.pay.dailyPay : null;
+  const dpBills = dp ? minimumAdvance(b.shortNow - Math.max(0, sp ? sp.balance : 0)) : 0;
   // PayPal purchases the bank hasn't taken out yet are already subtracted; say so under that account
   const fl = data.inFlight;
   const flNote = (a: Account) => {
@@ -441,6 +445,12 @@ export function CoverageCard({ data, compact }: { data: AppData; compact?: boole
           </>
         )}
       </div>
+      {b.status === 'short' && dp && dpBills > 0 && (
+        <p className="small" style={{ margin: '8px 0 0' }}>
+          <strong>Last resort, if it’s due before a transfer would land:</strong> take just <strong>{usd(dpBills)}</strong> from DailyPay, the least that covers it (about {usd(dp.fee)} fee; it comes out of your next
+          check).
+        </p>
+      )}
       {b.status === 'short' && (
         <p className="small ink2" style={{ margin: '8px 0 0' }}>
           {sp && sp.balance >= cover
@@ -497,6 +507,11 @@ export function CoverageCard({ data, compact }: { data: AppData; compact?: boole
               <span className={`num strong ${sp.status === 'short' ? 'bad' : sp.status === 'tight' ? 'warn' : 'good'}`}>{usd(Math.abs(sp.left))}</span>
             </div>
           </div>
+          {sp.status === 'short' && dp && minimumAdvance(-sp.left) >= 5 && (data.goalsAccount?.balance ?? 0) < -sp.left && (
+            <p className="small" style={{ margin: '8px 0 0' }}>
+              If you can’t wait for payday for groceries or gas: take only <strong>{usd(minimumAdvance(-sp.left))}</strong> from DailyPay (about {usd(dp.fee)} fee; it comes out of your next check).
+            </p>
+          )}
           {sp.status !== 'ok' && (
             <p className="small ink2" style={{ margin: '8px 0 0' }}>
               {sp.status === 'short' ? `Groceries and gas need a bit more than ${sp.account.name} has. Keep extras on hold until ${next}.` : `Covered, with only a little to spare. Go easy on extras until ${next}.`}

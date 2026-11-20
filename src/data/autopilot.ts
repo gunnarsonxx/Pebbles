@@ -24,7 +24,24 @@ export function paycheckContributions(period: Period, allocations: Allocation[],
 
 /** Check (or uncheck) a payday move. Checking "move to savings" drops the pebbles into your goals. */
 export async function setMove(period: Period, plan: PaycheckPlan, key: MoveKey, done: boolean, auto = false, bankTracks = false): Promise<void> {
-  await store.put('moves', { id: moveId(period, key), done, at: Date.now(), auto });
+  const prev = store.get('moves', moveId(period, key));
+  await store.put('moves', { id: moveId(period, key), done, at: Date.now(), auto, ...(prev?.amount != null ? { amount: prev.amount } : {}) });
+  if (key === 'sweep') {
+    // the leftover goes to the goals the same way this check's savings do (the bank's deposit takes over when it shows up)
+    const ids = store.list('contributions').filter((c) => c.id.startsWith(`sw|${period.start}|`)).map((c) => c.id);
+    if (!done || bankTracks) {
+      if (ids.length) await store.remove('contributions', ids);
+      return;
+    }
+    const amount = prev?.amount ?? 0;
+    const weights = plan.allocations.filter((a) => a.amount > 0);
+    const total = weights.reduce((s2, a) => s2 + a.amount, 0);
+    const goals = store.list('goals').filter((g) => !g.archived && !g.completedAt);
+    const split = total > 0 ? weights.map((a) => ({ goalId: a.goalId, amount: Math.round(((amount * a.amount) / total) * 100) / 100 })) : goals.slice(0, 1).map((g) => ({ goalId: g.id, amount }));
+    if (amount > 0 && !ids.length)
+      await store.putMany('contributions', split.filter((x) => x.amount > 0).map((x) => ({ id: `sw|${period.start}|${x.goalId}`, goalId: x.goalId, amount: x.amount, date: today(), note: 'Left over from last check', paycheckId: period.start, kind: 'deposit' as const })));
+    return;
+  }
   if (key !== 'save' && key !== 'bonus') return;
   const existing = store.list('contributions').filter((c) => c.paycheckId === period.start && c.kind !== 'interest');
   if (key === 'save') {
@@ -164,6 +181,33 @@ export async function runAutopilot(): Promise<void> {
             return { ...t, seenBank: { accountId: from.id, available: b?.available ?? now, known: b?.known ?? known } };
           }),
         );
+      }
+    }
+
+    // 0d) what was left in the Spending account the day before payday: sweep it to savings
+    {
+      const spId = d.coverage.spending?.account.id;
+      const raw = spId ? d.accounts.find((a) => a.id === spId) : null;
+      const now = raw ? (raw.available ?? raw.balance) : null;
+      if (raw && now != null) {
+        const key = `balHist:${raw.id}`;
+        const hist = ((await store.getMeta<BalancePoint[]>(key)) ?? []).filter((h) => Date.now() - h.at < 14 * 86_400_000);
+        const known = knownTotal(d.txns, raw.id);
+        const lastPt = hist[hist.length - 1];
+        if (!lastPt || lastPt.available !== now || lastPt.date !== d.today) {
+          hist.push({ at: Date.now(), date: d.today, available: now, known });
+          await store.setMeta(key, hist.slice(-400));
+        }
+        const m = d.movesFor;
+        if (m && m.period.payday <= d.today) {
+          const id = moveId(m.period, 'sweep');
+          const before = balanceBefore(hist, m.period.payday);
+          if (!store.get('moves', id) && before) {
+            // keep a little cushion; round down to $5
+            const left = Math.floor(Math.max(0, before.available - 25) / 5) * 5;
+            await store.put('moves', { id, done: false, at: Date.now(), auto: false, amount: left >= 10 ? left : 0 });
+          }
+        }
       }
     }
 

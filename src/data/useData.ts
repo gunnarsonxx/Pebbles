@@ -18,6 +18,8 @@ import { threePaycheckMonths } from '../core/budget';
 import type { DriveEntry, GasPrice, MealPlanEntry, PantryItem, Recipe, ShopItem, Staple } from '../core/types';
 import { paypalFundingAccount, paypalInFlight, withInFlight, type InFlight } from '../core/paypal';
 import { drivingStats, trustworthy, type DrivingStats } from '../core/driving';
+import { round2 } from '../core/money';
+import { dailyPayAdvances, type Advances } from '../core/dailypay';
 import { emergencyStatus, type EmergencyStatus } from '../core/emergency';
 import { billsAccount, coverage, spendingAccount, steadyBillsPlan, type Coverage } from '../core/coverage';
 
@@ -70,6 +72,7 @@ export interface AppData {
   reconcile: Reconcile | null;
   movesFor: { period: Period; estimate: PaycheckEstimate; plan: PaycheckPlan; moves: Move[]; isPast: boolean } | null;
   coverage: Coverage;
+  advances: Advances | null; // DailyPay taken since the last payday
   drives: DriveEntry[];
   driving: DrivingStats | null;
   inFlight: InFlight | null; // PayPal purchases your bank's balance doesn't show yet
@@ -222,9 +225,11 @@ export function computeData(version: number, today: ISODate): AppData {
             : null;
   // ONE plan for the next paycheck, used by every card: the recorded stub pay when there is one, else the estimate
   const upRecord = paychecks.get(upPeriod.start);
+  // pay already taken early with DailyPay comes out of this check
+  const advances = settings.pay.dailyPay?.enabled ? dailyPayAdvances(txns, periodByIndex(settings.pay, upPeriod.index - 1).payday, today) : null;
   const plan = buildPlan({
     settings,
-    net: upRecord?.actualNet ?? upcoming.net,
+    net: round2((upRecord?.actualNet ?? upcoming.net) - (advances?.taken ?? 0)),
     payday: upPeriod.payday,
     nextPayday: afterUpcoming.payday,
     bills,
@@ -326,6 +331,11 @@ export function computeData(version: number, today: ISODate): AppData {
       billsAccountName: settings.budget.billsAccountId && cov.bills ? cov.bills.account.name : null,
       billsThrough: mPeriod.payday === nextPayday ? followingPayday : nextPayday,
       billsSteady: !!steady,
+      sweep: (() => {
+        const st = movesState.get(`${mPeriod.start}:sweep`);
+        const from = cov.spending?.account.name;
+        return st?.amount && from ? { amount: st.amount, from } : null;
+      })(),
     }),
   };
 
@@ -370,6 +380,7 @@ export function computeData(version: number, today: ISODate): AppData {
     reconcile: reconcile(gAcct, saved),
     movesFor,
     coverage: cov,
+    advances,
     drives: [...drives].sort((a, b) => b.odometer - a.odometer || b.at - a.at),
     driving,
     inFlight,
