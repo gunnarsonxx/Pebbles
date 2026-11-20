@@ -245,10 +245,21 @@ export interface ReceiptItem {
   raw: string; // as printed
   name: string; // cleaned
   key: string; // for matching the same product across trips
-  price: number; // after any discount on that line
-  qty: number;
+  price: number; // what you paid for the line, after any discount
+  qty: number; // how many you bought (3 cans)
   dept: GroceryDept;
   lowConfidence?: boolean;
+  pack?: number | null; // how many in one package (a dozen eggs = 12, 6 ct muffins = 6)
+  regular?: number | null; // shelf price for one, before the deal
+  deal?: Deal | null;
+  upc?: string | null;
+}
+
+/** A sale, coupon or buy-one-get-one on a receipt line. */
+export interface Deal {
+  kind: 'sale' | 'coupon' | 'bogo' | 'free';
+  saved: number;
+  note?: string;
 }
 
 export interface Receipt {

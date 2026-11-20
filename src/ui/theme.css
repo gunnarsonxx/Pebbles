@@ -1833,3 +1833,33 @@ svg.spin {
   font-size: 12px;
   padding: 4px 8px;
 }
+
+/* receipt editor: one roomy card per item */
+.receipt-items {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.receipt-item {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--card);
+}
+.receipt-item.flag {
+  background: var(--warn-soft);
+}
+.receipt-item-nums {
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+.receipt-item-nums .stepper {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  min-height: 40px;
+}

@@ -1,8 +1,8 @@
 // Reading grocery receipts (from a photo, a PDF, or pasted text) into line items.
 import { parseLooseDate } from './dates';
 import { round2 } from './money';
-import { cleanItemName, deptFor } from './groceries';
-import type { ItemRule, Receipt, ReceiptItem } from './types';
+import { cleanItemName, deptFor, packOf } from './groceries';
+import type { Deal, ItemRule, Receipt, ReceiptItem } from './types';
 
 export interface OcrLine {
   text: string;
@@ -90,7 +90,150 @@ export interface ParsedReceipt extends Omit<Receipt, 'id' | 'createdAt' | 'sourc
   itemsTotal: number;
 }
 
+// ---------- digital receipts (the King Soopers / Kroger app, online orders) ----------
+// Each item reads:   Name … , 28 oz              $5.99   ← what you paid for the line (deals already off)
+//                    1 x $5.99 $6.49 ea.                 ← how many, each, and the shelf price
+//                    Item Coupon/Sale: -$0.50            ← the deal (already taken off above)
+//                    UPC: 0001313000612
+const QTY_LINE = /^(\d+(?:\.\d+)?)\s*[x×]\s*\$?\s*([\dSO]+[.,-]?\d{2})(?:\s+\$?\s*([\dSO]+[.,-]?\d{2}))?\s*(?:ea|each|\/)/i;
+const DEAL_LINE = /(coupon|sale|savings|discount|promo|digital|bogo|buy one|reward)[^$\d-]*[-–]?\s*[S$]*\s*\$?\s*(\d+[.,]\d{2})/i;
+const UPC_LINE = /^UPC[:\s]*([\d\s]{6,})/i;
+
+/** "$6-49", "$449", "S0.50" → 6.49, 4.49, 0.50 (OCR swaps . for - and $ for S). */
+export function looseMoney(t: string): number {
+  const d = t.replace(/[S$\s]/gi, '').replace(/O/g, '0').replace(/[-,]/, '.');
+  if (/^\d+\.\d{2}$/.test(d)) return parseFloat(d);
+  if (/^\d{3,}$/.test(d)) return parseInt(d, 10) / 100;
+  return parseFloat(d);
+}
+
+export function isDigitalReceipt(lines: OcrLine[]): boolean {
+  return lines.filter((l) => QTY_LINE.test(l.text.trim())).length >= 2 || lines.filter((l) => UPC_LINE.test(l.text.trim())).length >= 2;
+}
+
+/** A month-name date anywhere: "Nov 19, 2026", "November 19 2026", "Thu, Nov 19, 2026". */
+export function findDate(text: string): string | null {
+  const num = text.match(/\b(\d{1,2}[/-]\d{1,2}[/-](?:\d{4}|\d{2}))\b/);
+  if (num) return parseLooseDate(num[1]);
+  const named = text.match(/\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)[a-z]*\.?\s+\d{1,2},?\s+\d{4}\b/i);
+  return named ? parseLooseDate(named[0].replace(/Sept/i, 'Sep')) : null;
+}
+
+function parseDigital(lines: OcrLine[], rules: ItemRule[], fallbackDate?: string): ParsedReceipt {
+  const warnings: string[] = [];
+  const items: ReceiptItem[] = [];
+  let store = '';
+  let date: string | null = null;
+  let subtotal: number | null = null;
+  let tax: number | null = null;
+  let total: number | null = null;
+  let listed: number | null = null;
+  let cur: { name: string[]; price: number; conf: number; qty: number; each: number | null; regular: number | null; deal: Deal | null; upc: string | null } | null = null;
+
+  const finish = () => {
+    if (!cur) return;
+    const fullName = cur.name.join(' ').replace(/\s+/g, ' ').trim();
+    const c = cleanItemName(fullName);
+    const pack = packOf(fullName);
+    const regular = cur.regular ?? (cur.deal ? cur.each : null);
+    let deal = cur.deal;
+    if (deal && cur.price === 0) deal = { ...deal, kind: 'free' };
+    items.push({
+      raw: fullName,
+      ...c,
+      price: round2(cur.price),
+      qty: cur.qty,
+      dept: deptFor(c.name, c.key, rules),
+      lowConfidence: cur.conf < 70,
+      pack: pack && pack > 1 ? pack : null,
+      regular: regular != null && regular > (cur.each ?? 0) ? round2(regular) : null,
+      deal,
+      upc: cur.upc,
+    });
+    cur = null;
+  };
+
+  for (const raw of lines) {
+    const text = raw.text.replace(/\s+/g, ' ').trim();
+    if (!text) continue;
+    if (!store) for (const [re, name] of STORES) if (re.test(text) && !/UPC|\$/.test(text)) store = name;
+    if (!date) date = findDate(text);
+    const up = text.toUpperCase();
+    const pm = text.match(/[S$]\s?(\d+[.,]\d{2})\s*$/);
+    const n = up.match(/(\d+)\s+ITEMS?\b/);
+    if (n && /DETAIL|ITEMS?$/.test(up)) {
+      listed = parseInt(n[1], 10);
+      continue;
+    }
+    if (/SUB\s*-?\s*TOTAL/.test(up)) {
+      if (pm) subtotal = looseMoney(pm[1]);
+      continue;
+    }
+    if (/\bTAX(ES)?\b/.test(up) && pm) {
+      tax = round2((tax ?? 0) + looseMoney(pm[1]));
+      continue;
+    }
+    if (/(ORDER|GRAND)?\s*TOTAL/.test(up) && !/SAVING/.test(up)) {
+      if (pm && total == null) total = looseMoney(pm[1]);
+      continue;
+    }
+    const u = text.match(UPC_LINE);
+    if (u) {
+      if (cur) cur.upc = u[1].replace(/\s/g, '');
+      finish();
+      continue;
+    }
+    const q = text.match(QTY_LINE);
+    if (q && cur) {
+      cur.qty = Math.max(1, Math.round(parseFloat(q[1])));
+      cur.each = looseMoney(q[2]);
+      if (q[3]) cur.regular = looseMoney(q[3]);
+      continue;
+    }
+    const d = text.match(DEAL_LINE);
+    if (d && cur) {
+      const saved = round2(Math.abs(looseMoney(d[2])));
+      cur.deal = { kind: /BOGO|BUY ONE/i.test(text) ? 'bogo' : /COUPON/i.test(text) && !/SALE/i.test(text) ? 'coupon' : 'sale', saved: round2((cur.deal?.saved ?? 0) + saved) };
+      continue;
+    }
+    if (pm) {
+      // a new item: name (maybe continued on the next lines) and the line price
+      finish();
+      cur = { name: [text.slice(0, pm.index).replace(/[®™]/g, '').trim()], price: looseMoney(pm[1]), conf: raw.confidence, qty: 1, each: null, regular: null, deal: null, upc: null };
+      continue;
+    }
+    if (cur && !cur.each && cur.name.length < 3) cur.name.push(text.replace(/[®™]/g, ''));
+  }
+  finish();
+
+  const itemsTotal = round2(items.reduce((s, i) => s + i.price, 0));
+  // only the order total? the difference is the tax, if it's a believable amount
+  if (subtotal == null && total != null && tax == null && (listed == null || listed <= items.length)) {
+    const diff = round2(total - itemsTotal);
+    if (diff >= 0 && diff <= itemsTotal * 0.12) {
+      subtotal = itemsTotal;
+      tax = diff;
+    }
+  }
+  if (listed != null && listed > items.length)
+    warnings.push(`The receipt lists ${listed} items and Pebbles found ${items.length}. If the rest are further down, add another screenshot below.`);
+  if (!date) warnings.push('No date on this part of the receipt. Check the date below.');
+  return {
+    fuel: null,
+    store: store || 'King Soopers',
+    date: date ?? fallbackDate ?? new Date().toISOString().slice(0, 10),
+    items,
+    subtotal,
+    tax,
+    total,
+    savings: items.some((i) => i.deal) ? round2(items.reduce((s, i) => s + (i.deal?.saved ?? 0), 0)) : null,
+    warnings,
+    itemsTotal,
+  };
+}
+
 export function parseReceipt(lines: OcrLine[], rules: ItemRule[] = [], fallbackDate?: string): ParsedReceipt {
+  if (isDigitalReceipt(lines)) return parseDigital(lines, rules, fallbackDate);
   const warnings: string[] = [];
   const items: ReceiptItem[] = [];
   let store = '';
@@ -105,10 +248,7 @@ export function parseReceipt(lines: OcrLine[], rules: ItemRule[] = [], fallbackD
     const text = raw.text.replace(/\s+/g, ' ').trim();
     if (!text) continue;
     if (!store) for (const [re, name] of STORES) if (re.test(text)) store = name;
-    if (!date) {
-      const dm = text.match(/\b(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})\b/);
-      if (dm) date = parseLooseDate(dm[1]);
-    }
+    if (!date) date = findDate(text);
     const up = text.toUpperCase();
     const pm = text.match(PRICE_END);
 
@@ -210,4 +350,28 @@ export function parseReceipt(lines: OcrLine[], rules: ItemRule[] = [], fallbackD
     warnings,
     itemsTotal,
   };
+}
+
+/** A long receipt in two screenshots: add the second one's items (skipping any seen twice) and fill gaps. */
+export function mergeReceipts(a: ParsedReceipt, b: ParsedReceipt): ParsedReceipt {
+  const seen = new Set(a.items.map((i) => i.upc ?? `${i.raw}|${i.price}`));
+  const items = [...a.items, ...b.items.filter((i) => !seen.has(i.upc ?? `${i.raw}|${i.price}`))];
+  const itemsTotal = round2(items.reduce((s, i) => s + i.price, 0));
+  const total = a.total ?? b.total;
+  let subtotal = a.subtotal ?? b.subtotal;
+  let tax = a.tax ?? b.tax;
+  if (subtotal == null && total != null) {
+    const diff = round2(total - itemsTotal);
+    if (diff >= 0 && diff <= itemsTotal * 0.12) {
+      subtotal = itemsTotal;
+      tax = tax ?? diff;
+    }
+  }
+  const warnings = [...a.warnings, ...b.warnings].filter((w) => !/lists \d+ items|No date/.test(w));
+  const listed = [...a.warnings, ...b.warnings].map((w) => w.match(/lists (\d+) items/)?.[1]).find(Boolean);
+  if (listed && Number(listed) > items.length) warnings.push(`The receipt lists ${listed} items and Pebbles found ${items.length}. If the rest are further down, add another screenshot below.`);
+  const realDate = a.warnings.some((w) => /No date/.test(w)) ? b.date : a.date;
+  if (a.warnings.some((w) => /No date/.test(w)) && b.warnings.some((w) => /No date/.test(w))) warnings.push('No date on this part of the receipt. Check the date below.');
+  const savings = items.some((i) => i.deal) ? round2(items.reduce((s, i) => s + (i.deal?.saved ?? 0), 0)) : (a.savings ?? b.savings);
+  return { ...a, date: realDate, items, itemsTotal, total, subtotal, tax, savings, warnings };
 }

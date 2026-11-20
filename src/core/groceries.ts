@@ -84,6 +84,17 @@ const ABBR: [RegExp, string][] = [
 
 // What it is, in plain words: a gallon of "KS CM VIT D MILK" is just Milk. First match wins.
 const BASE: [RegExp, string][] = [
+  // things whose names contain another food's word (Cream of WHEAT, Bad APPLE energy drink)
+  [/CREAM OF WHEAT/, 'Cream of Wheat'],
+  [/\bMONSTER\b/, 'Monster Energy'],
+  [/RED ?BULL/, 'Red Bull'],
+  [/\bCELSIUS\b/, 'Celsius'],
+  [/ENERGY DRINK|\bBANG\b ENERGY|\bREIGN\b|\bROCKSTAR\b/, 'Energy Drink'],
+  [/BROWN SUGAR/, 'Brown Sugar'],
+  [/POWDERED SUGAR/, 'Powdered Sugar'],
+  [/\bSUGAR\b(?! FREE| COOKIE)/, 'Sugar'],
+  [/\bFLOUR\b(?! TORTILLA)/, 'Flour'],
+  [/ENGLISH MUFFIN/, 'English Muffins'],
   [/CHOC(OLATE)? MILK/, 'Chocolate Milk'],
   [/ALMOND ?MILK|ALMOND BEVERAGE/, 'Almond Milk'],
   [/OAT ?MILK|OATMILK/, 'Oat Milk'],
@@ -139,10 +150,24 @@ const BASE: [RegExp, string][] = [
   [/BOTTLED WATER|SPRING WATER|PURIFIED WATER|DRINKING WATER/, 'Water'],
 ];
 
+// a fruit or vegetable word inside something else (apple juice, banana bread, strawberry yogurt) isn't that fruit
+const PRODUCE = new Set(['Bananas', 'Apples', 'Strawberries', 'Blueberries', 'Grapes', 'Potatoes', 'Onions', 'Broccoli', 'Salad']);
+const MADE_FROM = /DRINK|JUICE|SODA|FLAVOR|CANDY|CHOC|\bBAR\b|BARS|CEREAL|SAUCE|\bPIE\b|CHIP|YOGURT|MUFFIN|BREAD|CAKE|SNACK|POUCH|GUMM|\bTEA\b|JAM|JELLY|PRESERVES|SYRUP|CIDER|WATER|SPREAD|POP ?TART|TOASTER|OATMEAL|SOUP|SEASONING|DIP\b/;
+
 /** The plain name for a cleaned receipt line, or null to keep it as is. */
 export function baseName(upper: string): string | null {
   const s = ` ${upper.toUpperCase()} `;
-  for (const [re, name] of BASE) if (re.test(s)) return name;
+  for (const [re, name] of BASE) if (re.test(s) && !(PRODUCE.has(name) && MADE_FROM.test(s))) return name;
+  return null;
+}
+
+/** How many come in one package, from the name: "6 ct", "12CT", "dozen", "2 pc", "18 count". */
+export function packOf(raw: string): number | null {
+  const t = raw.toUpperCase();
+  const m = t.match(/\b(\d{1,3})\s*(?:CT|COUNT|PC|PCS|PK|PACK|CAN PACK)\b/);
+  if (m) return Math.max(1, parseInt(m[1], 10));
+  if (/\b(\d)\s*DOZ(EN)?\b/.test(t)) return parseInt(t.match(/\b(\d)\s*DOZ/)![1], 10) * 12;
+  if (/\bDOZ(EN)?\b|\bDZ\b/.test(t)) return 12;
   return null;
 }
 
@@ -150,7 +175,9 @@ export function cleanItemName(raw: string): { name: string; key: string } {
   let s = ` ${raw.toUpperCase()} `;
   s = s
     .replace(/\b\d{6,}\b/g, ' ') // UPCs
-    .replace(/\b\d+(\.\d+)?\s*(OZ|FZ|FL OZ|LB|LBS|CT|PK|PACK|ML|L|G|KG|QT|PT)\b/g, ' ') // sizes
+    .replace(/\b\d+(\.\d+)?\s*(OZ|FZ|FL OZ|LB|LBS|CT|PK|PACK|PC|PCS|ML|L|G|KG|QT|PT)\b/g, ' ') // sizes
+    .replace(/\bFL OZ\b|\bCAN\b(?= *,|$)/g, ' ')
+    .replace(/\b(FILLED WITH|WITH|BY)\b.*$/, ' ') // "...Filled With Pumpkin Spice Cream", "...By Snowfox"
     .replace(/\b(HALF\s+)?(GAL|GALLON|DZ|DOZ|DOZEN)\b/g, ' ')
     .replace(/[^A-Z&' ]/g, ' ');
   for (const [re, rep] of ABBR) s = s.replace(re, rep);
@@ -177,6 +204,7 @@ const DEPTS: [RegExp, GroceryDept][] = [
   [/MARLBORO|NEWPORT|CAMEL|PALL MALL|WINSTON|AMERICAN SPIRIT|\bCIG(S|ARETTE|ARETTES|AR|ARS)?\b|\bZYN\b|\bVELO\b|\bROGUE\b|\bON NICOTINE|NICOTINE|\bPOUCH(ES)?\b|\bVUSE\b|\bJUUL\b|\bVAPE\b|\bNJOY\b|GEEK ?BAR|ELF ?BAR|BREEZE|\bSKOAL\b|COPENHAGEN|GRIZZLY|\bKODIAK\b|\bSNUFF\b|\bDIP\b|BLACK ?N ?MILD|SWISHER|\bBACKWOODS\b|\bTOBACCO\b|\bLUCY\b|\bSESH\b/, 'tobacco'],
   [/LOTTERY|LOTTO|POWERBALL|MEGA ?MILLIONS|SCRATCH|SCRATCHER|\bQUICK ?PICK\b|CASH ?5\b|PICK ?3\b/, 'lottery'],
   [/MOTOR OIL|\b5W ?\d0\b|\b10W ?\d0\b|WASHER FLUID|WIPER|ANTIFREEZE|COOLANT|CAR WASH|AIR FRESHENER|\bWASH\b.*\bCAR\b|TIRE/, 'auto'],
+  [/CREAM OF WHEAT|OATMEAL|\bGRITS\b|\bCEREAL\b|BROWN SUGAR|\bFLOUR\b|\bSUGAR\b/, 'pantry'],
   // boxed freezer snacks, before 'popcorn' (snacks) and 'rolls' (bakery) can claim them
   [/PIZZA ROLL|POPCORN CHICKEN|NUGGET|EGG ROLL|MOZZ(ARELLA)? STICK|CORN DOG|BAGEL BITE|PIZZA BITE|FISH STICK|POT ?STICKER|TATER TOT|ONION RING|CHICKEN STRIP|DINO (NUGGET|BITE)/, 'frozen'],
   [/FOUNTAIN|\bPOLAR POP\b|\bBIG GULP\b|SLURPEE|FROZEN DRINK|HOT DOG ROLLER|\bROLLER\b|TAQUITO|PIZZA SLICE|\bSLICE\b|\bBURRITO\b|HOT FOOD|\bDELI SAND|\bSANDWICH\b|\bCOFFEE CUP\b|\bHOT COFFEE\b|\bCAPPUCCINO\b|\bFRAPPE\b|\bNACHOS\b|\bCHICKEN TENDER|\bFRIED CHICKEN\b|\bEMPANADA/, 'prepared'],

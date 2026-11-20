@@ -57,6 +57,7 @@ export type LeftAmount = 'gone' | 'low' | 'half' | 'full';
 export interface KitchenPick {
   item: ReceiptItem;
   left: LeftAmount;
+  count: number | null; // for things you count (12 eggs, 3 cans): how many you have now
   always: boolean; // a staple: you always get it
   stapleId: string | null; // swaps with similar things (a group)
 }
@@ -65,7 +66,7 @@ export interface KitchenPick {
 export function pickableItems(r: Pick<Receipt, 'items'>): ReceiptItem[] {
   const seen = new Map<string, ReceiptItem>();
   for (const i of r.items) {
-    if (i.price <= 0 || NON_GROCERY_DEPTS.includes(i.dept) || !i.name.trim()) continue;
+    if ((i.price <= 0 && !i.deal) || NON_GROCERY_DEPTS.includes(i.dept) || !i.name.trim()) continue;
     const k = i.key || lc(i.name);
     const cur = seen.get(k);
     seen.set(k, cur ? { ...cur, qty: (cur.qty || 1) + (i.qty || 1) } : i);
@@ -80,7 +81,11 @@ export function defaultPicks(r: Pick<Receipt, 'items' | 'date'>, today: ISODate,
   const recent = isRecent(r.date, today);
   return pickableItems(r).map((item) => {
     const p = pantry.find((x) => !x.archived && matches(x, item.key, item.name));
-    return { item, left: recent ? 'full' : 'gone', always: p ? !!p.always : usualKeys.has(item.key), stapleId: p?.stapleId ?? stapleFor(item.name, staples)?.id ?? null };
+    // bought in packs or more than one: count them (2 cartons of 12 eggs → 24), else Full / Half / Low
+    const bought = (item.pack ?? 1) * Math.max(1, item.qty || 1);
+    const countable = bought > 1 || p?.mode === 'count';
+    const count = countable ? (recent ? (p?.mode === 'count' ? Math.max(0, p.qty) : 0) + bought : 0) : null;
+    return { item, left: recent ? 'full' : 'gone', count, always: p ? !!p.always : usualKeys.has(item.key), stapleId: p?.stapleId ?? stapleFor(item.name, staples)?.id ?? null };
   });
 }
 
@@ -92,11 +97,20 @@ export function applyPicks(picks: KitchenPick[], pantry: PantryItem[], staples: 
   const outStaples = new Map<string, Staple>();
   for (const pk of picks) {
     // used up: skip it, unless it's a staple (then it goes in as Out, so your list asks for it)
-    if (pk.left === 'gone' && !pk.always) continue;
+    const gone = pk.count != null ? pk.count <= 0 : pk.left === 'gone';
+    if (gone && !pk.always) continue;
     const existing = pantry.find((x) => !x.archived && matches(x, pk.item.key, pk.item.name));
     const base = existing ?? newPantryItem(pk.item.name, { key: pk.item.key, dept: pk.item.dept }, rules);
     const next: PantryItem = { ...base, lastBought: !base.lastBought || base.lastBought < receiptDate ? receiptDate : base.lastBought };
-    if (next.mode === 'level') next.level = pk.left === 'gone' ? 'out' : pk.left;
+    if (pk.count != null) {
+      // counted: "12 eggs", "3 cans"; one purchase adds a pack
+      const pack = pk.item.pack && pk.item.pack > 1 ? pk.item.pack : 1;
+      next.mode = 'count';
+      next.qty = Math.max(0, pk.count);
+      if (next.unit === 'ct' || base.mode !== 'count') next.unit = 'ct';
+      next.perBuy = base.mode === 'count' ? Math.max(base.perBuy, pack) : pack;
+      next.lowAt = base.mode === 'count' ? base.lowAt : next.perBuy >= 4 ? Math.floor(next.perBuy * 0.25) : next.perBuy > 1 ? 1 : 0;
+    } else if (next.mode === 'level') next.level = pk.left === 'gone' ? 'out' : pk.left;
     else next.qty = pk.left === 'gone' ? 0 : round2(Math.max(next.perBuy, 1) * FRACTION[pk.left]);
     next.always = pk.always;
     if (pk.stapleId) {

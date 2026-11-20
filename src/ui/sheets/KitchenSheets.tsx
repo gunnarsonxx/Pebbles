@@ -1,25 +1,56 @@
-import { useMemo, useState } from 'react';
-import { Check, Plus, Trash2 } from 'lucide-react';
-import { Field, Sheet, TextInput, useConfirm, useToast } from '../components';
-import { STAPLE_PRESETS, defaultPicks, isRecent, newStaple, stapleFor, type KitchenPick, type LeftAmount } from '../../core/kitchen';
-import { fmtShort } from '../../core/dates';
-import { applyKitchenPicks, deleteStaple, gotForStaple, saveStaple } from '../../data/pantryActions';
-import type { AppData } from '../../data/useData';
-import type { Receipt, Staple } from '../../core/types';
+import { useMemo, useState } from "react";
+import { Check, Minus, Plus, Trash2 } from "lucide-react";
+import { Field, Sheet, TextInput, useConfirm, useToast } from "../components";
+import {
+  STAPLE_PRESETS,
+  defaultPicks,
+  isRecent,
+  newStaple,
+  stapleFor,
+  type KitchenPick,
+  type LeftAmount,
+} from "../../core/kitchen";
+import { fmtShort } from "../../core/dates";
+import {
+  applyKitchenPicks,
+  deleteStaple,
+  gotForStaple,
+  saveStaple,
+} from "../../data/pantryActions";
+import type { AppData } from "../../data/useData";
+import type { Receipt, Staple } from "../../core/types";
 
 const LEFT: { v: LeftAmount; label: string }[] = [
-  { v: 'gone', label: 'Gone' },
-  { v: 'low', label: 'Low' },
-  { v: 'half', label: 'Half' },
-  { v: 'full', label: 'Full' },
+  { v: "gone", label: "Gone" },
+  { v: "low", label: "Low" },
+  { v: "half", label: "Half" },
+  { v: "full", label: "Full" },
 ];
-const PILL: Record<LeftAmount, string> = { gone: 'out', low: 'low', half: 'half', full: 'full' };
+const PILL: Record<LeftAmount, string> = {
+  gone: "out",
+  low: "low",
+  half: "half",
+  full: "full",
+};
 
 /** Pick a staple for an item: yours, a ready-made idea, or a new one you name. */
-export function StaplePicker({ data, value, onChange, label = 'Swaps with' }: { data: AppData; value: string | null; onChange: (id: string | null, created?: Staple) => void; label?: string }) {
+export function StaplePicker({
+  data,
+  value,
+  onChange,
+  label = "Swaps with",
+}: {
+  data: AppData;
+  value: string | null;
+  onChange: (id: string | null, created?: Staple) => void;
+  label?: string;
+}) {
   const [naming, setNaming] = useState(false);
-  const [name, setName] = useState('');
-  const presets = STAPLE_PRESETS.filter((p) => !data.staples.some((s) => s.name.toLowerCase() === p.name.toLowerCase()));
+  const [name, setName] = useState("");
+  const presets = STAPLE_PRESETS.filter(
+    (p) =>
+      !data.staples.some((s) => s.name.toLowerCase() === p.name.toLowerCase()),
+  );
   const create = async (st: Staple) => {
     await saveStaple(st);
     onChange(st.id, st);
@@ -28,13 +59,13 @@ export function StaplePicker({ data, value, onChange, label = 'Swaps with' }: { 
     <div className="col" style={{ gap: 6 }}>
       <select
         className="input"
-        style={{ minHeight: 34, padding: '4px 8px', fontSize: 13 }}
+        style={{ minHeight: 34, padding: "4px 8px", fontSize: 13 }}
         aria-label={label}
-        value={value ?? ''}
+        value={value ?? ""}
         onChange={(e) => {
           const v = e.target.value;
-          if (v === '__new') return setNaming(true);
-          if (v.startsWith('preset:')) {
+          if (v === "__new") return setNaming(true);
+          if (v.startsWith("preset:")) {
             const p = STAPLE_PRESETS[Number(v.slice(7))];
             return void create(newStaple(p.name, p.keywords));
           }
@@ -50,7 +81,10 @@ export function StaplePicker({ data, value, onChange, label = 'Swaps with' }: { 
         {presets.length > 0 && (
           <optgroup label="Swaps with similar things">
             {presets.map((p) => (
-              <option key={p.name} value={`preset:${STAPLE_PRESETS.indexOf(p)}`}>
+              <option
+                key={p.name}
+                value={`preset:${STAPLE_PRESETS.indexOf(p)}`}
+              >
                 {p.name}
               </option>
             ))}
@@ -61,7 +95,16 @@ export function StaplePicker({ data, value, onChange, label = 'Swaps with' }: { 
       {naming && (
         <div className="row" style={{ gap: 6 }}>
           <div className="grow">
-            <TextInput value={name} onChange={setName} placeholder="e.g. Quick Lunches" autoFocus onEnter={() => name.trim() && void create(newStaple(name)).then(() => setNaming(false))} />
+            <TextInput
+              value={name}
+              onChange={setName}
+              placeholder="e.g. Quick Lunches"
+              autoFocus
+              onEnter={() =>
+                name.trim() &&
+                void create(newStaple(name)).then(() => setNaming(false))
+              }
+            />
           </div>
           <button
             className="btn small primary"
@@ -69,7 +112,7 @@ export function StaplePicker({ data, value, onChange, label = 'Swaps with' }: { 
             onClick={async () => {
               await create(newStaple(name));
               setNaming(false);
-              setName('');
+              setName("");
             }}
           >
             Create
@@ -81,16 +124,46 @@ export function StaplePicker({ data, value, onChange, label = 'Swaps with' }: { 
 }
 
 /** After a receipt: what from it is still in your kitchen, and how much. Nothing goes in unless you say so. */
-export function KitchenPickSheet({ data, receipt, onClose }: { data: AppData; receipt: Pick<Receipt, 'items' | 'date' | 'store'>; onClose: () => void }) {
+export function KitchenPickSheet({
+  data,
+  receipt,
+  onClose,
+}: {
+  data: AppData;
+  receipt: Pick<Receipt, "items" | "date" | "store">;
+  onClose: () => void;
+}) {
   const toast = useToast();
   const usualKeys = new Set((data.groceries?.usual ?? []).map((u) => u.key));
-  const [picks, setPicks] = useState<KitchenPick[]>(() => defaultPicks(receipt, data.today, data.pantry, data.staples, usualKeys));
+  const [picks, setPicks] = useState<KitchenPick[]>(() =>
+    defaultPicks(receipt, data.today, data.pantry, data.staples, usualKeys),
+  );
   const recent = isRecent(receipt.date, data.today);
-  const kept = picks.filter((p) => p.left !== 'gone' || p.always).length;
+  const kept = picks.filter(
+    (p) => (p.count != null ? p.count > 0 : p.left !== "gone") || p.always,
+  ).length;
   // the swap-group picker only shows where it could matter
-  const groupable = (name: string) => data.staples.length > 0 || !!stapleFor(name, STAPLE_PRESETS.map((x) => newStaple(x.name, x.keywords)));
-  const set = (i: number, patch: Partial<KitchenPick>) => setPicks(picks.map((p, k) => (k === i ? { ...p, ...patch } : p)));
-  const all = (left: LeftAmount) => setPicks(picks.map((p) => ({ ...p, left })));
+  const groupable = (name: string) =>
+    data.staples.length > 0 ||
+    !!stapleFor(
+      name,
+      STAPLE_PRESETS.map((x) => newStaple(x.name, x.keywords)),
+    );
+  const set = (i: number, patch: Partial<KitchenPick>) =>
+    setPicks(picks.map((p, k) => (k === i ? { ...p, ...patch } : p)));
+  const all = (left: LeftAmount) =>
+    setPicks(
+      picks.map((p) => ({
+        ...p,
+        left,
+        count:
+          p.count == null
+            ? null
+            : left === "gone"
+              ? 0
+              : (p.item.pack ?? 1) * Math.max(1, p.item.qty || 1),
+      })),
+    );
 
   return (
     <Sheet
@@ -107,11 +180,11 @@ export function KitchenPickSheet({ data, receipt, onClose }: { data: AppData; re
             disabled={!kept}
             onClick={async () => {
               const n = await applyKitchenPicks(picks, receipt.date);
-              toast(`${n} item${n === 1 ? '' : 's'} in your pantry`);
+              toast(`${n} item${n === 1 ? "" : "s"} in your pantry`);
               onClose();
             }}
           >
-            Update Pantry{kept ? ` (${kept})` : ''}
+            Update Pantry{kept ? ` (${kept})` : ""}
           </button>
         </>
       }
@@ -119,56 +192,138 @@ export function KitchenPickSheet({ data, receipt, onClose }: { data: AppData; re
       <div className="col gap-l">
         <p className="small ink2" style={{ margin: 0 }}>
           {recent
-            ? 'Everything starts as Full. Change anything you’ve already used up.'
-            : `This receipt is from ${fmtShort(receipt.date)}. Its prices are saved. Pick only what’s still in your kitchen and about how much is left.`}{' '}
-          Tap ★ on the things you always get (milk, bread, coffee) to make them staples: they stay at the top of your pantry and go on your list as soon as they run low.
+            ? "Everything starts as Full (things in packs start with how many you bought). Change anything you’ve already used."
+            : `This receipt is from ${fmtShort(receipt.date)}. Its prices are saved. Pick only what’s still in your kitchen and about how much is left.`}{" "}
+          Tap ★ on the things you always get (milk, bread, coffee) to make them
+          staples: they stay at the top of your pantry and go on your list as
+          soon as they run low.
         </p>
         <div className="row gap-s">
-          <button className="btn ghost small" onClick={() => all('full')}>
+          <button className="btn ghost small" onClick={() => all("full")}>
             All Full
           </button>
-          <button className="btn ghost small" onClick={() => all('gone')}>
+          <button className="btn ghost small" onClick={() => all("gone")}>
             None
           </button>
         </div>
-        {!picks.length && <p className="small muted">No grocery items on this receipt.</p>}
+        {!picks.length && (
+          <p className="small muted">No grocery items on this receipt.</p>
+        )}
         <div className="list">
           {picks.map((p, i) => (
-            <div key={`${p.item.key}${i}`} className="list-item" style={{ flexWrap: 'wrap', alignItems: 'center', gap: 8, opacity: p.left === 'gone' ? 0.7 : 1 }}>
+            <div
+              key={`${p.item.key}${i}`}
+              className="list-item"
+              style={{
+                flexWrap: "wrap",
+                alignItems: "center",
+                gap: 8,
+                opacity: p.left === "gone" ? 0.7 : 1,
+              }}
+            >
               <div className="grow" style={{ minWidth: 140 }}>
-                <div className="row" style={{ gap: 6, alignItems: 'center' }}>
+                <div className="row" style={{ gap: 6, alignItems: "center" }}>
                   <button
-                    className={`staple-star${p.always ? ' on' : ''}`}
+                    className={`staple-star${p.always ? " on" : ""}`}
                     aria-pressed={p.always}
                     aria-label={`${p.item.name} is a staple`}
                     title="Staple: something you always get"
                     onClick={() => set(i, { always: !p.always })}
                   >
-                    {p.always ? '★' : '☆'}
+                    {p.always ? "★" : "☆"}
                   </button>
                   <span className="strong small">{p.item.name}</span>
                   {p.always && <span className="tiny muted">Staple</span>}
                 </div>
-                {p.left !== 'gone' && groupable(p.item.name) && (
-                  <div style={{ marginTop: 6, maxWidth: 260 }}>
-                    <StaplePicker
-                      data={data}
-                      value={p.stapleId}
-                      onChange={(id, created) =>
-                        // a new staple also takes the other items on this receipt that fit it
-                        setPicks(picks.map((x, k) => (k === i ? { ...x, stapleId: id } : created && !x.stapleId && stapleFor(x.item.name, [created]) ? { ...x, stapleId: created.id } : x)))
+                {(p.count != null ? p.count > 0 : p.left !== "gone") &&
+                  groupable(p.item.name) && (
+                    <div style={{ marginTop: 6, maxWidth: 260 }}>
+                      <StaplePicker
+                        data={data}
+                        value={p.stapleId}
+                        onChange={(id, created) =>
+                          // a new staple also takes the other items on this receipt that fit it
+                          setPicks(
+                            picks.map((x, k) =>
+                              k === i
+                                ? { ...x, stapleId: id }
+                                : created &&
+                                    !x.stapleId &&
+                                    stapleFor(x.item.name, [created])
+                                  ? { ...x, stapleId: created.id }
+                                  : x,
+                            ),
+                          )
+                        }
+                      />
+                    </div>
+                  )}
+              </div>
+              {p.count != null ? (
+                <div className="col" style={{ alignItems: "flex-end", gap: 2 }}>
+                  <div
+                    className="stepper"
+                    style={{
+                      border: "1px solid var(--line)",
+                      borderRadius: 999,
+                    }}
+                  >
+                    <button
+                      className="icon-btn"
+                      aria-label={`One less ${p.item.name}`}
+                      onClick={() =>
+                        set(i, { count: Math.max(0, (p.count ?? 0) - 1) })
                       }
-                    />
+                    >
+                      <Minus size={15} />
+                    </button>
+                    <span className="num strong small">{p.count}</span>
+                    <button
+                      className="icon-btn"
+                      aria-label={`One more ${p.item.name}`}
+                      onClick={() => set(i, { count: (p.count ?? 0) + 1 })}
+                    >
+                      <Plus size={15} />
+                    </button>
                   </div>
-                )}
-              </div>
-              <div className="level-pills" role="group" aria-label={`${p.item.name}: how much is left`}>
-                {LEFT.map((l) => (
-                  <button key={l.v} className={`level-pill ${PILL[l.v]}${p.left === l.v ? ' on' : ''}`} aria-pressed={p.left === l.v} onClick={() => set(i, { left: l.v })}>
-                    {l.label}
-                  </button>
-                ))}
-              </div>
+                  <span className="tiny muted">
+                    {p.count === 0 ? "None left" : "Left"} of{" "}
+                    {(p.item.pack ?? 1) * Math.max(1, p.item.qty || 1)}
+                    {" bought"}
+                    {p.count === 0 && (
+                      <button
+                        className="link-btn tiny"
+                        style={{ marginLeft: 6 }}
+                        onClick={() =>
+                          set(i, {
+                            count:
+                              (p.item.pack ?? 1) * Math.max(1, p.item.qty || 1),
+                          })
+                        }
+                      >
+                        All
+                      </button>
+                    )}
+                  </span>
+                </div>
+              ) : (
+                <div
+                  className="level-pills"
+                  role="group"
+                  aria-label={`${p.item.name}: how much is left`}
+                >
+                  {LEFT.map((l) => (
+                    <button
+                      key={l.v}
+                      className={`level-pill ${PILL[l.v]}${p.left === l.v ? " on" : ""}`}
+                      aria-pressed={p.left === l.v}
+                      onClick={() => set(i, { left: l.v })}
+                    >
+                      {l.label}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -178,16 +333,27 @@ export function KitchenPickSheet({ data, receipt, onClose }: { data: AppData; re
 }
 
 /** Make or edit a swap group: similar things where any one will do (pizza rolls, popcorn chicken…). */
-export function StapleSheet({ data, staple, onClose }: { data: AppData; staple: Staple | null; onClose: () => void }) {
+export function StapleSheet({
+  data,
+  staple,
+  onClose,
+}: {
+  data: AppData;
+  staple: Staple | null;
+  onClose: () => void;
+}) {
   const toast = useToast();
   const ask = useConfirm();
-  const [s, setS] = useState<Staple>(staple ?? newStaple(''));
-  const [words, setWords] = useState((staple?.keywords ?? []).join(', '));
+  const [s, setS] = useState<Staple>(staple ?? newStaple(""));
+  const [words, setWords] = useState((staple?.keywords ?? []).join(", "));
   const members = data.pantry.filter((p) => p.stapleId === s.id);
-  const presets = STAPLE_PRESETS.filter((p) => !data.staples.some((x) => x.name.toLowerCase() === p.name.toLowerCase()));
+  const presets = STAPLE_PRESETS.filter(
+    (p) =>
+      !data.staples.some((x) => x.name.toLowerCase() === p.name.toLowerCase()),
+  );
   return (
     <Sheet
-      title={staple ? staple.name : 'New Swap Group'}
+      title={staple ? staple.name : "New Swap Group"}
       onClose={onClose}
       footer={
         <>
@@ -195,7 +361,14 @@ export function StapleSheet({ data, staple, onClose }: { data: AppData; staple: 
             <button
               className="btn danger"
               onClick={async () => {
-                if (await ask({ title: `Remove “${staple.name}”?`, body: 'Its items stay in your pantry; they just go back to being on their own.', confirm: 'Remove', danger: true })) {
+                if (
+                  await ask({
+                    title: `Remove “${staple.name}”?`,
+                    body: "Its items stay in your pantry; they just go back to being on their own.",
+                    confirm: "Remove",
+                    danger: true,
+                  })
+                ) {
                   await deleteStaple(staple.id);
                   onClose();
                 }
@@ -208,8 +381,19 @@ export function StapleSheet({ data, staple, onClose }: { data: AppData; staple: 
             className="btn primary"
             disabled={!s.name.trim()}
             onClick={async () => {
-              const n = await saveStaple({ ...s, name: s.name.trim(), keywords: words.split(',').map((w) => w.trim().toLowerCase()).filter(Boolean) });
-              toast(n ? `Saved · ${n} pantry item${n === 1 ? '' : 's'} joined it` : 'Saved');
+              const n = await saveStaple({
+                ...s,
+                name: s.name.trim(),
+                keywords: words
+                  .split(",")
+                  .map((w) => w.trim().toLowerCase())
+                  .filter(Boolean),
+              });
+              toast(
+                n
+                  ? `Saved · ${n} pantry item${n === 1 ? "" : "s"} joined it`
+                  : "Saved",
+              );
               onClose();
             }}
           >
@@ -228,10 +412,10 @@ export function StapleSheet({ data, staple, onClose }: { data: AppData; staple: 
               {presets.map((p) => (
                 <button
                   key={p.name}
-                  className={`chip${s.name === p.name ? ' on' : ''}`}
+                  className={`chip${s.name === p.name ? " on" : ""}`}
                   onClick={() => {
                     setS({ ...s, name: p.name });
-                    setWords(p.keywords.join(', '));
+                    setWords(p.keywords.join(", "));
                   }}
                 >
                   {p.name}
@@ -241,24 +425,41 @@ export function StapleSheet({ data, staple, onClose }: { data: AppData; staple: 
           </div>
         )}
         <Field label="Name">
-          <TextInput value={s.name} onChange={(v) => setS({ ...s, name: v })} placeholder="Air Fryer Frozen Food" />
+          <TextInput
+            value={s.name}
+            onChange={(v) => setS({ ...s, name: v })}
+            placeholder="Air Fryer Frozen Food"
+          />
         </Field>
-        <Field label="Counts If the Name Has" hint="Comma separated. Pizza rolls, popcorn chicken, nuggets…">
-          <textarea className="input" rows={3} value={words} onChange={(e) => setWords(e.target.value)} style={{ minHeight: 70, padding: 10 }} />
+        <Field
+          label="Counts If the Name Has"
+          hint="Comma separated. Pizza rolls, popcorn chicken, nuggets…"
+        >
+          <textarea
+            className="input"
+            rows={3}
+            value={words}
+            onChange={(e) => setWords(e.target.value)}
+            style={{ minHeight: 70, padding: 10 }}
+          />
         </Field>
         {(s.examples.length > 0 || members.length > 0) && (
           <Field label="You’ve Bought for It">
             <div className="row wrap" style={{ gap: 6 }}>
-              {[...new Set([...s.examples, ...members.map((m) => m.name)])].map((e) => (
-                <span key={e} className="chip">
-                  {e}
-                </span>
-              ))}
+              {[...new Set([...s.examples, ...members.map((m) => m.name)])].map(
+                (e) => (
+                  <span key={e} className="chip">
+                    {e}
+                  </span>
+                ),
+              )}
             </div>
           </Field>
         )}
         <p className="tiny muted" style={{ margin: 0 }}>
-          When everything in the group runs out, your list says “{s.name || 'Air Fryer Frozen Food'}” with what you got before, so you can grab whatever looks good.
+          When everything in the group runs out, your list says “
+          {s.name || "Air Fryer Frozen Food"}” with what you got before, so you
+          can grab whatever looks good.
         </p>
       </div>
     </Sheet>
@@ -266,16 +467,26 @@ export function StapleSheet({ data, staple, onClose }: { data: AppData; staple: 
 }
 
 /** Ticked a staple on the list: what did you get this time? */
-export function StapleGotSheet({ data, staple, options, onClose }: { data: AppData; staple: Staple; options: string[]; onClose: () => void }) {
+export function StapleGotSheet({
+  data,
+  staple,
+  options,
+  onClose,
+}: {
+  data: AppData;
+  staple: Staple;
+  options: string[];
+  onClose: () => void;
+}) {
   const toast = useToast();
   const [picked, setPicked] = useState<string[]>([]);
-  const [other, setOther] = useState('');
+  const [other, setOther] = useState("");
   const opts = useMemo(() => [...new Set(options)], [options]);
   void data;
   const done = async () => {
     const names = [...picked, ...(other.trim() ? [other.trim()] : [])];
     for (const n of names) await gotForStaple(staple, n);
-    toast(`Got ${names.join(', ')}`);
+    toast(`Got ${names.join(", ")}`);
     onClose();
   };
   return (
@@ -283,7 +494,11 @@ export function StapleGotSheet({ data, staple, options, onClose }: { data: AppDa
       title={`What ${staple.name} Did You Get?`}
       onClose={onClose}
       footer={
-        <button className="btn primary" disabled={!picked.length && !other.trim()} onClick={() => void done()}>
+        <button
+          className="btn primary"
+          disabled={!picked.length && !other.trim()}
+          onClick={() => void done()}
+        >
           <Check /> Done
         </button>
       }
@@ -292,7 +507,17 @@ export function StapleGotSheet({ data, staple, options, onClose }: { data: AppDa
         {opts.length > 0 && (
           <div className="row wrap" style={{ gap: 6 }}>
             {opts.map((o) => (
-              <button key={o} className={`chip${picked.includes(o) ? ' on' : ''}`} onClick={() => setPicked(picked.includes(o) ? picked.filter((x) => x !== o) : [...picked, o])}>
+              <button
+                key={o}
+                className={`chip${picked.includes(o) ? " on" : ""}`}
+                onClick={() =>
+                  setPicked(
+                    picked.includes(o)
+                      ? picked.filter((x) => x !== o)
+                      : [...picked, o],
+                  )
+                }
+              >
                 {o}
               </button>
             ))}
@@ -301,10 +526,22 @@ export function StapleGotSheet({ data, staple, options, onClose }: { data: AppDa
         <Field label="Something New">
           <div className="row" style={{ gap: 6 }}>
             <div className="grow">
-              <TextInput value={other} onChange={setOther} placeholder="e.g. Egg rolls" onEnter={() => void done()} />
+              <TextInput
+                value={other}
+                onChange={setOther}
+                placeholder="e.g. Egg rolls"
+                onEnter={() => void done()}
+              />
             </div>
             {other.trim() && (
-              <button className="btn small" onClick={() => (setPicked([...picked, other.trim()]), setOther(''))} aria-label="Add another">
+              <button
+                className="btn small"
+                onClick={() => (
+                  setPicked([...picked, other.trim()]),
+                  setOther("")
+                )}
+                aria-label="Add another"
+              >
                 <Plus />
               </button>
             )}

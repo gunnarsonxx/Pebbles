@@ -216,6 +216,7 @@ export function NumberInput({
   allowEmpty,
   autoFocus,
   ariaLabel,
+  money,
 }: {
   value: number | null;
   onChange: (v: number | null) => void;
@@ -227,15 +228,17 @@ export function NumberInput({
   allowEmpty?: boolean;
   autoFocus?: boolean;
   ariaLabel?: string;
+  money?: boolean; // show cents: 0.50, not 0.5
 }) {
-  const [text, setText] = useState(value == null ? '' : String(value));
+  const fmt = (v: number | null) => (v == null ? '' : money ? v.toFixed(2) : String(v));
+  const [text, setText] = useState(fmt(value));
   const last = useRef(value);
   useEffect(() => {
     if (value !== last.current) {
       last.current = value;
-      setText(value == null ? '' : String(value));
+      setText(fmt(value));
     }
-  }, [value]);
+  }, [value]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <div className="input-wrap">
       {prefix && <span className="prefix">{prefix}</span>}
@@ -249,6 +252,7 @@ export function NumberInput({
         placeholder={placeholder}
         autoFocus={autoFocus}
         aria-label={ariaLabel}
+        onBlur={() => money && last.current != null && setText(fmt(last.current))}
         onChange={(e) => {
           const t = e.target.value.replace(/[^0-9.\-]/g, '');
           setText(t);
