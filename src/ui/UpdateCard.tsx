@@ -73,3 +73,14 @@ export function UpdateBanner() {
     </div>
   );
 }
+
+/** A small "Update" button in the top bar, on every screen, when a new version is ready. */
+export function UpdatePill() {
+  const u = useUpdate();
+  if (u.status !== 'available' && u.status !== 'downloading' && u.status !== 'needs-permission') return null;
+  return (
+    <button className="btn small primary update-pill" disabled={u.status === 'downloading'} onClick={() => void installUpdate(u.release)}>
+      <Sparkles size={14} /> {u.status === 'downloading' ? 'Updating…' : 'Update'}
+    </button>
+  );
+}

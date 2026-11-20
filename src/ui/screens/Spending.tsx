@@ -194,7 +194,17 @@ export function TransactionsView({ data }: { data: AppData }) {
 
       <div className="card mt">
         <div className="row between wrap" style={{ marginBottom: 6 }}>
-          <div className="eyebrow">Transactions</div>
+          <div>
+            <div className="eyebrow">Transactions</div>
+            {data.links.length > 0 && (
+              <div className="tiny muted">
+                {(() => {
+                  const last = Math.max(0, ...data.links.map((l) => l.lastSync ?? 0));
+                  return last ? `From your banks · checked ${new Date(last).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : 'Waiting for your banks';
+                })()}
+              </div>
+            )}
+          </div>
           <div className="input-wrap" style={{ maxWidth: 260, flex: 1 }}>
             <Search size={16} className="prefix" />
             <input className="input has-prefix" style={{ minHeight: 38, paddingLeft: 36 }} placeholder="Search" value={query} onChange={(e) => setQuery(e.target.value)} />
@@ -207,6 +217,7 @@ export function TransactionsView({ data }: { data: AppData }) {
               <div className="grow">
                 <div className="strong ellipsis">{t.merchant || t.description}</div>
                 <div className="tiny muted ellipsis">
+                  {t.pending && <span className="badge warn" style={{ marginRight: 6, padding: '1px 6px', fontSize: 10 }}>Pending</span>}
                   {fmtShort(t.date)} · {categoryOf(t.category).name}
                   {t.excluded ? ' · not counted' : ''}
                 </div>

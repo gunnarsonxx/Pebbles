@@ -13,6 +13,7 @@ import { Onboarding } from './screens/Onboarding';
 import { onBack, pairEvents } from '../platform/native';
 import { useToast } from './components';
 import { platformKind } from '../platform';
+import { UpdatePill } from './UpdateCard';
 
 export type Tab = 'home' | 'paycheck' | 'budget' | 'groceries' | 'savings' | 'settings';
 /** Older names still used by some buttons: where they lead now. */
@@ -166,6 +167,7 @@ export function App() {
               </span>
             )}
             <div className="title">{tab === 'settings' && subs.settings ? (SETTINGS_SECTIONS.find((x) => x.id === subs.settings)?.title ?? 'Settings') : TITLES[tab]}</div>
+            <UpdatePill />
             <ThemeToggle theme={data.settings.theme} />
             <button className="icon-btn" title={sync.message || syncLabel} aria-label={syncLabel} onClick={() => go('settings', 'sync')}>
               <span className={`sync-dot ${sync.status}`} />

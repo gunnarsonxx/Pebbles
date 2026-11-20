@@ -238,7 +238,7 @@ export async function syncAllBanks(force = false): Promise<void> {
     await recoverPendingLinks().catch(() => {});
     for (const link of store.list('links')) {
       // banks that haven't sent anything yet are retried every time
-      if (!force && link.cursor && link.lastSync && Date.now() - link.lastSync < 4 * 3600_000) continue;
+      if (!force && link.cursor && link.lastSync && Date.now() - link.lastSync < 30 * 60_000) continue;
       await syncBank(link).catch(() => {});
     }
   } finally {

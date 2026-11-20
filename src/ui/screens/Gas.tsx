@@ -7,12 +7,26 @@ import { currentGasPrice } from '../../core/food';
 import { priceStations, worthTheDrive, type PricedStation, type Station, type Point } from '../../core/gas';
 import { fmtShort } from '../../core/dates';
 import { usd } from '../../core/money';
+import { desktop, platformKind } from '../../platform';
+import { Browser } from '@capacitor/browser';
 import { currentPosition, loadStations, logGasPrice, setHomeAddress, type StationCache } from '../../data/pantryActions';
 
 const friendly = (e: unknown) => {
   const m = (e as Error)?.message ?? '';
   return /fetch|network|timed? ?out|load failed/i.test(m) ? 'Couldn’t reach the map service. Check your internet connection and try again.' : m || 'Something went wrong.';
 };
+
+/** Google Maps shows posted prices even though its data service doesn't share them with apps. */
+function openMaps(s: Station | null, near?: Point) {
+  const url = s
+    ? s.id.startsWith('g:')
+      ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${s.name} ${s.address ?? ''}`)}&query_place_id=${s.id.slice(2)}`
+      : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${s.name} ${s.lat},${s.lon}`)}`
+    : `https://www.google.com/maps/search/gas+station/@${near?.lat},${near?.lon},14z`;
+  if (desktop) void desktop.openExternal(url);
+  else if (platformKind === 'android') void Browser.open({ url });
+  else window.open(url, '_blank');
+}
 
 const ppg = (v: number) => `$${v.toFixed(3).replace(/0$/, '')}`;
 
@@ -176,10 +190,15 @@ export function GasView({ data, go }: { data: AppData; go: GoTo }) {
             </div>
           )}
           {cache.note && <div className="tiny muted" style={{ marginBottom: 8 }}>{cache.note}</div>}
-          {cache.source === 'google' && !cache.stations.some((x) => x.live) && (
+          {!stations.some((x) => x.price != null) && (
             <div className="card tint" style={{ padding: 12, marginBottom: 10 }}>
-              <div className="strong small">Google Didn’t Include Prices</div>
-              <div className="tiny ink2">Google found these stations but sent no prices for them. Pebbles fills in prices from your gas receipts and the ones you tap in, and checks Google again tomorrow.</div>
+              <div className="strong small">See Today’s Prices in Google Maps</div>
+              <div className="tiny ink2" style={{ marginBottom: 8 }}>
+                Google shows posted prices in Maps but doesn’t share them with apps for your area. Tap a pin to open that station, or see them all. Tap Price to save one you see, and Pebbles uses it here and in your gas budget.
+              </div>
+              <button className="btn small" onClick={() => openMaps(null, cache.where)}>
+                <MapPin /> Gas Prices Near {where === 'home' ? 'Home' : 'Me'}
+              </button>
             </div>
           )}
           {cheapest && (
@@ -199,7 +218,9 @@ export function GasView({ data, go }: { data: AppData; go: GoTo }) {
           <div className={`list${busy ? ' refreshing' : ''}`}>
             {stations.slice(0, 15).map((s) => (
               <div key={s.id} className="list-item">
-                <MapPin size={18} className="muted" style={{ flexShrink: 0 }} />
+                <button className="icon-btn" onClick={() => openMaps(s)} aria-label={`Open ${s.name} in Google Maps`} title="See it in Google Maps">
+                  <MapPin size={18} />
+                </button>
                 <div className="grow" style={{ minWidth: 0 }}>
                   <div className="strong small ellipsis">{s.name}</div>
                   <div className="tiny muted ellipsis">

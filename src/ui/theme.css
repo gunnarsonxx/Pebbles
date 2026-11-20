@@ -1777,3 +1777,8 @@ ol.step-list li.now strong {
 svg.spin {
   animation: spin 0.8s linear infinite;
 }
+.update-pill {
+  min-height: 30px;
+  padding: 0 10px;
+  gap: 4px;
+}
