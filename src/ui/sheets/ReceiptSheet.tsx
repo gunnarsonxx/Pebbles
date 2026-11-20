@@ -57,7 +57,7 @@ export function ReceiptSheet({ data, existing, onClose }: { data: AppData; exist
   const itemsTotal = r ? round2(r.items.reduce((s, i) => s + i.price, 0)) : 0;
   const reference = r ? (r.subtotal ?? (r.total != null && r.tax != null ? round2(r.total - r.tax) : null)) : null;
   const mismatch = reference != null && Math.abs(reference - itemsTotal) > 0.05;
-  const dealsTotal = r ? round2(r.items.reduce((s2, i) => s2 + (i.deal?.saved ?? 0), 0)) : 0;
+  const dealsTotal = r ? round2(r.items.reduce((s2, i) => s2 + (i.deal?.saved ?? 0), 0) + (r.discount ?? 0)) : 0;
 
   return (
     <Sheet
@@ -114,7 +114,7 @@ export function ReceiptSheet({ data, existing, onClose }: { data: AppData; exist
             <div className="strong" style={{ marginTop: 6 }}>
               {progress ?? 'Take a photo or choose a receipt'}
             </div>
-            <div className="small muted">Photo, PDF, or a digital receipt. Read right on your device.</div>
+            <div className="small muted">Photo, screenshot, or PDF. For King Soopers orders, the PDF invoice from the app reads best. Read right on your device.</div>
           </button>
           {error && <p className="small bad">{error}</p>}
           <p className="small ink2">For the best read: lay the receipt flat, fill the frame, and use good light. Long receipts can be photographed in two parts and saved separately.</p>
@@ -280,6 +280,16 @@ export function ReceiptSheet({ data, existing, onClose }: { data: AppData; exist
             <Field label="Tax" hint={r.tax == null && r.total != null ? 'Not on this part. Add the next screenshot and Pebbles works it out from the total.' : undefined}>
               <NumberInput value={r.tax} allowEmpty onChange={(v) => setR({ ...r, tax: v })} prefix="$" money />
             </Field>
+            {(r.fees != null || r.discount != null) && (
+              <>
+                <Field label="Fees & Tip" hint="Delivery, service and tip">
+                  <NumberInput value={r.fees ?? null} allowEmpty onChange={(v) => setR({ ...r, fees: v })} prefix="$" money />
+                </Field>
+                <Field label="Order Coupons" hint="Off the whole order">
+                  <NumberInput value={r.discount ?? null} allowEmpty onChange={(v) => setR({ ...r, discount: v })} prefix="$" money />
+                </Field>
+              </>
+            )}
             <Field label="Total">
               <NumberInput value={r.total} allowEmpty onChange={(v) => setR({ ...r, total: v })} prefix="$" money />
             </Field>

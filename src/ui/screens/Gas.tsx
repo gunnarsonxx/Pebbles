@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Fuel, House, ImageUp, LocateFixed, MapPin, Pencil, RefreshCw } from 'lucide-react';
+import { EyeOff, Fuel, House, ImageUp, LocateFixed, MapPin, Pencil, RefreshCw } from 'lucide-react';
 import type { AppData } from '../../data/useData';
 import type { GoTo } from '../App';
 import { Field, NumberInput, Segmented, Sheet, TextInput, useToast } from '../components';
@@ -10,6 +10,8 @@ import { linesFromFile } from '../ocr';
 import { usd } from '../../core/money';
 import { desktop, platformKind } from '../../platform';
 import { Browser } from '@capacitor/browser';
+import { DrivingCard } from '../DrivingCard';
+import { saveSettings } from '../../data/actions';
 import { currentPosition, loadStations, logGasPrice, setHomeAddress, type StationCache } from '../../data/pantryActions';
 
 const friendly = (e: unknown) => {
@@ -100,7 +102,10 @@ export function GasView({ data, go }: { data: AppData; go: GoTo }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [where, i.homeLat, i.homeLon]);
 
-  const stations: PricedStation[] = cache ? priceStations(cache.stations, data.gasPrices, data.today, areaAvg) : [];
+  // stations you've said are closed or have no pumps stay off the list
+  const hidden = i.hiddenStations ?? [];
+  const hiddenIds = new Set(hidden.map((h) => h.id));
+  const stations: PricedStation[] = cache ? priceStations(cache.stations.filter((x) => !hiddenIds.has(x.id)), data.gasPrices, data.today, areaAvg) : [];
   const priced = stations.filter((s) => s.price != null).sort((a, b) => (a.price as number) - (b.price as number));
   const nearest = stations[0] ?? null;
   const cheapest = priced[0] ?? null;
@@ -112,6 +117,7 @@ export function GasView({ data, go }: { data: AppData; go: GoTo }) {
 
   return (
     <div className="col" style={{ gap: 14 }}>
+      <DrivingCard data={data} />
       <div className="card">
         <div className="grid two" style={{ gap: 12 }}>
           <div>
@@ -303,6 +309,14 @@ export function GasView({ data, go }: { data: AppData; go: GoTo }) {
             ))}
           </div>
           {!stations.length && <p className="small muted">No stations found nearby.</p>}
+          {hidden.length > 0 && (
+            <p className="tiny muted mt-s">
+              {hidden.length} station{hidden.length === 1 ? '' : 's'} hidden.{' '}
+              <button className="link-btn tiny" onClick={() => void saveSettings((x) => ({ ...x, integrations: { ...x.integrations, hiddenStations: [] } }))}>
+                Show Them Again
+              </button>
+            </p>
+          )}
           {cache.source !== 'google' && !i.googlePlacesKey && (
             <p className="tiny muted mt">
               Station prices aren’t public for free. Pebbles uses your gas receipts and the prices you tap in. For live posted prices,{' '}
@@ -347,6 +361,15 @@ function PriceSheet({ station, fromMaps, current, onClose }: { station: Station;
       <Field label="Regular, per Gallon" hint={fromMaps ? 'Type the price Google Maps showed. It’s saved for this station and used in your gas budget.' : 'What the sign says today'}>
         <NumberInput value={v} onChange={setV} prefix="$" allowEmpty autoFocus placeholder={current ? current.toFixed(3) : '3.299'} />
       </Field>
+      <button
+        className="btn ghost small mt"
+        onClick={async () => {
+          await saveSettings((x) => ({ ...x, integrations: { ...x.integrations, hiddenStations: [...(x.integrations.hiddenStations ?? []).filter((h) => h.id !== station.id), { id: station.id, name: station.name }] } }));
+          onClose();
+        }}
+      >
+        <EyeOff /> Closed or No Gas Pumps? Hide It
+      </button>
     </Sheet>
   );
 }

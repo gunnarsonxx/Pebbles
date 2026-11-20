@@ -1863,3 +1863,27 @@ svg.spin {
   border-radius: 999px;
   min-height: 40px;
 }
+
+/* driving: average miles by weekday */
+.drive-week {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+  align-items: end;
+  height: 66px;
+}
+.drive-day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  justify-content: flex-end;
+  height: 100%;
+}
+.drive-bar {
+  width: 100%;
+  max-width: 26px;
+  border-radius: 6px 6px 2px 2px;
+  background: var(--sapphire, var(--moss));
+  opacity: 0.85;
+}

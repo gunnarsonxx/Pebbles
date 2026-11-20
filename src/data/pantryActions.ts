@@ -133,7 +133,7 @@ const ago = (ms: number) => {
 
 /** Stations around a point: live Google prices when you've added a key (within the free limits), else the free station map. */
 export async function loadStations(where: 'home' | 'here', point: Point, force = false): Promise<StationCache> {
-  const cacheKey = `gasStations:${where}`;
+  const cacheKey = `gasStations:v2:${where}`; // v2: closed and no-pump places filtered out
   const cached = await store.getMeta<StationCache>(cacheKey);
   const moved = cached ? Math.abs(cached.where.lat - point.lat) + Math.abs(cached.where.lon - point.lon) > 0.01 : true;
   const g = getSettings().integrations.googlePlacesKey.trim();

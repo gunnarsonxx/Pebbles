@@ -108,6 +108,7 @@ export interface IntegrationSettings {
   homeLat: number | null;
   homeLon: number | null;
   googlePlacesKey: string; // optional: live station prices from Google Maps
+  hiddenStations?: { id: string; name: string }[]; // closed, or not really a gas station
 }
 
 export interface FireSettings {
@@ -271,6 +272,8 @@ export interface Receipt {
   tax: number | null;
   total: number | null;
   savings: number | null; // store discounts printed on the receipt
+  fees?: number | null; // delivery / service fees and tip (online orders)
+  discount?: number | null; // coupons off the whole order (not one item)
   source: 'photo' | 'pdf' | 'text';
   createdAt: number;
   fuel?: { gallons: number; perGallon: number; grade: string } | null; // gas pump line, when there is one
@@ -342,6 +345,19 @@ export interface ShopItem {
   done: boolean;
   doneAt: number | null;
   addedAt: number;
+}
+
+/** An odometer reading (and maybe a fill-up) from your car. */
+export interface DriveEntry {
+  id: string;
+  date: ISODate;
+  at: number; // when you logged it (ms)
+  odometer: number; // miles on the car
+  dashMpg?: number | null; // the car's own average mpg readout, if you have one
+  gallons?: number | null; // filled up: how many gallons
+  perGallon?: number | null;
+  full?: boolean; // filled to full (needed for exact mpg)
+  note?: string;
 }
 
 /** A gas price you paid or saw. */
@@ -543,6 +559,7 @@ export interface CollectionMap {
   staples: Staple;
   recipes: Recipe;
   mealplan: MealPlanEntry;
+  drives: DriveEntry;
 }
 
 export type CollectionName = keyof CollectionMap;
@@ -575,6 +592,7 @@ export const COLLECTIONS: CollectionName[] = [
   'staples',
   'recipes',
   'mealplan',
+  'drives',
 ];
 
 /** A record as stored and synced. */

@@ -2,8 +2,8 @@ import { useMemo, useSyncExternalStore } from 'react';
 import { store } from './store';
 import { syncClient } from './syncClient';
 import { normalizeSettings } from '../core/defaults';
-import { today as todayISO, parts, diffDays } from '../core/dates';
-import { computeGross, periodByIndex, periodContaining, upcomingPayPeriod, type Period } from '../core/pay';
+import { today as todayISO, parts, diffDays, addDays } from '../core/dates';
+import { computeGross, resolveDay, periodByIndex, periodContaining, upcomingPayPeriod, type Period } from '../core/pay';
 import { calibrationFrom, estimatePaycheck, type PaycheckEstimate } from '../core/paycheck';
 import { BUNDLED_RULES, isValidRulesFile, newerVersion, rulesForYear, type TaxRulesFile } from '../core/taxrules';
 import { monthlyBillsTotal, buildPlan, estimateEssentials, goalBalance, totalSaved, type EssentialsEstimate, type PaycheckPlan } from '../core/budget';
@@ -15,8 +15,9 @@ import { BUNDLED_GUIDELINES, checkGuidelines, isValidGuidelines, type GuidelineC
 import { goalsAccount, interestNextMonth, reconcile, type Reconcile } from '../core/savingsAccount';
 import { paydayMoves, type Move } from '../core/moves';
 import { threePaycheckMonths } from '../core/budget';
-import type { GasPrice, MealPlanEntry, PantryItem, Recipe, ShopItem, Staple } from '../core/types';
+import type { DriveEntry, GasPrice, MealPlanEntry, PantryItem, Recipe, ShopItem, Staple } from '../core/types';
 import { paypalFundingAccount, paypalInFlight, withInFlight, type InFlight } from '../core/paypal';
+import { drivingStats, trustworthy, type DrivingStats } from '../core/driving';
 import { emergencyStatus, type EmergencyStatus } from '../core/emergency';
 import { billsAccount, coverage, spendingAccount, type Coverage } from '../core/coverage';
 
@@ -69,6 +70,8 @@ export interface AppData {
   reconcile: Reconcile | null;
   movesFor: { period: Period; estimate: PaycheckEstimate; plan: PaycheckPlan; moves: Move[]; isPast: boolean } | null;
   coverage: Coverage;
+  drives: DriveEntry[];
+  driving: DrivingStats | null;
   inFlight: InFlight | null; // PayPal purchases your bank's balance doesn't show yet
   paypalFrom: Account | null;
   emergency: EmergencyStatus | null;
@@ -140,9 +143,22 @@ export function computeData(version: number, today: ISODate): AppData {
   const need = monthlyGroceryNeed(groceries);
   // the gas price you actually pay (your receipts and logged prices, last 30 days) beats the state average
   const gasPrices = store.list('gasprices').sort((a, b) => b.date.localeCompare(a.date));
-  const paid = gasPrices.filter((g) => g.source !== 'google' && diffDays(today, g.date) <= 30);
-  const paidGas = paid.length ? Math.round((paid.reduce((s, g) => s + g.perGallon, 0) / paid.length) * 1000) / 1000 : null;
+  // what you paid: gas receipts and prices you logged, plus fill-ups in your driving log
+  const paid = [
+    ...gasPrices.filter((g) => g.source !== 'google' && diffDays(today, g.date) <= 30).map((g) => g.perGallon),
+    ...store.list('drives').filter((d) => d.perGallon && diffDays(today, d.date) <= 30).map((d) => d.perGallon as number),
+  ];
+  const paidGas = paid.length ? Math.round((paid.reduce((s, v) => s + v, 0) / paid.length) * 1000) / 1000 : null;
   const marketForBudget = paidGas && !market?.manualGasPrice ? ({ ...(market ?? { id: 'market', gas: null, foodCpi: null, staples: [], fetchedAt: 0, errors: [] }), manualGasPrice: paidGas } as MarketData) : market;
+  // your car: odometer readings and fill-ups
+  const drives = store.list('drives');
+  // days you worked (your schedule, plus any days you changed), to compare driving on work days vs off
+  const workDates = new Set<string>();
+  for (let k = 0; k <= 120; k++) {
+    const d = addDays(today, -k);
+    if (resolveDay(d, settings.pay, rates, workdays.get(d)).status === 'worked') workDates.add(d);
+  }
+  const driving = drivingStats(drives, today, workDates);
   const essentials = estimateEssentials(
     settings,
     txns,
@@ -154,6 +170,7 @@ export function computeData(version: number, today: ISODate): AppData {
           reason: `What you need each month, from ${groceries.trips} receipt${groceries.trips === 1 ? '' : 's'} (${groceries.tripsPerMonth.toFixed(1)} trips a month${groceries.taxRate ? `, ${(groceries.taxRate * 100).toFixed(1)}% tax` : ''})`,
         }
       : null,
+    trustworthy(driving) ? { milesPerMonth: driving.milesPerMonth, mpg: driving.mpg, days: driving.days } : null,
   );
   // Bills account vs Spending account: what's due through the check after next, and what's yours
   // PayPal purchases the bank's balance doesn't show yet come off the account PayPal pulls from
@@ -327,6 +344,8 @@ export function computeData(version: number, today: ISODate): AppData {
     reconcile: reconcile(gAcct, saved),
     movesFor,
     coverage: cov,
+    drives: [...drives].sort((a, b) => b.odometer - a.odometer || b.at - a.at),
+    driving,
     inFlight,
     paypalFrom,
     emergency: emergencyStatus(emergency, emergency ? (balances.get(emergency.id) ?? 0) : 0, monthlyBillsTotal(bills) + essentials.totalMonthly, settings.budget.emergencyMonths),

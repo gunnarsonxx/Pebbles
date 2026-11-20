@@ -10,7 +10,7 @@ import type { AppData } from '../data/useData';
 import { setBonusMove, setMove } from '../data/autopilot';
 import { fmtDay, fmtDayOrd, fmtShort } from '../core/dates';
 import { usd } from '../core/money';
-import { projectSavings } from '../core/savingsAccount';
+import { monthlyRate, projectSavings } from '../core/savingsAccount';
 import type { Standing } from '../core/guidelines';
 
 /** Home: what to do with this paycheck. The only part of money you have to think about. */
@@ -81,6 +81,7 @@ export function SavingsAccountCard({ data }: { data: AppData }) {
   const proj = apy ? projectSavings(balance, apy, monthlyDeposit, 12) : null;
   const rec = data.reconcile;
   const [splitting, setSplitting] = useState(false);
+  const [showMath, setShowMath] = useState(false);
   if (!acct) {
     return (
       <div className="card tint mt">
@@ -122,6 +123,49 @@ export function SavingsAccountCard({ data }: { data: AppData }) {
         )}
       </div>
       {proj && <Projection points={proj.map((p) => p.balance)} />}
+      {proj && apy != null && (
+        <>
+          <button className="link-btn small mt-s" onClick={() => setShowMath(!showMath)}>
+            {showMath ? 'Hide the Math' : 'How the 12-Month Number Is Figured'}
+          </button>
+          {showMath && (
+            <div className="coverage-math mt-s">
+              <div className="row between small">
+                <span>{acct.name} now</span>
+                <span className="num strong">{usd(balance)}</span>
+              </div>
+              <div className="row between small">
+                <span>
+                  + Deposits: {usd(data.plan.savings)} a paycheck × 26 ÷ 12 = {usd(monthlyDeposit)} a month, for 12 months
+                </span>
+                <span className="num">+{usd(monthlyDeposit * 12)}</span>
+              </div>
+              <div className="row between small">
+                <span>
+                  + Interest: {apy}% APY ≈ {(monthlyRate(apy) * 100).toFixed(3)}% a month on the balance, growing as deposits come in
+                </span>
+                <span className="num">+{usd(proj[12].interestTotal)}</span>
+              </div>
+              <div className="divider" style={{ margin: '6px 0' }} />
+              <div className="row between small">
+                <span className="strong">In 12 months</span>
+                <span className="num strong">{usd(proj[12].balance)}</span>
+              </div>
+              <div className="row wrap tiny muted mt-s" style={{ gap: 12 }}>
+                {[3, 6, 9].map((m) => (
+                  <span key={m}>
+                    {m} months: {usd(proj[m].balance, true)}
+                  </span>
+                ))}
+              </div>
+              <p className="tiny muted" style={{ margin: '6px 0 0' }}>
+                Assumes you keep saving this paycheck’s planned {usd(data.plan.savings, true)}, the rate stays at {apy}%, and nothing is taken out. Deposits count from
+                the middle of the month they land, so they earn about half a month of interest at first. It updates as your plan, balance or rate change.
+              </p>
+            </div>
+          )}
+        </>
+      )}
       {acct.balance != null && (
         <div className="row between mt" style={{ gap: 10 }}>
           <p className="small ink2" style={{ margin: 0 }}>

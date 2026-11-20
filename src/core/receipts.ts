@@ -95,7 +95,7 @@ export interface ParsedReceipt extends Omit<Receipt, 'id' | 'createdAt' | 'sourc
 //                    1 x $5.99 $6.49 ea.                 ← how many, each, and the shelf price
 //                    Item Coupon/Sale: -$0.50            ← the deal (already taken off above)
 //                    UPC: 0001313000612
-const QTY_LINE = /^(\d+(?:\.\d+)?)\s*[x×]\s*\$?\s*([\dSO]+[.,-]?\d{2})(?:\s+\$?\s*([\dSO]+[.,-]?\d{2}))?\s*(?:ea|each|\/)/i;
+const QTY_LINE = /^(\d+(?:\.\d+)?)\s*[x×]\s*\$?\s*([\dSO]+[.,-]?\d{2})(?:\s+\$?\s*([\dSO]+[.,-]?\d{2}))?\s*(?:ea\b|each\b|\/|\(|$)/i;
 const DEAL_LINE = /(coupon|sale|savings|discount|promo|digital|bogo|buy one|reward)[^$\d-]*[-–]?\s*[S$]*\s*\$?\s*(\d+[.,]\d{2})/i;
 const UPC_LINE = /^UPC[:\s]*([\d\s]{6,})/i;
 
@@ -108,7 +108,8 @@ export function looseMoney(t: string): number {
 }
 
 export function isDigitalReceipt(lines: OcrLine[]): boolean {
-  return lines.filter((l) => QTY_LINE.test(l.text.trim())).length >= 2 || lines.filter((l) => UPC_LINE.test(l.text.trim())).length >= 2;
+  const n = (re: RegExp) => lines.filter((l) => re.test(l.text.trim())).length;
+  return n(QTY_LINE) >= 2 || n(UPC_LINE) >= 2 || n(/^item coupon\/sale/i) >= 2 || lines.some((l) => /ITEMS PURCHASED|ITEM DETAILS/i.test(l.text));
 }
 
 /** A month-name date anywhere: "Nov 19, 2026", "November 19 2026", "Thu, Nov 19, 2026". */
@@ -128,6 +129,10 @@ function parseDigital(lines: OcrLine[], rules: ItemRule[], fallbackDate?: string
   let tax: number | null = null;
   let total: number | null = null;
   let listed: number | null = null;
+  let itemCoupons = 0; // "Item Coupons & Sales" in the summary: already off each item's price
+  let fees = 0;
+  let discount = 0;
+  let done = false; // past the items (payment details)
   let cur: { name: string[]; price: number; conf: number; qty: number; each: number | null; regular: number | null; deal: Deal | null; upc: string | null } | null = null;
 
   const finish = () => {
@@ -160,9 +165,31 @@ function parseDigital(lines: OcrLine[], rules: ItemRule[], fallbackDate?: string
     if (!date) date = findDate(text);
     const up = text.toUpperCase();
     const pm = text.match(/[S$]\s?(\d+[.,]\d{2})\s*$/);
-    const n = up.match(/(\d+)\s+ITEMS?\b/);
-    if (n && /DETAIL|ITEMS?$/.test(up)) {
+    const n = up.match(/(\d+)\s+ITEMS?\b/) ?? up.match(/ITEMS?\s+PURCHASED\s*\((\d+)\)/);
+    if (n && /DETAIL|PURCHASED|ITEMS?$/.test(up)) {
       listed = parseInt(n[1], 10);
+      continue;
+    }
+    if (done) continue;
+    if (/^PAYMENT|^(VISA|MASTERCARD|AMEX|DISCOVER|DEBIT|EBT)\b|^TERMINAL|^CARD\b/.test(up)) {
+      if (/^PAYMENT/.test(up)) {
+        finish();
+        done = true;
+      }
+      continue;
+    }
+    if (/^ORDER (#|TYPE|NUMBER)|^DELIVERED|^SAVINGS$|^ORDER SUMMARY|KINGSOOPERS\.COM/.test(up)) continue;
+    if (/^SAVINGS\b/.test(up)) continue; // the total saved; the items carry their own deals
+    if (/^ITEM COUPONS? (&|AND) SALES?/.test(up)) {
+      if (pm) itemCoupons = looseMoney(pm[1]);
+      continue;
+    }
+    if (/^(COUPONS?|DIGITAL COUPONS?|ORDER COUPON|PROMO(TION)?S?)\b/.test(up) && pm && !cur) {
+      discount = round2(discount + looseMoney(pm[1]));
+      continue;
+    }
+    if (/^(FEES?|OTHER FEES|DELIVERY|SERVICE FEE|BAG FEE|PICKUP FEE|TIP|DRIVER TIP|CHECKOUT BAG)/.test(up) && pm) {
+      fees = round2(fees + looseMoney(pm[1]));
       continue;
     }
     if (/SUB\s*-?\s*TOTAL/.test(up)) {
@@ -207,16 +234,20 @@ function parseDigital(lines: OcrLine[], rules: ItemRule[], fallbackDate?: string
   finish();
 
   const itemsTotal = round2(items.reduce((s, i) => s + i.price, 0));
+  // the summary's subtotal is before item coupons; the items are after them
+  if (subtotal != null && itemCoupons > 0 && Math.abs(subtotal - itemCoupons - itemsTotal) < Math.abs(subtotal - itemsTotal)) subtotal = round2(subtotal - itemCoupons);
+  const units = items.reduce((s, i) => s + Math.max(1, i.qty || 1), 0);
+  const complete = listed == null || listed <= items.length || listed <= units;
   // only the order total? the difference is the tax, if it's a believable amount
-  if (subtotal == null && total != null && tax == null && (listed == null || listed <= items.length)) {
+  if (subtotal == null && total != null && tax == null && complete) {
     const diff = round2(total - itemsTotal);
     if (diff >= 0 && diff <= itemsTotal * 0.12) {
       subtotal = itemsTotal;
       tax = diff;
     }
   }
-  if (listed != null && listed > items.length)
-    warnings.push(`The receipt lists ${listed} items and Pebbles found ${items.length}. If the rest are further down, add another screenshot below.`);
+  if (!complete)
+    warnings.push(`The receipt lists ${listed} items and Pebbles found ${units}. If the rest are further down, add another screenshot below.`);
   if (!date) warnings.push('No date on this part of the receipt. Check the date below.');
   return {
     fuel: null,
@@ -226,7 +257,9 @@ function parseDigital(lines: OcrLine[], rules: ItemRule[], fallbackDate?: string
     subtotal,
     tax,
     total,
-    savings: items.some((i) => i.deal) ? round2(items.reduce((s, i) => s + (i.deal?.saved ?? 0), 0)) : null,
+    savings: items.some((i) => i.deal) || discount ? round2(items.reduce((s, i) => s + (i.deal?.saved ?? 0), 0) + discount) : null,
+    fees: fees || null,
+    discount: discount || null,
     warnings,
     itemsTotal,
   };
@@ -369,7 +402,9 @@ export function mergeReceipts(a: ParsedReceipt, b: ParsedReceipt): ParsedReceipt
   }
   const warnings = [...a.warnings, ...b.warnings].filter((w) => !/lists \d+ items|No date/.test(w));
   const listed = [...a.warnings, ...b.warnings].map((w) => w.match(/lists (\d+) items/)?.[1]).find(Boolean);
-  if (listed && Number(listed) > items.length) warnings.push(`The receipt lists ${listed} items and Pebbles found ${items.length}. If the rest are further down, add another screenshot below.`);
+  // receipts count units (3 cans = 3 items), not lines
+  const units = items.reduce((s2, i) => s2 + Math.max(1, i.qty || 1), 0);
+  if (listed && Number(listed) > items.length && Number(listed) > units) warnings.push(`The receipt lists ${listed} items and Pebbles found ${units}. If the rest are further down, add another screenshot below.`);
   const realDate = a.warnings.some((w) => /No date/.test(w)) ? b.date : a.date;
   if (a.warnings.some((w) => /No date/.test(w)) && b.warnings.some((w) => /No date/.test(w))) warnings.push('No date on this part of the receipt. Check the date below.');
   const savings = items.some((i) => i.deal) ? round2(items.reduce((s, i) => s + (i.deal?.saved ?? 0), 0)) : (a.savings ?? b.savings);

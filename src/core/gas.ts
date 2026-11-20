@@ -61,6 +61,26 @@ interface OsmEl {
   tags?: Record<string, string>;
 }
 
+// Places tagged as fuel that aren't somewhere to fill a car: propane refills, EV chargers, truck-only
+// cardlocks, and stations that have closed.
+const NOT_A_PUMP = /propane|amerigas|ferrellgas|suburban propane|blue rhino|u-?haul|\bcng\b|\blpg\b|tesla|supercharger|charging|\bev\b|chargepoint|electrify|cardlock|card lock|commercial fuel|fleet|bulk (fuel|plant)|car ?wash only|tire/i;
+
+/** Does an OpenStreetMap fuel station actually sell gas (or diesel), and is it open? */
+export function sellsGas(t: Record<string, string>): boolean {
+  if (t.disused === 'yes' || t.abandoned === 'yes' || t['disused:amenity'] || t['abandoned:amenity'] || t['was:amenity']) return false;
+  if (/^(closed|off)$/i.test(t.opening_hours ?? '')) return false;
+  if (t.access === 'private' || t.access === 'no') return false;
+  if (NOT_A_PUMP.test(`${t.name ?? ''} ${t.brand ?? ''} ${t.operator ?? ''}`)) return false;
+  const fuel = Object.entries(t).filter(([k]) => k.startsWith('fuel:'));
+  if (fuel.length) {
+    const yes = (k: string) => t[k] === 'yes';
+    const gas = Object.keys(t).some((k) => /^fuel:(octane_\d+|diesel|e10|e15|e85|gasoline|petrol|regular)/.test(k) && yes(k));
+    const onlyOther = fuel.every(([k, v]) => v !== 'yes' || /^fuel:(lpg|cng|propane|electricity|adblue|hgv_diesel|biogas|h70|lh2)/.test(k));
+    if (!gas && onlyOther) return false;
+  }
+  return true;
+}
+
 export function parseOverpass(text: string, from: Point): Station[] {
   const els = (JSON.parse(text)?.elements ?? []) as OsmEl[];
   const out: Station[] = [];
@@ -69,6 +89,7 @@ export function parseOverpass(text: string, from: Point): Station[] {
     const lon = e.lon ?? e.center?.lon;
     if (lat == null || lon == null) continue;
     const t = e.tags ?? {};
+    if (!sellsGas(t)) continue;
     const name = t.name || t.brand || t.operator || 'Gas station';
     const street = [t['addr:housenumber'], t['addr:street']].filter(Boolean).join(' ');
     out.push({
@@ -123,6 +144,8 @@ interface GPlace {
   formattedAddress?: string;
   shortFormattedAddress?: string;
   location?: { latitude: number; longitude: number };
+  businessStatus?: string; // OPERATIONAL, CLOSED_TEMPORARILY, CLOSED_PERMANENTLY
+  primaryType?: string;
   fuelOptions?: { fuelPrices?: { type: string; price?: { units?: string; nanos?: number }; updateTime?: string }[] };
 }
 
@@ -136,10 +159,23 @@ function priceOf(x: { price?: { units?: string; nanos?: number } }): number | nu
   return v > 0 ? v : null;
 }
 
+// Google files plenty of convenience stores and car washes under "gas station" too
+const FUEL_BRANDS = /shell|conoco|phillips|sinclair|chevron|exxon|mobil|valero|maverik|loaf|kum ?& ?go|quik ?trip|\bqt\b|7-?eleven|circle k|murphy|costco|sam'?s|king soopers|kroger|safeway|walmart|love'?s|pilot|flying j|speedway|casey|bp\b|arco|texaco|cenex|holiday|7 ?11|diamond shamrock|alta|gas|fuel|petro/i;
+
+/** Is this Google place open, and a place to fill a car? */
+export function googleSellsGas(p: { businessStatus?: string; primaryType?: string; displayName?: { text: string }; fuelOptions?: unknown }): boolean {
+  if (p.businessStatus && p.businessStatus !== 'OPERATIONAL') return false;
+  const name = p.displayName?.text ?? '';
+  if (NOT_A_PUMP.test(name)) return false;
+  if (p.primaryType === 'gas_station' || p.fuelOptions) return true;
+  // listed as something else (a store, a car wash) but also as a gas station: only if it's a known fuel brand
+  return FUEL_BRANDS.test(name);
+}
+
 export function parsePlaces(text: string, from: Point, grade = 'REGULAR_UNLEADED'): Station[] {
   const places = (JSON.parse(text)?.places ?? []) as GPlace[];
   return places
-    .filter((p) => p.location)
+    .filter((p) => p.location && googleSellsGas(p))
     .map((p) => {
       const prices = (p.fuelOptions?.fuelPrices ?? []).filter((x) => priceOf(x) != null);
       // regular if listed, otherwise the cheapest gasoline grade the station shows
@@ -182,7 +218,8 @@ export async function googleStations(http: HttpFn, key: string, p: Point, radius
     headers: {
       'Content-Type': 'application/json',
       'X-Goog-Api-Key': key,
-      'X-Goog-FieldMask': 'places.id,places.displayName,places.shortFormattedAddress,places.location,places.fuelOptions',
+      // businessStatus / primaryType sit in a lower price tier than fuelOptions, so they add nothing to the cost
+      'X-Goog-FieldMask': 'places.id,places.displayName,places.shortFormattedAddress,places.location,places.fuelOptions,places.businessStatus,places.primaryType',
       // lets a key restricted to "Android apps" (package app.pebbles.money + this signing fingerprint) work
       'X-Android-Package': 'app.pebbles.money',
       'X-Android-Cert': PEBBLES_CERT_SHA1,

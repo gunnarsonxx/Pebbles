@@ -7,7 +7,7 @@ const L = (t: string) => ({ text: t, confidence: 90 });
 // an app / online-order receipt, as the phone's reader sees it (OCR quirks included: $6-49, S0.50)
 const part1 = [
   'Order Total: $21.45',
-  'Item Details 4 Items',
+  'Item Details 7 Items', // units: 3 cans count as 3
   'Cream of Wheat Original 2 1/2- Minute, $5.99',
   '28 oz',
   '1 x $5.99 $6-49 ea.',
@@ -44,7 +44,7 @@ describe('app receipts', () => {
     ]);
     expect(r.total).toBe(21.45);
     expect(r.savings).toBe(4.09);
-    expect(r.warnings.join(' ')).toMatch(/lists 4 items and Pebbles found 3/);
+    expect(r.warnings.join(' ')).toMatch(/lists 7 items and Pebbles found 5/);
   });
   it('a second screenshot adds the rest, skips repeats, finds the date and works out the tax', () => {
     const r = mergeReceipts(parseReceipt(part1, [], '2026-11-20'), parseReceipt(part2, [], '2026-11-20'));
@@ -72,5 +72,62 @@ describe('app receipts', () => {
     expect(cleanItemName('Honeycrisp Apples 3 lb').name).toBe('Apples');
     expect(cleanItemName('Banana Bread').name).toBe('Bread');
     expect(cleanItemName('Thomas Cinnamon Raisin English Muffin, 6 ct').name).toBe('English Muffins');
+  });
+});
+
+// an online-order invoice (PDF): summary block, quantity lines without "ea.", coupons per unit, fees and tip
+const invoice = [
+  'King Soopers   INVOICE',
+  'Order Date: October 27, 2026',
+  'SAVINGS',
+  'Savings   -$7.40',
+  'ORDER SUMMARY',
+  'Subtotal   $26.36',
+  'Item Coupons & Sales   -$6.40',
+  'Coupons   -$1.00',
+  'Fee   +$14.95',
+  'Tip   +$5.25',
+  'Tax   $0.60',
+  'Total   $39.76',
+  'ITEMS PURCHASED (8)',
+  'Barilla Cellentani Pasta, 16 oz   $4.95',
+  '5 × $0.99',
+  'Item Coupon/Sale: -$0.40',
+  'Item Coupon/Sale: -$0.60',
+  'Item Coupon/Sale: -$0.40',
+  'Item Coupon/Sale: -$0.60',
+  'Item Coupon/Sale: -$0.40',
+  'Item Coupon/Sale: -$0.60',
+  'Item Coupon/Sale: -$0.40',
+  'Item Coupon/Sale: -$0.60',
+  'Item Coupon/Sale: -$0.40',
+  'Item Coupon/Sale: -$0.60',
+  'El Monterey® Chicken & Cheese Frozen Flour Taquitos, 20 ct / 20 oz   $7.49',
+  '1 × $7.49',
+  'Item Coupon/Sale: -$1.40',
+  'Kroger® Cage Free Grade AA Large White Eggs, 18 ct   $2.65',
+  '1 × $2.65',
+  'P3 Portable Protein Snack Pack with Dark Chocolate Almond Nut, Turkey & Cheddar Cheese, Tray,   $4.87',
+  '2 oz',
+  '1 × $4.87',
+  'PAYMENT DETAILS',
+  'Visa 1234   $39.76',
+].map(L);
+
+describe('online order invoices (PDF)', () => {
+  it('reads items, coupons, fees and tip, and checks out', () => {
+    const r = parseReceipt(invoice, [], '2026-11-20');
+    expect(r.date).toBe('2026-10-27');
+    expect(r.items.map((i) => [i.name, i.price, i.qty, i.pack ?? null, i.deal?.saved ?? null, i.dept])).toEqual([
+      ['Pasta', 4.95, 5, null, 5, 'pantry'],
+      ['Taquitos', 7.49, 1, 20, 1.4, 'frozen'],
+      ['Eggs', 2.65, 1, 18, null, 'dairy'],
+      ['Protein Snack Packs', 4.87, 1, null, null, 'snacks'],
+    ]);
+    // the summary's subtotal is before item coupons; the items are after them
+    expect(r.subtotal).toBe(19.96);
+    expect(r.itemsTotal).toBe(19.96);
+    expect(r).toMatchObject({ tax: 0.6, total: 39.76, fees: 20.2, discount: 1, savings: 7.4 });
+    expect(r.warnings).toEqual([]);
   });
 });

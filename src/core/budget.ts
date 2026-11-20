@@ -112,8 +112,10 @@ export function estimateEssentials(
   market: MarketData | null,
   asOf: ISODate,
   receiptNeed: { monthly: number; reason: string } | null = null,
+  drive: { milesPerMonth: number; mpg: number | null; days: number } | null = null,
 ): EssentialsEstimate {
-  const h = settings.household;
+  // your driving log beats the miles and mpg you guessed in Settings
+  const h = drive ? { ...settings.household, milesPerMonth: drive.milesPerMonth, vehicleMpg: drive.mpg ?? settings.household.vehicleMpg } : settings.household;
   const months = recentFullMonths(txns, asOf.slice(0, 7), 3);
   const infl = inflationSinceReference(market);
   const plan = foodPlanMonthly(h, h.foodPlan, infl);
@@ -145,7 +147,7 @@ export function estimateEssentials(
   if (gasCalc != null) {
     gas = gasCalc;
     const gp = currentGasPrice(market);
-    gasReason = `${h.milesPerMonth} mi ÷ ${h.vehicleMpg} mpg × $${(gp?.price ?? FALLBACK_GAS_PRICE).toFixed(2)}/gal${gp ? '' : ' (typical Colorado price until live prices load)'}`;
+    gasReason = `${drive ? 'Your driving log: ' : ''}${h.milesPerMonth} mi ÷ ${h.vehicleMpg} mpg × $${(gp?.price ?? FALLBACK_GAS_PRICE).toFixed(2)}/gal${gp ? '' : ' (typical Colorado price until live prices load)'}`;
   } else if (actualGas > 0) {
     gas = actualGas;
     gasReason = `Your ${months.length}-month average`;
