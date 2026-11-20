@@ -1935,6 +1935,30 @@ svg.spin {
   border: 1px solid var(--line);
   border-radius: var(--radius);
   box-shadow: var(--shadow-lg);
+  animation: tour-in 0.35s ease-out;
+}
+.tour-title {
+  margin: 2px 0 0;
+  font-family: var(--font-serif);
+  font-size: 19px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--ink);
+}
+.tour-skip {
+  border: 0;
+  background: none;
+  padding: 2px 0;
+  font: inherit;
+  font-size: 13px;
+  color: var(--ink-3);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+@keyframes tour-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
 }
 @media (min-width: 900px) {
   .tour-card {
@@ -1946,6 +1970,7 @@ svg.spin {
 .tour-target {
   position: relative;
   color: var(--moss-strong) !important;
+  background: var(--moss-soft) !important;
   animation: tour-pulse 1.4s ease-in-out infinite;
   border-radius: 12px;
 }
@@ -1954,5 +1979,6 @@ svg.spin {
   50% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--moss) 0%, transparent); }
 }
 @media (prefers-reduced-motion: reduce) {
+  .tour-card { animation: none; }
   .tour-target { animation: none; outline: 2px solid var(--moss); }
 }
