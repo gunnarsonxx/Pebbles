@@ -208,27 +208,84 @@ function norm(s: string): string {
   return s.toLowerCase().replace(/[^a-z0-9]/g, '');
 }
 
+function sameStation(st: Station, p: GasPrice): boolean {
+  if (p.stationId && p.stationId === st.id) return true;
+  return p.lat != null && p.lon != null && milesBetween(st, { lat: p.lat, lon: p.lon }) < 0.3 && (norm(st.name).includes(norm(p.station)) || norm(p.station).includes(norm(st.brand ?? st.name)));
+}
+
 /** The most recent price you logged for a station (by id, or by name within a third of a mile). */
 export function knownPrice(st: Station, prices: GasPrice[], asOf: ISODate, maxAgeDays = 10): GasPrice | null {
   const fresh = prices.filter((p) => diffDays(asOf, p.date) <= maxAgeDays).sort((a, b) => b.date.localeCompare(a.date));
-  return (
-    fresh.find((p) => p.stationId === st.id) ??
-    fresh.find((p) => p.lat != null && p.lon != null && milesBetween(st, { lat: p.lat, lon: p.lon }) < 0.3 && (norm(st.name).includes(norm(p.station)) || norm(p.station).includes(norm(st.brand ?? st.name)))) ??
-    null
-  );
+  return fresh.find((p) => sameStation(st, p)) ?? null;
+}
+
+// ---------------- estimates between real prices ----------------
+// A station's price moves with the area, but its place relative to the average holds steady:
+// warehouse clubs well under, big-box and grocery stations a bit under, name brands over.
+
+const BRANDS: [RegExp, string, number][] = [
+  [/costco/i, 'costco', -0.3],
+  [/sam'?s club/i, 'sams', -0.25],
+  [/murphy/i, 'murphy', -0.12],
+  [/walmart/i, 'walmart', -0.12],
+  [/king soopers|kroger/i, 'kroger', -0.08],
+  [/safeway/i, 'safeway', -0.06],
+  [/maverik/i, 'maverik', -0.04],
+  [/loaf ?'?n'? ?jug/i, 'loafnjug', -0.03],
+  [/quik ?trip|\bqt\b/i, 'quiktrip', -0.04],
+  [/kum ?& ?go/i, 'kumandgo', -0.02],
+  [/circle ?k/i, 'circlek', 0],
+  [/7-?eleven/i, '7eleven', 0.02],
+  [/conoco/i, 'conoco', 0.02],
+  [/phillips ?66/i, 'phillips66', 0.03],
+  [/sinclair/i, 'sinclair', 0.01],
+  [/valero/i, 'valero', 0.02],
+  [/shell/i, 'shell', 0.08],
+  [/chevron/i, 'chevron', 0.1],
+  [/exxon|mobil/i, 'exxon', 0.08],
+  [/\bbp\b|amoco/i, 'bp', 0.06],
+];
+
+export function brandOf(name: string): { key: string; typical: number } | null {
+  for (const [re, key, typical] of BRANDS) if (re.test(name)) return { key, typical };
+  return null;
+}
+
+const avg = (xs: number[]) => xs.reduce((s, x) => s + x, 0) / xs.length;
+
+/** How far this station usually sits from the area average: its own history, then its brand's, then typical. */
+export function stationOffset(st: Station, prices: GasPrice[], asOf: ISODate): { offset: number; basis: 'station' | 'brand' | 'typical' } | null {
+  const usable = prices.filter((p) => p.areaAvg != null && p.areaAvg > 0 && diffDays(asOf, p.date) <= 120);
+  const own = usable.filter((p) => sameStation(st, p)).map((p) => p.perGallon - (p.areaAvg as number));
+  if (own.length) return { offset: avg(own), basis: 'station' };
+  const b = brandOf(`${st.brand ?? ''} ${st.name}`);
+  if (b) {
+    const same = usable.filter((p) => brandOf(p.station)?.key === b.key).map((p) => p.perGallon - (p.areaAvg as number));
+    if (same.length) return { offset: avg(same), basis: 'brand' };
+    return { offset: b.typical, basis: 'typical' };
+  }
+  return null;
 }
 
 export interface PricedStation extends Station {
   price: number | null;
-  priceSource: 'google' | 'receipt' | 'manual' | null;
+  priceSource: 'google' | 'receipt' | 'manual' | 'screenshot' | 'estimate' | null;
   priceDate: string | null;
+  estimateBasis?: 'station' | 'brand' | 'typical';
 }
 
-export function priceStations(stations: Station[], prices: GasPrice[], asOf: ISODate): PricedStation[] {
+/** Prices for each station: Google, then a real price from the last 3 days, then an estimate from this week's average. */
+export function priceStations(stations: Station[], prices: GasPrice[], asOf: ISODate, areaAvg: number | null = null): PricedStation[] {
   return stations.map((s) => {
     if (s.live) return { ...s, price: s.live.perGallon, priceSource: 'google', priceDate: s.live.updated?.slice(0, 10) ?? null };
-    const k = knownPrice(s, prices, asOf);
-    return { ...s, price: k?.perGallon ?? null, priceSource: k?.source ?? null, priceDate: k?.date ?? null };
+    const recent = knownPrice(s, prices, asOf, 3);
+    if (recent) return { ...s, price: recent.perGallon, priceSource: recent.source, priceDate: recent.date };
+    if (areaAvg) {
+      const o = stationOffset(s, prices, asOf);
+      if (o) return { ...s, price: Math.round((areaAvg + o.offset) * 1000) / 1000, priceSource: 'estimate', priceDate: null, estimateBasis: o.basis };
+    }
+    const older = knownPrice(s, prices, asOf, 10);
+    return { ...s, price: older?.perGallon ?? null, priceSource: older?.source ?? null, priceDate: older?.date ?? null };
   });
 }
 
@@ -239,4 +296,49 @@ export function worthTheDrive(cheap: PricedStation, near: PricedStation, gallons
   const saved = (near.price - cheap.price) * gallons;
   const cost = (extraMiles / mpg) * cheap.price;
   return Math.round((saved - cost) * 100) / 100;
+}
+
+// ---------------- prices from a Google Maps screenshot ----------------
+// In Google Maps, searching "gas" shows a list of stations with prices. One screenshot of that
+// list fills in every station Pebbles can match by name (and street number, when there are two of a brand).
+
+const PRICE = /\$\s?(\d)[.,](\d{2,3})\b/;
+
+function nameMatches(line: string, st: Station): boolean {
+  const l = norm(line);
+  const n = norm(st.name);
+  if (n.length >= 4 && (l.includes(n) || (l.length >= 5 && n.includes(l)))) return true;
+  const a = brandOf(line);
+  const b = brandOf(`${st.brand ?? ''} ${st.name}`);
+  return !!a && !!b && a.key === b.key;
+}
+
+export function pricesFromScreenshot(lines: string[], stations: Station[]): { station: Station; perGallon: number }[] {
+  const out = new Map<string, { station: Station; perGallon: number }>();
+  let current: Station | null = null;
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (!line) continue;
+    const pm = line.match(PRICE);
+    const textPart = line.replace(PRICE, '').trim();
+    // a station name line (possibly with the price on the same line)
+    if (/[A-Za-z]{3,}/.test(textPart)) {
+      const cands = stations.filter((s) => nameMatches(textPart, s));
+      if (cands.length) {
+        // several of one brand: a street number on the line picks the right one, else the closest
+        const num = textPart.match(/\b(\d{3,5})\b/)?.[1];
+        current = (num && cands.find((s) => s.address?.includes(num))) || cands.sort((a, b) => a.miles - b.miles).find((s) => !out.has(s.id)) || cands[0];
+      } else if (current) {
+        const num = textPart.match(/^(\d{3,5})\s+\w/)?.[1];
+        // an address line under a name: switch to the station at that address
+        const byAddr = num ? stations.find((s) => s.address?.includes(num) && brandOf(s.name)?.key === brandOf(current!.name)?.key) : null;
+        if (byAddr) current = byAddr;
+      }
+    }
+    if (pm && current && !out.has(current.id)) {
+      const v = Number(`${pm[1]}.${pm[2]}`);
+      if (v > 1 && v < 9) out.set(current.id, { station: current, perGallon: v });
+    }
+  }
+  return [...out.values()];
 }

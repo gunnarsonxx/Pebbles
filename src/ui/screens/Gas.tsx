@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import { Fuel, House, LocateFixed, MapPin, Pencil, RefreshCw } from 'lucide-react';
+import { Fuel, House, ImageUp, LocateFixed, MapPin, Pencil, RefreshCw } from 'lucide-react';
 import type { AppData } from '../../data/useData';
 import type { GoTo } from '../App';
 import { Field, NumberInput, Segmented, Sheet, TextInput, useToast } from '../components';
 import { currentGasPrice } from '../../core/food';
-import { priceStations, worthTheDrive, type PricedStation, type Station, type Point } from '../../core/gas';
-import { fmtShort } from '../../core/dates';
+import { knownPrice, priceStations, pricesFromScreenshot, worthTheDrive, type PricedStation, type Station, type Point } from '../../core/gas';
+import { fmtShort, today } from '../../core/dates';
+import { linesFromFile } from '../ocr';
 import { usd } from '../../core/money';
 import { desktop, platformKind } from '../../platform';
 import { Browser } from '@capacitor/browser';
@@ -33,6 +34,11 @@ const ppg = (v: number) => `$${v.toFixed(3).replace(/0$/, '')}`;
 export function GasView({ data, go }: { data: AppData; go: GoTo }) {
   const toast = useToast();
   const i = data.settings.integrations;
+  const areaAvg = data.market?.gas?.price ?? null;
+  const pricesRef = useRef(data.gasPrices);
+  pricesRef.current = data.gasPrices;
+  const shotRef = useRef<HTMLInputElement>(null);
+  const [reading, setReading] = useState(false);
   const hasHome = i.homeLat != null && i.homeLon != null;
   const [where, setWhere] = useState<'home' | 'here'>('home');
   const [cache, setCache] = useState<StationCache | null>(null);
@@ -48,6 +54,7 @@ export function GasView({ data, go }: { data: AppData; go: GoTo }) {
       const l = lookingUp.current;
       if (!l || document.visibilityState !== 'visible' || Date.now() - l.at < 1500) return;
       lookingUp.current = null;
+      if (knownPrice(l.station, pricesRef.current, today(), 3)) return; // already have a recent real price
       setPricing({ station: l.station, fromMaps: true });
     };
     document.addEventListener('visibilitychange', back);
@@ -77,7 +84,7 @@ export function GasView({ data, go }: { data: AppData; go: GoTo }) {
       if (force) await new Promise((r) => setTimeout(r, Math.max(0, 700 - (Date.now() - started))));
       setCache(res);
       if (force) {
-        const withPrice = priceStations(res.stations, data.gasPrices, data.today).filter((x) => x.price != null).length;
+        const withPrice = priceStations(res.stations, data.gasPrices, data.today, areaAvg).filter((x) => x.price != null).length;
         toast(res.googleError ? 'Couldn’t get live prices. See the note below.' : res.note ? 'Showing the latest prices' : `Updated · ${res.stations.length} stations, ${withPrice} with prices`);
       }
     } catch (e) {
@@ -93,7 +100,7 @@ export function GasView({ data, go }: { data: AppData; go: GoTo }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [where, i.homeLat, i.homeLon]);
 
-  const stations: PricedStation[] = cache ? priceStations(cache.stations, data.gasPrices, data.today) : [];
+  const stations: PricedStation[] = cache ? priceStations(cache.stations, data.gasPrices, data.today, areaAvg) : [];
   const priced = stations.filter((s) => s.price != null).sort((a, b) => (a.price as number) - (b.price as number));
   const nearest = stations[0] ?? null;
   const cheapest = priced[0] ?? null;
@@ -210,21 +217,50 @@ export function GasView({ data, go }: { data: AppData; go: GoTo }) {
             </div>
           )}
           {cache.note && <div className="tiny muted" style={{ marginBottom: 8 }}>{cache.note}</div>}
-          {!stations.some((x) => x.price != null) && (
-            <div className="card tint" style={{ padding: 12, marginBottom: 10 }}>
-              <div className="strong small">See Today’s Prices in Google Maps</div>
-              <div className="tiny ink2" style={{ marginBottom: 8 }}>
-                Google shows posted prices in Maps but doesn’t share them with apps for your area. Tap a pin to open that station, or see them all. Tap Price to save one you see, and Pebbles uses it here and in your gas budget.
-              </div>
+          <div className="card tint" style={{ padding: 12, marginBottom: 10 }}>
+            <div className="strong small">Update Many Prices at Once</div>
+            <div className="tiny ink2" style={{ marginBottom: 8 }}>
+              Open Google Maps’ gas list, take a screenshot, and let Pebbles read it. Every station it recognizes gets today’s price. Prices marked “est.” follow this week’s Colorado average until then.
+            </div>
+            <div className="row wrap" style={{ gap: 8 }}>
               <button className="btn small" onClick={() => openMaps(null, cache.where)}>
-                <MapPin /> Gas Prices Near {where === 'home' ? 'Home' : 'Me'}
+                <MapPin /> Open Gas List
+              </button>
+              <button className="btn small primary" disabled={reading} onClick={() => shotRef.current?.click()}>
+                <ImageUp className={reading ? 'spin' : ''} /> {reading ? 'Reading…' : 'Read a Screenshot'}
               </button>
             </div>
-          )}
+            <input
+              ref={shotRef}
+              type="file"
+              accept="image/*"
+              style={{ display: 'none' }}
+              onChange={async (e) => {
+                const f = e.target.files?.[0];
+                e.target.value = '';
+                if (!f) return;
+                setReading(true);
+                try {
+                  const { lines } = await linesFromFile(f);
+                  const found = pricesFromScreenshot(
+                    lines.map((l) => l.text),
+                    cache.stations,
+                  );
+                  for (const x of found) await logGasPrice(x.station, x.perGallon, 'Regular', 'screenshot');
+                  toast(found.length ? `Saved ${found.length} price${found.length === 1 ? '' : 's'} from your screenshot` : 'Couldn’t match any stations in that screenshot. Try the list view in Google Maps.');
+                } catch (err) {
+                  toast((err as Error).message || 'Couldn’t read that screenshot.');
+                } finally {
+                  setReading(false);
+                }
+              }}
+            />
+          </div>
           {cheapest && (
             <div className="card tint" style={{ padding: 12, marginBottom: 10 }}>
               <div className="strong small">
-                Cheapest known: {cheapest.name} {ppg(cheapest.price as number)} · {cheapest.miles} mi
+                Cheapest{cheapest.priceSource === 'estimate' ? ' (estimated)' : ''}: {cheapest.name} {cheapest.priceSource === 'estimate' ? '~' : ''}
+                {ppg(cheapest.price as number)} · {cheapest.miles} mi
               </div>
               {gain != null && (
                 <div className="tiny ink2">
@@ -245,12 +281,18 @@ export function GasView({ data, go }: { data: AppData; go: GoTo }) {
                   <div className="strong small ellipsis">{s.name}</div>
                   <div className="tiny muted ellipsis">
                     {s.miles} mi{s.address ? ` · ${s.address}` : ''}
-                    {s.priceDate ? ` · ${s.priceSource === 'receipt' ? 'your receipt' : s.priceSource === 'manual' ? 'you logged' : 'posted'} ${fmtShort(s.priceDate)}` : ''}
+                    {s.priceDate
+                      ? ` · ${s.priceSource === 'receipt' ? 'your receipt' : s.priceSource === 'manual' ? 'you logged' : s.priceSource === 'screenshot' ? 'from screenshot' : 'posted'} ${fmtShort(s.priceDate)}`
+                      : s.priceSource === 'estimate'
+                        ? ` · est. from ${s.estimateBasis === 'station' ? 'its past prices' : s.estimateBasis === 'brand' ? `other ${s.name.split(/\s|\|/)[0]} prices` : 'brand average'}`
+                        : ''}
                   </div>
                 </div>
                 {s.price != null ? (
-                  <button className="btn ghost small num" onClick={() => setPricing({ station: s, fromMaps: false })}>
+                  <button className={`btn ghost small num${s.priceSource === 'estimate' ? ' est-price' : ''}`} onClick={() => setPricing({ station: s, fromMaps: false })}>
+                    {s.priceSource === 'estimate' ? '~' : ''}
                     {ppg(s.price)}
+                    {s.priceSource === 'estimate' && <span className="tiny"> est.</span>}
                   </button>
                 ) : (
                   <button className="btn small" onClick={() => setPricing({ station: s, fromMaps: false })}>

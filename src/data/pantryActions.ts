@@ -62,6 +62,7 @@ export async function afterReceipt(r: Receipt, at: Point | null = null): Promise
       grade: r.fuel.grade,
       date: r.date,
       source: 'receipt',
+      areaAvg: areaAvgNow(),
     });
   }
   return { restocked: changed.length };
@@ -183,7 +184,12 @@ export function googleMessage(raw: string): string {
   return `Google couldn’t load prices: ${raw}`;
 }
 
-export async function logGasPrice(st: Station, perGallon: number, grade = 'Regular'): Promise<void> {
-  const rec: GasPrice = { id: uid('gp_'), station: st.brand ?? st.name, stationId: st.id, lat: st.lat, lon: st.lon, perGallon, grade, date: today(), source: 'manual' };
+/** This week's Colorado average, saved with each price so Pebbles learns how stations compare. */
+export function areaAvgNow(): number | null {
+  return store.get('market', 'market')?.gas?.price ?? null;
+}
+
+export async function logGasPrice(st: Station, perGallon: number, grade = 'Regular', source: GasPrice['source'] = 'manual'): Promise<void> {
+  const rec: GasPrice = { id: uid('gp_'), station: st.brand ?? st.name, stationId: st.id, lat: st.lat, lon: st.lon, perGallon, grade, date: today(), source, areaAvg: areaAvgNow() };
   await store.put('gasprices', rec);
 }

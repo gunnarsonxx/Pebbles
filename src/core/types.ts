@@ -300,7 +300,8 @@ export interface GasPrice {
   perGallon: number;
   grade: string;
   date: ISODate;
-  source: 'receipt' | 'manual' | 'google';
+  source: 'receipt' | 'manual' | 'google' | 'screenshot';
+  areaAvg?: number | null; // the Colorado average that week, to learn how this station compares
 }
 
 export interface ItemRule {

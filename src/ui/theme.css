@@ -1782,3 +1782,7 @@ svg.spin {
   padding: 0 10px;
   gap: 4px;
 }
+.est-price {
+  color: var(--ink-2);
+  font-style: italic;
+}

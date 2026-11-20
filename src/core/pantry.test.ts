@@ -159,3 +159,44 @@ describe('Google fuel data', async () => {
     expect(placesFuelSummary(json)).toEqual({ places: 2, withFuelInfo: 1, withPrices: 1, types: ['E10', 'DIESEL'] });
   });
 });
+
+describe('gas estimates and screenshot prices', async () => {
+  const { priceStations, pricesFromScreenshot, parseOverpass } = await import('./gas');
+  const home = { lat: 38.8339, lon: -104.8214 };
+  const stations = parseOverpass(
+    JSON.stringify({
+      elements: [
+        { type: 'node', id: 1, lat: 38.835, lon: -104.822, tags: { name: 'Circle K', 'addr:housenumber': '7480', 'addr:street': 'Austin Bluffs Pkwy' } },
+        { type: 'node', id: 2, lat: 38.84, lon: -104.81, tags: { name: 'Circle K', 'addr:housenumber': '1200', 'addr:street': 'Academy Blvd' } },
+        { type: 'node', id: 3, lat: 38.86, lon: -104.82, tags: { name: 'Costco Gas' } },
+        { type: 'node', id: 4, lat: 38.87, lon: -104.82, tags: { name: 'Shell' } },
+      ],
+    }),
+    home,
+  );
+
+  it('estimates from this week’s average and what you saved before', () => {
+    const prices = [{ id: 'a', station: 'Circle K', stationId: 'osm:node/1', lat: null, lon: null, perGallon: 3.19, grade: 'Regular', date: '2026-11-01', source: 'manual' as const, areaAvg: 3.09 }];
+    const p = priceStations(stations, prices, '2026-11-20', 3.29);
+    const by = (id: number) => p.find((s) => s.id === `osm:node/${id}`)!;
+    expect(by(1)).toMatchObject({ price: 3.39, priceSource: 'estimate', estimateBasis: 'station' }); // was 10¢ over, still is
+    expect(by(2)).toMatchObject({ price: 3.39, estimateBasis: 'brand' }); // another Circle K
+    expect(by(3)).toMatchObject({ price: 2.99, estimateBasis: 'typical' }); // Costco runs low
+    expect(by(4).price).toBeCloseTo(3.37, 2);
+  });
+
+  it('a real price from the last 3 days beats an estimate', () => {
+    const prices = [{ id: 'b', station: 'Shell', stationId: 'osm:node/4', lat: null, lon: null, perGallon: 3.49, grade: 'Regular', date: '2026-11-19', source: 'manual' as const, areaAvg: 3.29 }];
+    expect(priceStations(stations, prices, '2026-11-20', 3.29).find((s) => s.id === 'osm:node/4')).toMatchObject({ price: 3.49, priceSource: 'manual' });
+  });
+
+  it('reads a Google Maps list screenshot', () => {
+    const lines = ['Gas', 'Circle K', '4.0 ★★★★ (212) · Gas station · 0.6 mi', '7480 Austin Bluffs Pkwy', '$2.95 Regular', 'Costco Gasoline', '4.6 (1,024) · 2.1 mi', '$2.79', 'Circle K', '1200 Academy Blvd', 'Regular $3.05', 'Some Car Wash', '$9.99'];
+    const got = pricesFromScreenshot(lines, stations).map((x) => [x.station.id, x.perGallon]);
+    expect(got).toEqual([
+      ['osm:node/1', 2.95],
+      ['osm:node/3', 2.79],
+      ['osm:node/2', 3.05],
+    ]);
+  });
+});
