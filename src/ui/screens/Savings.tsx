@@ -85,10 +85,7 @@ function GoalsView({ data }: { data: AppData }) {
             A ring, a car, a down payment, a trip: add a photo so you can see it grow. Pebbles suggests starting with a Bedrock fund for emergencies.
           </Empty>
           <div className="row" style={{ justifyContent: 'center' }}>
-            <button
-              className="btn"
-              onClick={() => setEditing(newGoal({ name: 'Bedrock Fund', isEmergency: true, gem: 'obsidian', priority: 3, target: 3000 }))}
-            >
+            <button className="btn" onClick={() => setEditing(newGoal({ name: 'Bedrock Fund', isEmergency: true, gem: 'obsidian', priority: 3, target: 3000 }))}>
               <ShieldCheck /> Start a Bedrock Fund
             </button>
             <button className="btn primary" onClick={() => setEditing(newGoal())}>
@@ -109,7 +106,10 @@ function GoalsView({ data }: { data: AppData }) {
           const gem = GEM_BY_ID[g.gem];
           return (
             <button key={g.id} className="card" style={{ textAlign: 'left', border: 0, cursor: 'pointer', color: 'inherit', width: '100%' }} onClick={() => setViewing(g.id)}>
-              <div className="goal-cover" style={!g.image ? { background: `linear-gradient(135deg, color-mix(in srgb, ${gem.color} 45%, var(--card)), color-mix(in srgb, ${gem.color} 15%, var(--bg-deep)))` } : undefined}>
+              <div
+                className="goal-cover"
+                style={!g.image ? { background: `linear-gradient(135deg, color-mix(in srgb, ${gem.color} 45%, var(--card)), color-mix(in srgb, ${gem.color} 15%, var(--bg-deep)))` } : undefined}
+              >
                 {g.image && <img src={g.image} alt="" />}
                 <div className="over row between">
                   <div>
@@ -337,6 +337,7 @@ function GoalDetail({ goal, data, onClose, onEdit }: { goal: Goal; data: AppData
             To reach it by {fmtLong(goal.targetDate!)}: about {usd(remaining / checksLeft)} per paycheck for {checksLeft} paycheck{checksLeft === 1 ? '' : 's'}.
           </p>
         )}
+        {remaining > 0 && !goal.completedAt && <ReachSooner goal={goal} data={data} bal={bal} />}
         <div className="row">
           <div className="grow">
             <NumberInput value={amount} onChange={setAmount} prefix="$" placeholder="Amount" allowEmpty ariaLabel="Amount" />
@@ -386,6 +387,76 @@ function GoalDetail({ goal, data, onClose, onEdit }: { goal: Goal; data: AppData
         )}
       </div>
     </Sheet>
+  );
+}
+
+/** Reach It Sooner: put a little extra toward this goal every paycheck, out of spending money, and see the new finish date. */
+function ReachSooner({ goal, data, bal }: { goal: Goal; data: AppData; bal: number }) {
+  const toast = useToast();
+  const cur = goal.boost ?? 0;
+  const [custom, setCustom] = useState<number | null>(null);
+  const payday = data.upcoming.period.payday;
+  const planned = data.plan.allocations.find((a) => a.goalId === goal.id)?.amount ?? 0;
+  // what it gets on average without any extra, then with each choice
+  const base = averagePerCheck(goal.id, data.contributions, Math.max(0, planned - cur), data.today).avg;
+  const spendNow = data.plan.personal + Math.min(cur, planned);
+  const eta = (extra: number) => projectGoalDate(goal, bal, base + extra, payday);
+  const baseEta = eta(0);
+  const checksBetween = (a: string | null, b: string | null) => (a && b ? Math.round(diffDays(a, b) / 14) : null);
+  const options = [...new Set([0, 10, 25, 50, 100, ...(cur && ![10, 25, 50, 100].includes(cur) ? [cur] : [])])].sort((a, b) => a - b);
+  const pick = async (v: number) => {
+    await saveGoal({ ...goal, boost: v > 0 ? v : undefined });
+    toast(v > 0 ? `${usd(v)} extra each paycheck goes to ${goal.name}` : `Back to the usual split for ${goal.name}`);
+  };
+  return (
+    <div>
+      <div className="eyebrow" style={{ marginBottom: 4 }}>
+        Reach It Sooner
+      </div>
+      <p className="tiny muted" style={{ margin: '0 0 6px' }}>
+        Send a set amount extra to this goal every paycheck. It comes out of your spending money, before the rest of your savings is split. Finish dates use your average per paycheck
+        {base > 0 ? ` (${usd(base)} now)` : ''}.
+      </p>
+      <div className="list">
+        {options.map((v) => {
+          const d = eta(v);
+          const sooner = v > 0 ? checksBetween(d, baseEta) : null;
+          const spend = spendNow - v;
+          return (
+            <button
+              key={v}
+              className="list-item"
+              style={{ width: '100%', textAlign: 'left', background: v === cur ? 'var(--moss-soft)' : undefined }}
+              disabled={v > 0 && spend < 0}
+              onClick={() => v !== cur && void pick(v)}
+            >
+              <div className="grow">
+                <div className="small strong">{v === 0 ? 'No extra (the usual split)' : `+${usd(v)} a paycheck`}</div>
+                <div className="tiny muted">
+                  {d ? `Done about ${fmtLong(d)}` : 'No finish date yet at this pace'}
+                  {sooner && sooner > 0 ? ` · ${sooner} paycheck${sooner === 1 ? '' : 's'} sooner` : ''}
+                  {v > 0 ? ` · spending money ${spend >= 0 ? usd(spend) : 'too low'} next check` : ''}
+                </div>
+              </div>
+              {v === cur && <span className="tiny strong">Current</span>}
+            </button>
+          );
+        })}
+      </div>
+      <div className="row mt-s" style={{ gap: 8 }}>
+        <div className="grow">
+          <NumberInput value={custom} onChange={setCustom} prefix="$" placeholder="Another amount" allowEmpty ariaLabel="Extra per paycheck" money />
+        </div>
+        <button className="btn" disabled={!custom || custom <= 0} onClick={() => custom && void pick(Math.round(custom * 100) / 100).then(() => setCustom(null))}>
+          Use It
+        </button>
+      </div>
+      {goal.targetDate && baseEta && baseEta > goal.targetDate && (
+        <p className="tiny warn" style={{ margin: '6px 0 0' }}>
+          At the usual pace it lands after your {fmtLong(goal.targetDate)} date. Pick an extra that finishes on time, or move the date.
+        </p>
+      )}
+    </div>
   );
 }
 

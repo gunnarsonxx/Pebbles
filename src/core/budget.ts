@@ -66,7 +66,7 @@ export function billDueDates(b: Bill, from: ISODate, to: ISODate): ISODate[] {
     const y = Math.floor(total / 12);
     const m = (total % 12) + 1;
     if (b.frequency === 'yearly' && m !== (b.dueMonth ?? 1)) continue;
-    if (b.frequency === 'quarterly' && ((m - (b.dueMonth ?? 1)) % 3 + 3) % 3 !== 0) continue;
+    if (b.frequency === 'quarterly' && (((m - (b.dueMonth ?? 1)) % 3) + 3) % 3 !== 0) continue;
     const d = makeDate(y, m, b.dueDay);
     if (d >= from && d < to) out.push(d);
     if (d >= to) break;
@@ -133,9 +133,7 @@ export function estimateEssentials(
     const adjusted = actualGroceries * (1 + Math.max(0, yoy) / 100 / 4);
     groceries = Math.max(adjusted, thrifty);
     groceriesReason =
-      adjusted >= thrifty
-        ? `Your ${months.length}-month average${yoy > 0 ? `, plus ${yoy.toFixed(1)}% food inflation` : ''}`
-        : `Raised to the USDA Thrifty minimum so your home is always fed`;
+      adjusted >= thrifty ? `Your ${months.length}-month average${yoy > 0 ? `, plus ${yoy.toFixed(1)}% food inflation` : ''}` : `Raised to the USDA Thrifty minimum so your home is always fed`;
   } else {
     groceries = plan;
     groceriesReason = `USDA ${FOOD_PLAN_LABEL[h.foodPlan]} plan for your household`;
@@ -189,17 +187,9 @@ export interface Allocation {
 }
 
 /** Split a savings amount across goals: emergency fund first, then deadlines, then priority. */
-export function allocateSavings(
-  amount: number,
-  goals: Goal[],
-  contributions: Contribution[],
-  monthlyNeeds: number,
-  nextPayday: ISODate,
-): Allocation[] {
+export function allocateSavings(amount: number, goals: Goal[], contributions: Contribution[], monthlyNeeds: number, nextPayday: ISODate): Allocation[] {
   const active = goals.filter((g) => !g.archived && !g.completedAt);
-  const open = active
-    .map((g) => ({ g, remaining: Math.max(0, g.target - goalBalance(g.id, contributions)) }))
-    .filter((x) => x.remaining > 0.5);
+  const open = active.map((g) => ({ g, remaining: Math.max(0, g.target - goalBalance(g.id, contributions)) })).filter((x) => x.remaining > 0.5);
   if (amount <= 0 || !open.length) return [];
   const alloc = new Map<string, { amount: number; reason: string }>();
   const give = (id: string, amt: number, reason: string) => {
@@ -207,6 +197,15 @@ export function allocateSavings(
     alloc.set(id, { amount: (cur?.amount ?? 0) + amt, reason: cur?.reason ?? reason });
   };
   let left = amount;
+
+  // 0) "Reach It Sooner": the extra you chose for a goal goes to it first
+  for (const x of open) {
+    const b = Math.min(x.g.boost ?? 0, x.remaining, left);
+    if (b > 0) {
+      give(x.g.id, b, 'Reaching it sooner');
+      left -= b;
+    }
+  }
 
   // 1) emergency fund until it holds one month of needs: half of savings
   const em = open.find((x) => x.g.isEmergency);
@@ -258,7 +257,13 @@ export function allocateSavings(
 
   // round to whole dollars, keeping the total
   const rows = [...alloc.entries()].map(([goalId, v]) => ({ goalId, amount: Math.floor(v.amount), reason: v.reason, frac: v.amount - Math.floor(v.amount) }));
-  let diff = Math.round(Math.min(amount, rows.reduce((s, r) => s + r.amount + r.frac, 0))) - rows.reduce((s, r) => s + r.amount, 0);
+  let diff =
+    Math.round(
+      Math.min(
+        amount,
+        rows.reduce((s, r) => s + r.amount + r.frac, 0),
+      ),
+    ) - rows.reduce((s, r) => s + r.amount, 0);
   rows.sort((a, b) => b.frac - a.frac);
   for (const r of rows) {
     if (diff <= 0) break;
@@ -366,6 +371,15 @@ export function buildPlan(opts: {
     if (suggested > available) suggested = floorTo(available, 1);
     if (suggested < ideal * 0.9 - 1) notes.push(`Saving ${Math.round((suggested / net) * 100)}% this check keeps everyday money comfortable. Your aim is ${b.savingsTargetPct}%.`);
     if (deadlineNeed > room && deadlineNeed > 0) notes.push('Your goal dates need more than this check can spare. Consider moving a date out.');
+  }
+  // "Reach It Sooner" boosts come out of spending money, on top of the usual savings
+  const boosts = round2(
+    goals.filter((g) => !g.archived && !g.completedAt && (g.boost ?? 0) > 0).reduce((s, g) => s + Math.min(g.boost ?? 0, Math.max(0, g.target - goalBalance(g.id, contributions))), 0),
+  );
+  if (boosts > 0 && available > suggested) {
+    const add = Math.min(boosts, floorTo(available - suggested, 1));
+    suggested = round2(suggested + add);
+    if (add < boosts - 0.5) notes.push(`Your Reach It Sooner extras only fit ${'$' + add.toFixed(2)} of ${'$' + boosts.toFixed(2)} this check.`);
   }
   let savings = suggested;
   if (opts.savingsOverride != null && opts.savingsOverride >= 0) savings = Math.min(Math.max(0, available), opts.savingsOverride);

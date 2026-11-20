@@ -508,6 +508,7 @@ export interface Goal {
   priority: 1 | 2 | 3; // 3 = high
   isEmergency: boolean;
   autoTarget?: boolean; // emergency fund: Pebbles raises the target step by step (default on)
+  boost?: number; // "Reach It Sooner": extra per paycheck, taken from spending money, straight to this goal
   createdAt: number;
   completedAt: number | null;
   archived: boolean;
