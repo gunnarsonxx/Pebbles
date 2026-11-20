@@ -176,6 +176,12 @@ export function GasView({ data, go }: { data: AppData; go: GoTo }) {
             </div>
           )}
           {cache.note && <div className="tiny muted" style={{ marginBottom: 8 }}>{cache.note}</div>}
+          {cache.source === 'google' && !cache.stations.some((x) => x.live) && (
+            <div className="card tint" style={{ padding: 12, marginBottom: 10 }}>
+              <div className="strong small">Google Didn’t Include Prices</div>
+              <div className="tiny ink2">Google found these stations but sent no prices for them. Pebbles fills in prices from your gas receipts and the ones you tap in, and checks Google again tomorrow.</div>
+            </div>
+          )}
           {cheapest && (
             <div className="card tint" style={{ padding: 12, marginBottom: 10 }}>
               <div className="strong small">

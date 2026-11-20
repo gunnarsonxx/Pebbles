@@ -128,13 +128,23 @@ interface GPlace {
 
 const GRADE: Record<string, string> = { REGULAR_UNLEADED: 'Regular', MIDGRADE: 'Midgrade', PREMIUM: 'Premium', DIESEL: 'Diesel' };
 
+const GASOLINE = ['REGULAR_UNLEADED', 'E10', 'E80', 'E85', 'SP91', 'SP91_E10', 'SP92', 'SP95', 'SP95_E10', 'SP98', 'SP99', 'SP100', 'MIDGRADE', 'PREMIUM'];
+
+function priceOf(x: { price?: { units?: string; nanos?: number } }): number | null {
+  if (!x.price) return null;
+  const v = Number(x.price.units ?? 0) + (x.price.nanos ?? 0) / 1e9;
+  return v > 0 ? v : null;
+}
+
 export function parsePlaces(text: string, from: Point, grade = 'REGULAR_UNLEADED'): Station[] {
   const places = (JSON.parse(text)?.places ?? []) as GPlace[];
   return places
     .filter((p) => p.location)
     .map((p) => {
-      const fp = p.fuelOptions?.fuelPrices?.find((x) => x.type === grade);
-      const price = fp?.price ? Number(fp.price.units ?? 0) + (fp.price.nanos ?? 0) / 1e9 : null;
+      const prices = (p.fuelOptions?.fuelPrices ?? []).filter((x) => priceOf(x) != null);
+      // regular if listed, otherwise the cheapest gasoline grade the station shows
+      const fp = prices.find((x) => x.type === grade) ?? prices.filter((x) => GASOLINE.includes(x.type)).sort((a, b) => (priceOf(a) ?? 0) - (priceOf(b) ?? 0))[0];
+      const price = fp ? priceOf(fp) : null;
       const lat = p.location!.latitude;
       const lon = p.location!.longitude;
       return {
@@ -145,13 +155,28 @@ export function parsePlaces(text: string, from: Point, grade = 'REGULAR_UNLEADED
         lon,
         address: p.shortFormattedAddress ?? p.formattedAddress ?? null,
         miles: Math.round(milesBetween(from, { lat, lon }) * 10) / 10,
-        live: price ? { perGallon: Math.round(price * 1000) / 1000, grade: GRADE[grade] ?? 'Regular', updated: fp?.updateTime ?? null } : null,
+        live: price && fp ? { perGallon: Math.round(price * 1000) / 1000, grade: GRADE[fp.type] ?? fp.type.replace(/_/g, ' ').toLowerCase(), updated: fp.updateTime ?? null } : null,
       };
     })
     .sort((a, b) => a.miles - b.miles);
 }
 
-export async function googleStations(http: HttpFn, key: string, p: Point, radiusMeters = 8000): Promise<Station[]> {
+/** What Google actually sent about fuel: for telling "no price data here" from "Pebbles misread it". */
+export function placesFuelSummary(text: string): { places: number; withFuelInfo: number; withPrices: number; types: string[] } {
+  const places = (JSON.parse(text)?.places ?? []) as GPlace[];
+  const types = new Set<string>();
+  let withFuelInfo = 0;
+  let withPrices = 0;
+  for (const p of places) {
+    if (p.fuelOptions) withFuelInfo++;
+    const fps = p.fuelOptions?.fuelPrices ?? [];
+    if (fps.some((x) => priceOf(x) != null)) withPrices++;
+    fps.forEach((x) => types.add(x.type));
+  }
+  return { places: places.length, withFuelInfo, withPrices, types: [...types] };
+}
+
+export async function googleStations(http: HttpFn, key: string, p: Point, radiusMeters = 8000, raw?: { text: string }): Promise<Station[]> {
   const res = await http(PLACES_URL, {
     method: 'POST',
     headers: {
@@ -173,6 +198,7 @@ export async function googleStations(http: HttpFn, key: string, p: Point, radius
     }
     throw new Error(msg);
   }
+  if (raw) raw.text = res.text;
   return parsePlaces(res.text, p);
 }
 

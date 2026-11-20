@@ -8,7 +8,7 @@ import { krogerPrice, krogerToken } from '../core/kroger';
 import { fetchBls, fetchEiaColoradoGas } from '../core/market';
 import { BUILTIN_EIA_KEY, krogerStoresOf } from '../core/defaults';
 import { RELEASES_API } from '../core/updates';
-import { googleStations } from '../core/gas';
+import { googleStations, placesFuelSummary } from '../core/gas';
 import { googleMessage, useGoogleLookup } from './pantryActions';
 
 export type CheckId = 'plaid' | 'kroger' | 'eia' | 'bls' | 'google' | 'github';
@@ -85,11 +85,14 @@ async function attempt(id: CheckId): Promise<CheckResult> {
         const at = s.homeLat != null && s.homeLon != null ? { lat: s.homeLat, lon: s.homeLon } : { lat: 38.8339, lon: -104.8214 };
         const blocked = await useGoogleLookup();
         if (blocked) return done(true, 'Key saved · test skipped to stay in the free tier');
-        const st = await googleStations(http, key, at).catch((e) => {
+        const raw = { text: '' };
+        const st = await googleStations(http, key, at, 8000, raw).catch((e) => {
           throw new Error(googleMessage((e as Error).message));
         });
-        const withPrice = st.filter((x) => x.live).length;
-        return done(true, `Key accepted · ${st.length} stations, ${withPrice} with posted prices`);
+        const f = placesFuelSummary(raw.text);
+        if (f.withPrices) return done(true, `Key accepted · ${st.length} stations, ${f.withPrices} with posted prices`);
+        if (f.withFuelInfo) return done(false, `Key accepted · ${st.length} stations · Google sent fuel info for ${f.withFuelInfo} but no prices (types: ${f.types.join(', ') || 'none'})`);
+        return done(false, `Key accepted · ${st.length} stations, but Google sent no fuel price data for any of them. Google doesn’t share prices for your area through its API.`);
       }
       case 'github': {
         const res = await http(RELEASES_API, { headers: { Accept: 'application/vnd.github+json' } });

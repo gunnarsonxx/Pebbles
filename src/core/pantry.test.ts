@@ -144,3 +144,18 @@ describe('Google gas price errors explain the fix', async () => {
     expect(googleMessage('This API project is not authorized to use this API. Please ensure billing')).toMatch(/billing|restrictions/);
   });
 });
+
+describe('Google fuel data', async () => {
+  const { parsePlaces, placesFuelSummary } = await import('./gas');
+  it('uses another gasoline grade when regular isn’t listed, and tells empty from unreadable', () => {
+    const json = JSON.stringify({
+      places: [
+        { id: 'a', displayName: { text: 'A' }, location: { latitude: 38.8, longitude: -104.8 }, fuelOptions: { fuelPrices: [{ type: 'E10', price: { units: '3', nanos: 99000000 } }, { type: 'DIESEL', price: { units: '3', nanos: 590000000 } }] } },
+        { id: 'b', displayName: { text: 'B' }, location: { latitude: 38.81, longitude: -104.8 } },
+      ],
+    });
+    const st = parsePlaces(json, { lat: 38.8, lon: -104.8 });
+    expect(st[0].live?.perGallon).toBe(3.099);
+    expect(placesFuelSummary(json)).toEqual({ places: 2, withFuelInfo: 1, withPrices: 1, types: ['E10', 'DIESEL'] });
+  });
+});

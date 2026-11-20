@@ -145,7 +145,9 @@ export async function loadStations(where: 'home' | 'here', point: Point, force =
 
   // with a key: reuse Google prices for 3 hours; a manual refresh can go sooner, but not more than every 30 min
   const lastGoogle = !moved && cached?.source === 'google' ? (cached.googleAt ?? cached.at) : 0;
-  const fresh = lastGoogle && now - lastGoogle < (force ? GOOGLE_LIMITS.minGapMs : GOOGLE_LIMITS.freshMs);
+  // no prices last time? Google likely has none for this area: check once a day instead of every 3 hours
+  const noPrices = cached?.source === 'google' && !cached.stations.some((x) => x.live);
+  const fresh = lastGoogle && now - lastGoogle < (force ? GOOGLE_LIMITS.minGapMs : noPrices ? 24 * 3600_000 : GOOGLE_LIMITS.freshMs);
   if (cached && fresh) return { ...cached, note: force ? `Prices from ${ago(now - lastGoogle)}. Google is checked at most every 30 minutes to stay free.` : undefined };
 
   const blocked = await useGoogleLookup();
