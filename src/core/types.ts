@@ -560,6 +560,7 @@ export interface CollectionMap {
   recipes: Recipe;
   mealplan: MealPlanEntry;
   drives: DriveEntry;
+  barcodes: import('./barcodes').SavedBarcode;
 }
 
 export type CollectionName = keyof CollectionMap;
@@ -593,6 +594,7 @@ export const COLLECTIONS: CollectionName[] = [
   'recipes',
   'mealplan',
   'drives',
+  'barcodes',
 ];
 
 /** A record as stored and synced. */

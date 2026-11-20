@@ -55,4 +55,11 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <!-- "Take a Photo" (barcodes, receipts) hands off to the camera app; Android 11+ only lets the app
+         find it when it's declared here. No camera permission needed: the camera app takes the photo. -->
+    <queries>
+        <intent>
+            <action android:name="android.media.action.IMAGE_CAPTURE" />
+        </intent>
+    </queries>
 </manifest>

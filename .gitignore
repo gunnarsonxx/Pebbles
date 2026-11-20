@@ -14,3 +14,4 @@ android/.idea/
 coverage/
 public/ocr/
 public/pdf/
+public/barcode/

@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react';
-import { Camera, Check, ListPlus, Minus, Plus, ShoppingCart, Trash2, Sparkles } from 'lucide-react';
+import { Camera, Check, ListPlus, Minus, Plus, ScanBarcode, ShoppingCart, Trash2, Sparkles } from 'lucide-react';
 import type { AppData } from '../../data/useData';
 import { Empty, Field, NumberInput, Segmented, Sheet, TextInput, ToggleRow, useConfirm, useToast } from '../components';
 import { ReceiptSheet } from '../sheets/ReceiptSheet';
 import { PastItemsSheet, StapleGotSheet, StaplePicker, StapleSheet } from '../sheets/KitchenSheets';
+import { ScanKitchenSheet } from '../sheets/ScanKitchenSheet';
 import { stapleStatus } from '../../core/kitchen';
 import { DEPT_LABEL, NON_GROCERY_DEPTS } from '../../core/groceries';
 import { buildList, estimateTrip, LEVEL_LABEL, LEVELS, makePriceOf, newPantryItem, nextLevel, parseQuickAdd, stockOf, type ListLine } from '../../core/pantry';
@@ -186,6 +187,7 @@ export function PantryView({ data }: { data: AppData }) {
   const toast = useToast();
   const [bulk, setBulk] = useState(false);
   const [fromReceipts, setFromReceipts] = useState(false);
+  const [scanning, setScanning] = useState(false);
   const [editing, setEditing] = useState<PantryItem | null>(null);
   const [filter, setFilter] = useState<'all' | 'low'>('all');
   const items = data.pantry.filter((p) => filter === 'all' || stockOf(p) !== 'ok');
@@ -258,6 +260,9 @@ export function PantryView({ data }: { data: AppData }) {
           <button className="btn primary" onClick={() => setBulk(true)}>
             <ListPlus /> Add What You Have
           </button>
+          <button className="btn" onClick={() => setScanning(true)}>
+            <ScanBarcode /> Scan Barcodes
+          </button>
           {data.receipts.length > 0 && (
             <button className="btn" onClick={() => setFromReceipts(true)}>
               <Sparkles /> From My Receipts
@@ -266,6 +271,7 @@ export function PantryView({ data }: { data: AppData }) {
         </div>
         {bulk && <BulkAdd data={data} onClose={() => setBulk(false)} />}
         {fromReceipts && <PastItemsSheet data={data} onClose={() => setFromReceipts(false)} />}
+        {scanning && <ScanKitchenSheet data={data} onClose={() => setScanning(false)} />}
       </div>
     );
   }
@@ -284,6 +290,9 @@ export function PantryView({ data }: { data: AppData }) {
           />
         </div>
         <div className="row gap-s">
+          <button className="btn small" onClick={() => setScanning(true)}>
+            <ScanBarcode /> Scan
+          </button>
           {data.receipts.length > 0 && (
             <button className="btn small" onClick={() => setFromReceipts(true)}>
               <Sparkles /> From Receipts
@@ -352,6 +361,7 @@ export function PantryView({ data }: { data: AppData }) {
       <p className="tiny muted">Receipts ask what’s still in your kitchen before anything goes here. Tap an item to change how it’s tracked or make it a staple.</p>
       {bulk && <BulkAdd data={data} onClose={() => setBulk(false)} />}
       {fromReceipts && <PastItemsSheet data={data} onClose={() => setFromReceipts(false)} />}
+      {scanning && <ScanKitchenSheet data={data} onClose={() => setScanning(false)} />}
       {editing && <PantryEditor data={data} item={editing} onClose={() => setEditing(null)} />}
       {stapleEdit && <StapleSheet data={data} staple={stapleEdit === 'new' ? null : stapleEdit} onClose={() => setStapleEdit(null)} />}
     </div>
