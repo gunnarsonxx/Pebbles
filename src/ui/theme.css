@@ -1803,8 +1803,15 @@ svg.spin {
   flex-direction: column;
   gap: 4px;
 }
+.coverage-accounts {
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
 .coverage-pick {
-  max-width: 150px;
+  max-width: 190px;
   min-height: 34px;
   font-size: 12px;
   padding: 4px 8px;

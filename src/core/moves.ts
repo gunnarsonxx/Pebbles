@@ -30,6 +30,8 @@ export function paydayMoves(opts: {
   savingsName: string; // e.g. "Marcus"
   states: Map<string, MoveState>;
   bonusMonth: boolean;
+  billsAccountName?: string | null; // a bills-only account you top up from each check
+  billsThrough?: ISODate; // the top-up covers bills due before this payday
 }): Move[] {
   const { period, plan, goals, savingsName, states, bonusMonth } = opts;
   const st = (k: MoveKey) => states.get(moveId(period, k));
@@ -47,7 +49,30 @@ export function paydayMoves(opts: {
       auto: !!st('save')?.auto,
     });
   }
-  if (plan.bills > 0) {
+  if (opts.billsAccountName && plan.billsTopUp) {
+    const through = opts.billsThrough ? new Date(opts.billsThrough + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'the next payday';
+    moves.push(
+      plan.bills > 0
+        ? {
+            key: 'bills',
+            title: `Move ${usd(plan.bills, true)} to ${opts.billsAccountName}`,
+            detail: `Tops it up so every bill through ${through} is paid.`,
+            amount: plan.bills,
+            checkable: true,
+            done: !!st('bills')?.done,
+            auto: !!st('bills')?.auto,
+          }
+        : {
+            key: 'bills',
+            title: `${opts.billsAccountName} Already Covers Bills`,
+            detail: `Nothing to move for bills: it holds enough for everything due through ${through}.`,
+            amount: 0,
+            checkable: false,
+            done: false,
+            auto: false,
+          },
+    );
+  } else if (plan.bills > 0) {
     const due = plan.billsDue.slice(0, 4).map((b) => `${b.bill.name} ${b.date.slice(5).replace('-', '/')}`);
     moves.push({
       key: 'bills',

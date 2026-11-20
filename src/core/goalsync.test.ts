@@ -169,35 +169,45 @@ describe('one subscription, two accounts', async () => {
   });
 });
 
-describe('bills covered before payday', async () => {
+describe('bills account covers bills through the check after next', async () => {
   const { coverage } = await import('./coverage');
   const bill = (p: Partial<import('./types').Bill>) => ({ id: p.name ?? 'b', name: 'Bill', amount: 0, dueDay: 1, dueMonth: null, anchorDate: null, frequency: 'monthly' as const, category: 'utilities', autopay: false, active: true, matchPattern: '', ...p });
-  const usaa = { id: 'usaa', name: 'Checking', institution: 'USAA', type: 'checking' as const, balance: 1300, available: 1250, balanceDate: '2026-11-25' };
+  const billsAcct = { id: 'bills', name: 'Bills Account', institution: 'USAA', type: 'checking' as const, balance: 360, available: 344.08, balanceDate: '2026-11-19' };
+  const spend = { id: 'spend', name: 'Spending Account', institution: 'USAA', type: 'checking' as const, balance: 250, available: 240, balanceDate: '2026-11-19' };
   const bills = [
     bill({ name: 'Rent', amount: 1000, dueDay: 1, toRoommate: true, category: 'housing', matchPattern: 'VENMO' }),
     bill({ name: 'Internet', amount: 70, dueDay: 3, yourSharePct: 50, fromRent: true }),
     bill({ name: 'Crunchyroll', amount: 10.8, dueDay: 9, matchPattern: 'CRUNCHYROLL' }),
   ];
-  it('subtracts what leaves the account before payday and groceries/gas until then', () => {
-    const c = coverage({ account: usaa, bills, txns: [], today: '2026-11-25', nextPayday: '2026-12-04', essentialsMonthly: 608 })!;
-    // rent goes out as $965 (their $35 of internet comes off), internet is paid in full
-    expect(c.bills.map((b) => [b.bill.name, b.amount])).toEqual([
-      ['Rent', 965],
-      ['Internet', 70],
+  const base = { bills, txns: [], today: '2026-11-19', nextPayday: '2026-11-20', followingPayday: '2026-12-04', essentialsMonthly: 608 };
+  it('nothing due before Friday, so Friday’s check tops it up for Dec 1 and Dec 3', () => {
+    const c = coverage({ ...base, billsAccount: billsAcct, spendingAccount: spend });
+    const b = c.bills!;
+    expect(b.bills.map((x) => [x.bill.name, x.amount, x.beforePayday])).toEqual([
+      ['Rent', 965, false],
+      ['Internet', 70, false],
     ]);
-    expect(c.billsLeft).toBe(1035);
-    expect(c.living).toBe(180); // 9 days of $608/month
-    expect(c.left).toBe(1250 - 1035 - 180);
-    expect(c.status).toBe('tight');
+    expect(b.dueBeforePayday).toBe(0);
+    expect(b.dueNextCycle).toBe(1035);
+    expect(b.shortNow).toBe(0);
+    expect(b.topUp).toBe(695); // 1035 - 344.08, rounded up to $5
+    expect(b.status).toBe('topup');
+    // bill money is never spending money
+    expect(c.spending!.balance).toBe(240);
+    expect(c.spending!.living).toBe(20); // 1 day of $608/month
+    expect(c.spending!.left).toBe(220);
   });
-  it('a bill already paid isn’t counted again, and a shortfall shows', () => {
-    const paid = [{ id: 't', accountId: 'usaa', date: '2026-11-28', description: 'VENMO PAYMENT', merchant: '', amount: -965, category: 'p2p', importId: null, excluded: false, note: '' }];
-    const c = coverage({ account: { ...usaa, available: 400 }, bills, txns: paid, today: '2026-11-29', nextPayday: '2026-12-04', essentialsMonthly: 608 })!;
-    expect(c.bills.find((b) => b.bill.name === 'Rent')?.paid).toBe(true);
-    expect(c.billsLeft).toBe(70);
-    expect(c.status).toBe('ok');
-    const short = coverage({ account: { ...usaa, available: 500 }, bills, txns: [], today: '2026-11-29', nextPayday: '2026-12-04', essentialsMonthly: 608 })!;
+  it('a bill due before payday the account can’t cover is short now; a paid one isn’t counted', () => {
+    const late = { ...base, today: '2026-11-29', nextPayday: '2026-12-04', followingPayday: '2026-12-18' };
+    const short = coverage({ ...late, billsAccount: { ...billsAcct, available: 500 }, spendingAccount: null }).bills!;
+    expect(short.shortNow).toBe(535);
     expect(short.status).toBe('short');
-    expect(short.left).toBeLessThan(0);
+    const paid = [{ id: 't', accountId: 'bills', date: '2026-11-28', description: 'VENMO PAYMENT', merchant: '', amount: -965, category: 'p2p', importId: null, excluded: false, note: '' }];
+    const ok = coverage({ ...late, txns: paid, billsAccount: { ...billsAcct, available: 400 }, spendingAccount: null }).bills!;
+    expect(ok.bills.find((x) => x.bill.name === 'Rent')?.paid).toBe(true);
+    expect(ok.dueBeforePayday).toBe(70);
+    expect(ok.dueNextCycle).toBe(10.8);
+    expect(ok.status).toBe('ok');
+    expect(ok.extra).toBe(319.2);
   });
 });

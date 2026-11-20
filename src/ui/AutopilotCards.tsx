@@ -283,93 +283,176 @@ export function GuidelinesCard({ data }: { data: AppData }) {
 export function CoverageCard({ data, compact }: { data: AppData; compact?: boolean }) {
   const [open, setOpen] = useState(!compact);
   const c = data.coverage;
-  const checking = data.accounts.filter((a) => a.type === 'checking' && (a.available ?? a.balance) != null);
-  if (!c) return null;
-  const payday = data.upcoming.period.payday > data.today ? data.upcoming.period.payday : data.afterUpcoming.payday;
-  const unpaid = c.bills.filter((b) => !b.paid);
-  const savings = data.goalsAccount?.balance ?? 0;
-  const need = Math.ceil(-c.left / 5) * 5;
-  const tone = c.status === 'short' ? 'bad' : c.status === 'tight' ? 'warn' : 'good';
+  const b = c.bills;
+  const sp = c.spending;
+  const pickable = data.accounts.filter((a) => (a.type === 'checking' || a.type === 'savings') && !a.holdsGoals && (a.available ?? a.balance) != null);
+  if (!b) return null;
+  const chosen = !!data.settings.budget.billsAccountId;
+  const isToday = c.nextPayday === data.today;
+  const next = isToday ? 'Today' : fmtDay(c.nextPayday);
+  const nextCheck = isToday ? 'Today’s' : `${fmtDay(c.nextPayday)}’s`;
+  const through = fmtDay(c.followingPayday);
+  // "Same amount every check" can put in a bit more than the bare top-up, to smooth out rent; show what the plan says
+  const planned = chosen && data.plan.billsTopUp && data.upcoming.period.payday === c.nextPayday ? data.plan.bills : b.topUp;
+  const ahead = round2(planned - b.topUp);
+  const before = b.bills.filter((x) => x.beforePayday && !x.paid);
+  const after = b.bills.filter((x) => !x.beforePayday && !x.paid);
+  const tone = b.status === 'short' ? 'bad' : b.status === 'topup' ? 'warn' : 'good';
+  const name = (a: Account) => `${a.institution && !a.name.includes(a.institution) ? `${a.institution} ` : ''}${a.name}`;
+  const cover = Math.ceil(b.shortNow / 5) * 5;
+  const pick = (key: 'billsAccountId' | 'spendingAccountId', id: string) =>
+    void saveSettings((s) => ({
+      ...s,
+      budget: { ...s.budget, billsAccountId: s.budget.billsAccountId ?? b.account.id, spendingAccountId: s.budget.spendingAccountId ?? sp?.account.id ?? null, [key]: id || null },
+    }));
+  const select = (key: 'billsAccountId' | 'spendingAccountId', value: string, label: string, allowNone: boolean) => (
+    <label className="row between small" style={{ gap: 8 }}>
+      <span className="ink2">{label}</span>
+      <select className="input coverage-pick" value={value} aria-label={label} onChange={(e) => pick(key, e.target.value)}>
+        {allowNone && <option value="">None</option>}
+        {pickable.map((a) => (
+          <option key={a.id} value={a.id}>
+            {name(a)}
+            {a.mask ? ` ••${a.mask}` : ''}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
   return (
     <div className={`card coverage cov-${tone} mt`}>
-      <div className="card-head">
-        <div>
-          <div className="eyebrow">Before Payday · {fmtDay(payday)}</div>
-          <div className={`strong ${c.status === 'short' ? 'bad' : ''}`} style={{ fontSize: 17, marginTop: 2 }}>
-            {c.status === 'short'
-              ? `Short ${usd(-c.left, true)} until payday`
-              : unpaid.length
-                ? `Bills are covered · ${usd(c.left, true)} left for you`
-                : `No bills left before payday · ${usd(c.left, true)} left for you`}
-          </div>
-        </div>
-        {checking.length > 1 && (
-          <select
-            className="input coverage-pick"
-            value={c.account.id}
-            aria-label="Account bills come out of"
-            onChange={(e) => void saveSettings((s) => ({ ...s, budget: { ...s.budget, billsAccountId: e.target.value } }))}
-          >
-            {checking.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.institution ? `${a.institution} ` : ''}
-                {a.name}
-                {a.mask ? ` ••${a.mask}` : ''}
-              </option>
-            ))}
-          </select>
-        )}
+      <div className="eyebrow">Bills Through {through}</div>
+      <div className={`strong ${b.status === 'short' ? 'bad' : ''}`} style={{ fontSize: 17, marginTop: 2 }}>
+        {b.status === 'short'
+          ? `Short ${usd(b.shortNow)} for Bills Before ${next}`
+          : b.status === 'topup'
+            ? `Move ${usd(planned, true)} to ${b.account.name} From ${nextCheck} Check`
+            : `${b.account.name} Covers Every Bill Through ${through}`}
       </div>
-      <div className="coverage-math">
+      <div className="coverage-math mt-s">
         <div className="row between small">
-          <span>{c.account.institution ?? ''} {c.account.name} now</span>
-          <span className="num strong">{usd(c.balance)}</span>
+          <span>{name(b.account)} now</span>
+          <span className="num strong">{usd(b.balance)}</span>
         </div>
+        {!(isToday && !before.length) && (
+          <div className="row between small">
+            <span>{isToday ? `Bills still due before today` : `Bills before ${next}`} ({before.length})</span>
+            <span className="num">{b.dueBeforePayday ? `−${usd(b.dueBeforePayday)}` : usd(0)}</span>
+          </div>
+        )}
         <div className="row between small">
-          <span>Bills still due ({unpaid.length})</span>
-          <span className="num">−{usd(c.billsLeft)}</span>
-        </div>
-        <div className="row between small">
-          <span>Groceries, gas & basics · {c.days} day{c.days === 1 ? '' : 's'}</span>
-          <span className="num">−{usd(c.living)}</span>
+          <span>
+            Bills {isToday ? 'today' : next} → {through} ({after.length})
+          </span>
+          <span className="num">{b.dueNextCycle ? `−${usd(b.dueNextCycle)}` : usd(0)}</span>
         </div>
         <div className="divider" style={{ margin: '6px 0' }} />
-        <div className="row between small">
-          <span className="strong">{c.left >= 0 ? 'Left for you' : 'Short by'}</span>
-          <span className={`num strong ${tone}`}>{usd(Math.abs(c.left))}</span>
-        </div>
+        {b.status === 'ok' ? (
+          <div className="row between small">
+            <span className="strong">Extra in the account</span>
+            <span className="num strong good">{usd(b.extra)}</span>
+          </div>
+        ) : (
+          <>
+            {b.shortNow > 0 && (
+              <div className="row between small">
+                <span className="strong">Needed before {next}</span>
+                <span className="num strong bad">{usd(b.shortNow)}</span>
+              </div>
+            )}
+            {b.topUp > 0 && (
+              <div className="row between small">
+                <span className="strong">From {nextCheck.toLowerCase()} check</span>
+                <span className="num strong">{usd(planned, true)}</span>
+              </div>
+            )}
+          </>
+        )}
       </div>
-      {c.status === 'short' && (
+      {b.status === 'short' && (
         <p className="small ink2" style={{ margin: '8px 0 0' }}>
-          {savings >= need
-            ? `Move ${usd(need, true)} from ${data.goalsAccount?.name ?? 'savings'} to checking to cover it. It comes out of your goals, and Pebbles will rebuild them from the next checks.`
-            : `Move what you can from savings, and hold off on spending money until ${fmtDay(payday)}. If a bill allows it, pay it the day after payday.`}
+          {sp && sp.balance >= cover
+            ? `Move ${usd(cover, true)} from ${sp.account.name} to ${b.account.name} now so nothing bounces. `
+            : (data.goalsAccount?.balance ?? 0) >= cover
+              ? `Move ${usd(cover, true)} from ${data.goalsAccount?.name ?? 'savings'} to ${b.account.name} now. Pebbles will rebuild your goals from the next checks. `
+              : `Move what you can into ${b.account.name}, and if a bill allows it, pay it the day after payday. `}
         </p>
       )}
-      {c.status === 'tight' && <p className="small ink2" style={{ margin: '8px 0 0' }}>Covered, with only a little to spare. Go easy on extras until payday.</p>}
-      {c.bills.length > 0 && (
+      {b.status === 'topup' && b.shortNow === 0 && (
+        <p className="small ink2" style={{ margin: '8px 0 0' }}>
+          {before.length ? `Everything due before ${next} is covered. ` : ''}
+          {!chosen ? 'Confirm your accounts below and the payday plan will use this amount.' : <>The payday plan puts {usd(planned, true)} of {isToday ? 'today’s' : 'that'} check into {b.account.name}
+          {ahead > 0 ? ` (${usd(ahead, true)} of it toward later bills, since you set bills to the same amount every check)` : ''}, and the rest is planned for savings and you.</>}
+        </p>
+      )}
+      {b.status === 'ok' && (
+        <p className="small ink2" style={{ margin: '8px 0 0' }}>
+          Nothing from {nextCheck.toLowerCase()} check has to go to bills, so the payday plan leaves it for savings and you.
+        </p>
+      )}
+
+      {sp && (
+        <>
+          <div className="eyebrow mt">Spending Until {next}</div>
+          <div className="coverage-math mt-s">
+            <div className="row between small">
+              <span>{name(sp.account)} now</span>
+              <span className="num strong">{usd(sp.balance)}</span>
+            </div>
+            <div className="row between small">
+              <span>
+                Groceries, gas & basics · {sp.days} day{sp.days === 1 ? '' : 's'}
+              </span>
+              <span className="num">−{usd(sp.living)}</span>
+            </div>
+            <div className="divider" style={{ margin: '6px 0' }} />
+            <div className="row between small">
+              <span className="strong">{sp.left >= 0 ? 'Yours to spend' : 'Short by'}</span>
+              <span className={`num strong ${sp.status === 'short' ? 'bad' : sp.status === 'tight' ? 'warn' : 'good'}`}>{usd(Math.abs(sp.left))}</span>
+            </div>
+          </div>
+          {sp.status !== 'ok' && (
+            <p className="small ink2" style={{ margin: '8px 0 0' }}>
+              {sp.status === 'short' ? `Groceries and gas need a bit more than ${sp.account.name} has. Keep extras on hold until ${next}.` : `Covered, with only a little to spare. Go easy on extras until ${next}.`}
+            </p>
+          )}
+        </>
+      )}
+
+      {b.bills.length > 0 && (
         <>
           <button className="link-btn small mt" onClick={() => setOpen(!open)}>
-            {open ? 'Hide bills' : `Show the ${c.bills.length} bill${c.bills.length === 1 ? '' : 's'}`}
+            {open ? 'Hide Bills' : `Show the ${b.bills.length} Bill${b.bills.length === 1 ? '' : 's'}`}
           </button>
           {open && (
             <div className="list mt-s">
-              {c.bills.map((b) => (
-                <div key={`${b.bill.id}${b.date}`} className="row between small" style={{ padding: '4px 0', opacity: b.paid ? 0.55 : 1 }}>
+              {b.bills.map((x) => (
+                <div key={`${x.bill.id}${x.date}`} className="row between small" style={{ padding: '4px 0', opacity: x.paid ? 0.55 : 1 }}>
                   <span>
-                    {b.paid ? '✓ ' : ''}
-                    {b.bill.name} · {fmtDay(b.date)}
-                    {b.bill.toRoommate ? ' · to roommate' : ''}
+                    {x.paid ? '✓ ' : ''}
+                    {x.bill.name} · {fmtDay(x.date)}
+                    {x.bill.toRoommate ? ' · to roommate' : ''}
                   </span>
-                  <span className="num">{b.paid ? 'paid' : usd(b.amount)}</span>
+                  <span className="num">{x.paid ? 'paid' : usd(x.amount)}</span>
                 </div>
               ))}
             </div>
           )}
         </>
       )}
+
+      <div className="coverage-accounts mt">
+        {!chosen && <p className="small ink2" style={{ margin: '0 0 6px' }}>Which account is only for bills? Once you pick it, the payday plan counts what’s already in it and only tops it up.</p>}
+        {select('billsAccountId', b.account.id, 'Bills Account', false)}
+        {select('spendingAccountId', sp?.account.id ?? '', 'Spending Account', true)}
+        {!chosen && (
+          <button className="btn small mt-s" onClick={() => pick('billsAccountId', b.account.id)}>
+            Use These Accounts
+          </button>
+        )}
+      </div>
       <p className="tiny muted" style={{ margin: '8px 0 0' }}>
-        {c.asOf ? `Balance as of ${fmtShort(c.asOf)}. ` : ''}Uses the available balance, so pending charges are already out.
+        {b.asOf ? `Balances as of ${fmtShort(b.asOf)}. ` : ''}Uses the available balance, so pending charges are already out.
       </p>
     </div>
   );

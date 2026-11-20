@@ -16,7 +16,7 @@ import { goalsAccount, interestNextMonth, reconcile, type Reconcile } from '../c
 import { paydayMoves, type Move } from '../core/moves';
 import { threePaycheckMonths } from '../core/budget';
 import type { GasPrice, PantryItem, ShopItem } from '../core/types';
-import { billsAccount, coverage, type Coverage } from '../core/coverage';
+import { billsAccount, coverage, spendingAccount, type Coverage } from '../core/coverage';
 
 export function useVersion(): number {
   return useSyncExternalStore(store.subscribe, store.getVersion);
@@ -66,7 +66,7 @@ export interface AppData {
   interestMonthly: number;
   reconcile: Reconcile | null;
   movesFor: { period: Period; estimate: PaycheckEstimate; plan: PaycheckPlan; moves: Move[]; isPast: boolean } | null;
-  coverage: Coverage | null;
+  coverage: Coverage;
   pantry: PantryItem[];
   shoplist: ShopItem[];
   gasPrices: GasPrice[];
@@ -147,6 +147,24 @@ export function computeData(version: number, today: ISODate): AppData {
         }
       : null,
   );
+  // Bills account vs Spending account: what's due through the check after next, and what's yours
+  const bAcct = billsAccount(accounts, settings.budget.billsAccountId);
+  const nextPayday = upPeriod.payday >= today ? upPeriod.payday : afterUpcoming.payday;
+  const followingPayday = periodByIndex(settings.pay, upPeriod.index + (nextPayday === upPeriod.payday ? 1 : 2)).payday;
+  const cov = coverage({
+    billsAccount: bAcct,
+    spendingAccount: spendingAccount(accounts, settings.budget.spendingAccountId, bAcct),
+    bills,
+    txns,
+    today,
+    nextPayday,
+    followingPayday,
+    essentialsMonthly: essentials.totalMonthly,
+  });
+  // only once you've told Pebbles which account is bills-only; otherwise the old "share of bills" plan
+  // before the check: what it has to add for bills through the check after it; after it landed: what's still missing
+  const topUpFor = (payday: string) =>
+    !settings.budget.billsAccountId || !cov.bills ? null : payday === nextPayday ? cov.bills.topUp : payday < today ? Math.ceil(cov.bills.shortNow / 5) * 5 : null;
   const override = paychecks.get(upPeriod.start)?.savingsOverride ?? null;
   const plan = buildPlan({
     settings,
@@ -158,6 +176,7 @@ export function computeData(version: number, today: ISODate): AppData {
     goals,
     contributions,
     savingsOverride: override,
+    billsTopUp: topUpFor(upPeriod.payday),
   });
   const balances = new Map(goals.map((g) => [g.id, goalBalance(g.id, contributions)]));
   const saved = totalSaved(goals, contributions);
@@ -233,7 +252,7 @@ export function computeData(version: number, today: ISODate): AppData {
         savingsOverride: mRecord?.savingsOverride ?? null,
       })
     : mRecord?.actualNet != null
-      ? buildPlan({ settings, net: mRecord.actualNet, payday: mPeriod.payday, nextPayday: afterUpcoming.payday, bills, essentials, goals, contributions: contributions.filter((c) => c.paycheckId !== mPeriod.start), savingsOverride: mRecord.savingsOverride })
+      ? buildPlan({ settings, net: mRecord.actualNet, payday: mPeriod.payday, nextPayday: afterUpcoming.payday, bills, essentials, goals, contributions: contributions.filter((c) => c.paycheckId !== mPeriod.start), savingsOverride: mRecord.savingsOverride, billsTopUp: topUpFor(mPeriod.payday) })
       : plan;
   const bonusMonth = threePaycheckMonths(Array.from({ length: 4 }, (_, k) => periodByIndex(settings.pay, mPeriod.index - 1 + k).payday)).includes(mPeriod.payday.slice(0, 7));
   movesFor = {
@@ -248,6 +267,8 @@ export function computeData(version: number, today: ISODate): AppData {
       savingsName: gAcct ? (gAcct.institution && /marcus|goldman/i.test(gAcct.institution + gAcct.name) ? 'Marcus' : gAcct.name) : 'savings',
       states: movesState,
       bonusMonth,
+      billsAccountName: settings.budget.billsAccountId && cov.bills ? cov.bills.account.name : null,
+      billsThrough: mPeriod.payday === nextPayday ? followingPayday : nextPayday,
     }),
   };
 
@@ -291,14 +312,7 @@ export function computeData(version: number, today: ISODate): AppData {
     interestMonthly: interestNextMonth(gAcct?.balance ?? saved, gAcct?.apy),
     reconcile: reconcile(gAcct, saved),
     movesFor,
-    coverage: coverage({
-      account: billsAccount(accounts, settings.budget.billsAccountId),
-      bills,
-      txns,
-      today,
-      nextPayday: upPeriod.payday > today ? upPeriod.payday : afterUpcoming.payday,
-      essentialsMonthly: essentials.totalMonthly,
-    }),
+    coverage: cov,
     pantry: store.list('pantry').filter((p) => !p.archived).sort((a, b) => a.name.localeCompare(b.name)),
     shoplist: store.list('shoplist').sort((a, b) => a.addedAt - b.addedAt),
     gasPrices,

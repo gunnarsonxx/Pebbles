@@ -180,6 +180,19 @@ describe('budget', () => {
     expect(plan2.bills + plan2.essentials + plan2.savings + plan2.personal).toBeCloseTo(1400, 2);
   });
 
+  it('with a bills-only account, the check only tops it up and the rest is planned for you', () => {
+    const s = defaultSettings();
+    s.budget.billsMode = 'due_dates';
+    const essentials = estimateEssentials(s, [], null, '2026-11-19');
+    const args = { settings: s, net: 1400, payday: '2026-11-27', nextPayday: '2026-12-11', bills: [rent, phone], essentials, goals: [], contributions: [] };
+    const topped = buildPlan({ ...args, billsTopUp: 300 });
+    expect(topped.bills).toBe(300);
+    expect(topped.billsTopUp).toBe(true);
+    const covered = buildPlan({ ...args, billsTopUp: 0 });
+    expect(covered.bills).toBe(0);
+    expect(covered.savings + covered.personal).toBeGreaterThan(buildPlan(args).savings + buildPlan(args).personal);
+  });
+
   it('allocates savings: emergency first, then deadlines, then priority', () => {
     const goals: Goal[] = [
       { id: 'e', name: 'Bedrock', target: 3000, targetDate: null, image: null, gem: 'obsidian', priority: 2, isEmergency: true, createdAt: 0, completedAt: null, archived: false, note: '' },

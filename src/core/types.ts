@@ -86,7 +86,8 @@ export interface BudgetSettings {
   billsMode: 'due_dates' | 'even';
   emergencyMonths: number; // e.g. 3
   roundTo: number; // round suggestions to $5
-  billsAccountId?: string | null; // the checking account your bills come out of
+  billsAccountId?: string | null; // the account that holds bill money only
+  spendingAccountId?: string | null; // the account for everything else
 }
 
 export interface IntegrationSettings {

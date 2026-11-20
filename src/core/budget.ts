@@ -274,6 +274,7 @@ export interface PaycheckPlan {
   net: number;
   bills: number;
   billsDue: BillDue[];
+  billsTopUp?: boolean; // bills is a top-up of a bills-only account, not this check's share
   essentials: number;
   available: number; // after bills & essentials
   savings: number;
@@ -296,13 +297,16 @@ export function buildPlan(opts: {
   goals: Goal[];
   contributions: Contribution[];
   savingsOverride?: number | null;
+  /** with a separate Bills account: what this check has to put in it (its balance already counts) */
+  billsTopUp?: number | null;
 }): PaycheckPlan {
   const { settings, net, payday, nextPayday, bills, essentials, goals, contributions } = opts;
   const b = settings.budget;
   const notes: string[] = [];
   const billsDue = billsDueBetween(bills, payday, nextPayday);
-  const billsAmt =
-    b.billsMode === 'due_dates' ? round2(billsDue.reduce((s, x) => s + x.amount, 0)) : round2((monthlyBillsTotal(bills) * 12) / 26);
+  const steady = b.billsMode === 'due_dates' ? round2(billsDue.reduce((s, x) => s + x.amount, 0)) : round2((monthlyBillsTotal(bills) * 12) / 26);
+  // money already sitting in a bills-only account counts; "same every check" still never puts in less than needed
+  const billsAmt = opts.billsTopUp == null ? steady : b.billsMode === 'due_dates' ? round2(opts.billsTopUp) : round2(Math.max(steady, opts.billsTopUp));
   const essentialsAmt = essentials.perPaycheck;
   const available = round2(net - billsAmt - essentialsAmt);
   const step = b.roundTo || 1;
@@ -349,6 +353,7 @@ export function buildPlan(opts: {
     net,
     bills: billsAmt,
     billsDue,
+    billsTopUp: opts.billsTopUp != null,
     essentials: essentialsAmt,
     available,
     savings: round2(savings),
