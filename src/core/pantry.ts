@@ -5,7 +5,7 @@
 //   amount – rice: 5 lb, coffee: 12 oz        (tap − to take off a bit)
 //   level  – milk, peanut butter, dish soap   (Full → Half → Low → Out)
 // Receipts restock what they match; low and out items go on the shopping list by themselves.
-import { baseName, cleanItemName, deptFor, NON_GROCERY_DEPTS, type GroceryStats } from './groceries';
+import { baseName, cleanItemName, deptFor, NON_GROCERY_DEPTS, sameProduct, type GroceryStats } from './groceries';
 import { diffDays } from './dates';
 import { round2, uid } from './money';
 import type { ISODate, ItemRule, PantryItem, Receipt, ShopItem, Staple, StorePrice } from './types';
@@ -227,7 +227,7 @@ export function buildList(
   shop: ShopItem[],
   receipts: Receipt[],
   asOf: ISODate,
-  priceOf: (key: string, name: string) => { price: number; from: string } | null,
+  priceOf: (key: string, name: string, desc?: string) => { price: number; from: string } | null,
   staples: Staple[] = [],
 ): ListLine[] {
   const out: ListLine[] = [];
@@ -260,7 +260,7 @@ export function buildList(
     const st = stockOf(p);
     const due = st === 'ok' ? dueSoon(p, receipts, asOf) : null;
     if (st === 'ok' && due == null) continue;
-    const pr = priceOf(p.key, p.name);
+    const pr = priceOf(p.key, p.name, p.desc);
     out.push({ id: p.id, name: p.name, key: p.key, why: st === 'ok' ? 'due' : st, qty: 1, pantry: p, shop: null, price: pr?.price ?? null, priceFrom: pr?.from ?? null, always: !!p.always });
   }
   for (const s of shop) {
@@ -275,16 +275,23 @@ export function buildList(
 }
 
 /** Best price for one of an item: a King Soopers sale or shelf price, else what you last paid. */
-export function makePriceOf(stats: GroceryStats | null, prices: StorePrice[]): (key: string, name: string) => { price: number; from: string } | null {
-  return (key, name) => {
+/**
+ * Best price for one: a King Soopers price for the same product (same words, about the same size), else what
+ * you last paid. A store product that isn't yours (a different coffee, a smaller bag) is never used.
+ */
+export function makePriceOf(stats: GroceryStats | null, prices: StorePrice[]): (key: string, name: string, desc?: string) => { price: number; from: string } | null {
+  return (key, name, desc) => {
+    const st = (key ? stats?.items.find((i) => i.key === key) : undefined) ?? stats?.items.find((i) => matches({ key, name } as PantryItem, i.key, i.name));
+    const mine = desc || st?.desc;
     let best: { price: number; from: string } | null = null;
     for (const p of prices) {
-      if (!(p.id === key || p.id.endsWith(`|${key}`))) continue;
+      if (!key || !(p.id === key || p.id.endsWith(`|${key}`))) continue;
+      if (mine && !sameProduct(mine, p)) continue;
       const v = p.promo ?? p.regular;
-      if (v != null && (!best || v < best.price)) best = { price: v, from: `${p.store}${p.promo != null && p.regular != null && p.promo < p.regular ? ' (sale)' : ''}` };
+      const sale = p.promo != null && p.regular != null && p.promo < p.regular;
+      if (v != null && (!best || v < best.price)) best = { price: v, from: `${p.store}${sale ? ' (sale)' : ''}: ${p.description}${p.size ? `, ${p.size}` : ''}` };
     }
     if (best) return best;
-    const st = stats?.items.find((i) => i.key === key) ?? stats?.items.find((i) => matches({ key, name } as PantryItem, i.key, i.name));
     return st ? { price: st.lastPrice, from: `last paid at ${st.lastStore}` } : null;
   };
 }

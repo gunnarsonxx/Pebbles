@@ -258,6 +258,7 @@ export interface ItemStat {
   lastPrice: number;
   lastStore: string;
   byStore: Record<string, { avg: number; last: number; count: number }>;
+  desc?: string; // the full product name from the latest receipt
 }
 
 export interface GroceryStats {
@@ -308,6 +309,7 @@ export function analyzeGroceries(receipts: Receipt[], asOf: ISODate): GrocerySta
       cur.lastStore = r.store;
       cur.dept = it.dept;
       cur.name = it.name;
+      cur.desc = describeItem(it);
       const bs = cur.byStore[r.store] ?? { avg: 0, last: 0, count: 0 };
       bs.avg = (bs.avg * bs.count + unit) / (bs.count + 1);
       bs.last = unit;
@@ -415,3 +417,51 @@ export function fullName(raw: string): string {
 
 /** What a receipt line is, in full: the store's own name for it. */
 export const describeItem = (i: { desc?: string; raw: string; name: string }) => i.desc || fullName(i.raw) || i.name;
+
+// ---------- is a store's product the same thing you buy? ----------
+
+const FILLER = new Set(['with', 'and', 'the', 'for', 'fl', 'oz', 'lb', 'lbs', 'ct', 'count', 'pack', 'gal', 'gallon', 'size', 'family', 'value', 'original']);
+
+function productWords(s: string): string[] {
+  return s
+    .toLowerCase()
+    .replace(/[®™©]/g, '')
+    .replace(/\d+(\.\d+)?\s*(fl\s*oz|oz|lb|lbs|ct|count|gal|qt|pt|ml|l|g|kg|pk|pack)\b/g, ' ')
+    .replace(/[^a-z ]/g, ' ')
+    .split(/\s+/)
+    .filter((w) => w.length > 2 && !FILLER.has(w));
+}
+
+/** Package size in a common unit: ounces (weight or fluid) or a count. */
+export function sizeOf(s: string): { n: number; unit: 'oz' | 'ct' } | null {
+  const t = s.toLowerCase();
+  const m = t.match(/(\d+(?:\.\d+)?)\s*(fl\s*oz|oz|lb|lbs|gal|gallon|qt|ct|count)\b/);
+  if (!m) return null;
+  const n = parseFloat(m[1]);
+  const u = m[2].replace(/\s/g, '');
+  if (u === 'ct' || u === 'count') return { n, unit: 'ct' };
+  const oz = u === 'lb' || u === 'lbs' ? n * 16 : u === 'gal' || u === 'gallon' ? n * 128 : u === 'qt' ? n * 32 : n;
+  return { n: oz, unit: 'oz' };
+}
+
+/** A store product counts as yours if it has most of your product's words and about the same size. */
+export function sameProduct(desc: string, live: { description: string; size?: string }): boolean {
+  const mine = [...new Set(productWords(desc))];
+  if (!mine.length) return true;
+  const theirs = new Set(productWords(live.description));
+  const hit = mine.filter((w) => theirs.has(w) || theirs.has(w.replace(/s$/, '')) || theirs.has(`${w}s`)).length;
+  if (hit / mine.length < 0.6) return false;
+  const a = sizeOf(desc);
+  const b = sizeOf(`${live.size ?? ''} ${live.description}`);
+  if (a && b && a.unit === b.unit && (b.n / a.n < 0.8 || b.n / a.n > 1.25)) return false;
+  return true;
+}
+
+/** What to search a store for: the full name without the size. */
+export function searchTerm(descOrName: string): string {
+  return fullName(descOrName)
+    .replace(/,?\s*\d+(\.\d+)?\s*(fl\s*oz|oz|lb|lbs|ct|count|gal|gallon|qt|pt|ml|l|g|kg|pk|pack)\b.*$/i, '')
+    .split(/\s+/)
+    .slice(0, 8)
+    .join(' ');
+}

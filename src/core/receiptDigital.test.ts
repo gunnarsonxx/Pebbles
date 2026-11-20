@@ -158,3 +158,23 @@ describe('telling similar things apart', async () => {
     expect(r.items[1].desc).toBe('El Monterey Chicken & Cheese Frozen Flour Taquitos, 20 ct / 20 oz');
   });
 });
+
+describe('store prices only for the same product', async () => {
+  const { sameProduct, searchTerm, sizeOf } = await import('./groceries');
+  const { makePriceOf } = await import('./pantry');
+  const mine = 'Kroger Classic Blend Medium Roast Ground Coffee, 29 oz';
+  it('a different coffee, or a smaller bag, isn’t yours', () => {
+    expect(sameProduct(mine, { description: 'Kroger 100% Colombian Medium Roast Ground Coffee', size: '11.5 oz' })).toBe(false);
+    expect(sameProduct(mine, { description: 'Kroger Classic Blend Medium Roast Ground Coffee', size: '11.5 oz' })).toBe(false); // smaller bag
+    expect(sameProduct(mine, { description: 'Kroger® Classic Blend Medium Roast Ground Coffee', size: '29 oz' })).toBe(true);
+    expect(sizeOf('2 lb')).toEqual({ n: 32, unit: 'oz' });
+    expect(searchTerm(mine)).toBe('Kroger Classic Blend Medium Roast Ground Coffee');
+  });
+  it('the list uses what you paid unless King Soopers has the same product', () => {
+    const stats = { items: [{ key: 'coffee', name: 'Coffee', desc: mine, lastPrice: 12.99, lastStore: 'King Soopers' }] } as never;
+    const wrong = [{ id: 'ks1|coffee', store: 'King Soopers (Powers Blvd)', description: 'Kroger 100% Colombian Ground Coffee', regular: 5.99, promo: null, size: '11.5 oz', fetchedAt: 0 }];
+    expect(makePriceOf(stats, wrong)('coffee', 'Coffee', mine)).toEqual({ price: 12.99, from: 'last paid at King Soopers' });
+    const right = [{ ...wrong[0], description: 'Kroger Classic Blend Medium Roast Ground Coffee', size: '29 oz', regular: 13.49, promo: 11.99 }];
+    expect(makePriceOf(stats, right)('coffee', 'Coffee', mine)).toEqual({ price: 11.99, from: 'King Soopers (Powers Blvd) (sale): Kroger Classic Blend Medium Roast Ground Coffee, 29 oz' });
+  });
+});

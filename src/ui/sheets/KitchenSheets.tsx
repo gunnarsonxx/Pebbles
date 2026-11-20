@@ -532,6 +532,32 @@ export function PastItemsSheet({ data, onClose, receiptId }: { data: AppData; on
           ))}
         </select>
         {receipts.reduce((n, r) => n + r.items.length, 0) > 12 && <TextInput value={q} onChange={setQ} placeholder="Find an item…" ariaLabel="Find an item" />}
+        {chosen.length > 0 && (
+          <div className="card tint" style={{ padding: '8px 10px' }}>
+            <div className="tiny strong">Will add (from any receipt, even ones not shown right now)</div>
+            <div className="row wrap mt-s" style={{ gap: 6 }}>
+              {[...picks.entries()]
+                .filter(([, p]) => (p.count != null ? p.count > 0 : p.left !== 'gone') || p.always)
+                .map(([k, p]) => (
+                  <span key={k} className="chip">
+                    {p.item.name} · {p.count != null ? `${p.count}` : p.left === 'gone' ? 'staple' : p.left}
+                    <button
+                      className="link-btn"
+                      style={{ marginLeft: 6 }}
+                      aria-label={`Don’t add ${p.item.name}`}
+                      onClick={() => {
+                        const n = new Map(picks);
+                        n.delete(k);
+                        setPicks(n);
+                      }}
+                    >
+                      ✕
+                    </button>
+                  </span>
+                ))}
+            </div>
+          </div>
+        )}
         {!receipts.length && <p className="small muted">No grocery receipts yet.</p>}
         {shown.map((r) => {
           const items = pickableItems(r)

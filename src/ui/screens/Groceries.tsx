@@ -6,7 +6,7 @@ import { PantryView, ShoppingListView } from './Pantry';
 import { GasView } from './Gas';
 import { MealsView } from './Meals';
 import { ReceiptSheet } from '../sheets/ReceiptSheet';
-import { DEPT_LABEL, WANT_DEPTS, extrasOn, monthlyGroceryNeed, receiptItemsTotal } from '../../core/groceries';
+import { DEPT_LABEL, WANT_DEPTS, extrasOn, monthlyGroceryNeed, receiptItemsTotal, sameProduct } from '../../core/groceries';
 import { fmtShort } from '../../core/dates';
 import { round2, usd } from '../../core/money';
 import { refreshStorePrices } from '../../data/groceryActions';
@@ -25,7 +25,8 @@ export function GroceriesView({ data, openSettings }: { data: AppData; openSetti
   const krogerStores = krogerStoresOf(kroger);
   const hasKroger = !!(kroger.krogerClientId && kroger.krogerSecret && krogerStores.length);
   // live store prices for an item: one per King Soopers you picked
-  const livePrices = (key: string) => [...data.prices.values()].filter((p) => p.id === key || p.id.endsWith(`|${key}`));
+  // King Soopers prices for the same product you buy (not just anything with the same short name)
+  const livePrices = (key: string, desc?: string) => [...data.prices.values()].filter((p) => (p.id === key || p.id.endsWith(`|${key}`)) && (!desc || sameProduct(desc, p)));
   const priceOf = (p: { promo: number | null; regular: number | null }) => (p.promo ?? p.regular) as number;
   const taxRate = g?.taxRate ?? 0.0407;
   const need = monthlyGroceryNeed(g);
@@ -37,7 +38,7 @@ export function GroceriesView({ data, openSettings }: { data: AppData; openSetti
     const rows = g.usual.map((u) => {
       const prices: Record<string, number> = {};
       for (const [st, v] of Object.entries(u.byStore)) prices[st] = v.last;
-      for (const kp of livePrices(u.key)) if (kp.promo ?? kp.regular) prices[kp.store] = Math.min(prices[kp.store] ?? Infinity, priceOf(kp));
+      for (const kp of livePrices(u.key, u.desc)) if (kp.promo ?? kp.regular) prices[kp.store] = Math.min(prices[kp.store] ?? Infinity, priceOf(kp));
       return { u, prices };
     });
     const names = [...new Set(rows.flatMap((r) => Object.keys(r.prices)))];
@@ -53,7 +54,7 @@ export function GroceriesView({ data, openSettings }: { data: AppData; openSetti
     return { sorted, count: shared.length };
   })();
 
-  const deals = g ? g.usual.flatMap((u) => livePrices(u.key).map((p) => ({ u, p }))).filter((x) => x.p.promo != null && x.p.regular != null && x.p.promo < x.p.regular) : [];
+  const deals = g ? g.usual.flatMap((u) => livePrices(u.key, u.desc).map((p) => ({ u, p }))).filter((x) => x.p.promo != null && x.p.regular != null && x.p.promo < x.p.regular) : [];
 
   // the receipt sheets sit outside the two layouts, so saving the first receipt doesn't reset them
   const sheets = (
@@ -244,7 +245,7 @@ export function GroceriesView({ data, openSettings }: { data: AppData; openSetti
           )}
           <div className="list">
             {(g?.usual ?? []).slice(0, 20).map((u) => {
-              const live = livePrices(u.key).sort((a, b) => priceOf(a) - priceOf(b));
+              const live = livePrices(u.key, u.desc).sort((a, b) => priceOf(a) - priceOf(b));
               const kp = live[0];
               const best = Object.entries(u.byStore).sort((a, b) => a[1].last - b[1].last)[0];
               return (

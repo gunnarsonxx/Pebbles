@@ -4,7 +4,7 @@ import { getSettings, saveSettings } from './actions';
 import { http } from '../platform';
 import { uid } from '../core/money';
 import { krogerLocations, krogerPrice, krogerToken, type KrogerLocation } from '../core/kroger';
-import { analyzeGroceries } from '../core/groceries';
+import { analyzeGroceries, sameProduct, searchTerm } from '../core/groceries';
 import { deductionsFromStub } from '../core/paystub';
 import { estimatePaycheck } from '../core/paycheck';
 import { computeWithholding } from '../core/tax';
@@ -62,8 +62,12 @@ export async function refreshStorePrices(force = false): Promise<{ updated: numb
         const id = `${st.id}|${it.key}`;
         const cur = store.get('prices', id);
         if (!force && cur && Date.now() - cur.fetchedAt < 20 * 3600_000) continue;
-        const p = await krogerPrice(http, token, st.id, it.name).catch(() => null);
-        if (!p) continue;
+        // search for your exact product, and only keep the price if it really is that product
+        const p = await krogerPrice(http, token, st.id, searchTerm(it.desc || it.name)).catch(() => null);
+        if (!p || (it.desc && !sameProduct(it.desc, p))) {
+          if (cur) await store.remove('prices', id);
+          continue;
+        }
         await store.put('prices', { id, store: st.name, description: p.description, regular: p.regular, promo: p.promo, size: p.size, fetchedAt: Date.now() });
         updated++;
       }
