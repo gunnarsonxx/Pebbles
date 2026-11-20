@@ -149,7 +149,7 @@ export function GroceriesView({ data, openSettings }: { data: AppData; openSetti
                 toast(r.error ? r.error : `Checked ${r.updated} prices`);
               }}
             >
-              <RefreshCw /> {pricing ? 'Checking…' : 'Check Prices'}
+              <RefreshCw className={pricing ? 'spin' : ''} /> {pricing ? 'Checking…' : 'Check Prices'}
             </button>
           ) : (
             <button className="btn small" onClick={openSettings}>

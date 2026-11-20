@@ -162,7 +162,10 @@ export function GasStationSettings({ s, set }: { s: Settings; set: SetFn }) {
         <ol className="small ink2" style={{ margin: 0, paddingLeft: 18 }}>
           <li>Go to console.cloud.google.com, make a project and turn on billing (a card is required).</li>
           <li>Turn on “Places API (New)”, then make an API key under Credentials.</li>
-          <li>Paste it here. Pebbles refreshes at most every 3 hours, which stays well inside Google’s free monthly allowance.</li>
+          <li>
+            Recommended: under the key’s settings, set Application restrictions to <strong>Android apps</strong> with package <code>app.pebbles.money</code> and SHA-1 <code>56:70:15:4D:F4:37:3C:66:C5:68:DF:CB:2B:3D:FD:36:8C:72:65:D9</code>, and API restrictions to <strong>Places API (New)</strong>.
+          </li>
+          <li>Paste it here. Pebbles checks Google at most 20 times a day and 400 a month, well under the 1,000 free lookups.</li>
         </ol>
         <Field label="Google Maps API Key (Optional)">
           <TextInput value={i.googlePlacesKey} onChange={(v) => up({ googlePlacesKey: v.trim() })} placeholder="AIza…" />

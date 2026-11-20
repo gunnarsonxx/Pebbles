@@ -91,31 +91,94 @@ export interface StationCache {
   where: Point;
   stations: Station[];
   source: 'osm' | 'google';
+  googleAt?: number; // when Google prices were last fetched for this spot
+  googleError?: string; // why Google prices couldn't load (the free station map is shown instead)
+  note?: string; // e.g. "Prices from 40 min ago" when a refresh was held back
 }
 
-/** Stations around a point: Google (with live prices) when you've added a key, else OpenStreetMap. Cached a few hours. */
+// ---------------- Google usage limits ----------------
+// Google gives 1,000 free gas-price lookups a month (the most expensive tier this could fall
+// under). Pebbles stays far below that no matter how often you tap Refresh.
+export const GOOGLE_LIMITS = { perDay: 20, perMonth: 400, minGapMs: 30 * 60_000, freshMs: 3 * 3600_000 };
+
+interface GoogleUsage {
+  month: string;
+  monthCount: number;
+  day: string;
+  dayCount: number;
+}
+
+export async function googleUsage(): Promise<GoogleUsage> {
+  const t = today();
+  const u = (await store.getMeta<GoogleUsage>('googleUsage')) ?? { month: t.slice(0, 7), monthCount: 0, day: t, dayCount: 0 };
+  return { month: t.slice(0, 7), monthCount: u.month === t.slice(0, 7) ? u.monthCount : 0, day: t, dayCount: u.day === t ? u.dayCount : 0 };
+}
+
+/** Count one Google lookup, or say why it's not allowed right now. */
+export async function useGoogleLookup(): Promise<string | null> {
+  const u = await googleUsage();
+  if (u.dayCount >= GOOGLE_LIMITS.perDay) return `Pebbles already checked Google ${u.dayCount} times today (its limit, to keep you in the free tier). Live prices refresh again tomorrow.`;
+  if (u.monthCount >= GOOGLE_LIMITS.perMonth) return `Pebbles reached its ${GOOGLE_LIMITS.perMonth} Google lookups for this month (well inside the free 1,000). Live prices come back on the 1st.`;
+  await store.setMeta('googleUsage', { ...u, monthCount: u.monthCount + 1, dayCount: u.dayCount + 1 });
+  return null;
+}
+
+const ago = (ms: number) => {
+  const m = Math.round(ms / 60_000);
+  return m < 60 ? `${m} min ago` : `${Math.round(m / 60)} h ago`;
+};
+
+/** Stations around a point: live Google prices when you've added a key (within the free limits), else the free station map. */
 export async function loadStations(where: 'home' | 'here', point: Point, force = false): Promise<StationCache> {
-  const key = `gasStations:${where}`;
-  const cached = await store.getMeta<StationCache>(key);
+  const cacheKey = `gasStations:${where}`;
+  const cached = await store.getMeta<StationCache>(cacheKey);
   const moved = cached ? Math.abs(cached.where.lat - point.lat) + Math.abs(cached.where.lon - point.lon) > 0.01 : true;
   const g = getSettings().integrations.googlePlacesKey.trim();
-  const maxAge = g ? 3 * 3600_000 : 7 * 24 * 3600_000;
-  if (cached && !force && !moved && Date.now() - cached.at < maxAge) return cached;
-  let stations: Station[];
-  let source: StationCache['source'] = 'osm';
-  if (g) {
+  const now = Date.now();
+
+  if (!g) {
+    if (cached && !force && !moved && cached.source === 'osm' && now - cached.at < 7 * 24 * 3600_000) return cached;
+    const val: StationCache = { at: now, where: point, stations: (await stationsNear(http, point)).slice(0, 25), source: 'osm' };
+    await store.setMeta(cacheKey, val);
+    return val;
+  }
+
+  // with a key: reuse Google prices for 3 hours; a manual refresh can go sooner, but not more than every 30 min
+  const lastGoogle = !moved && cached?.source === 'google' ? (cached.googleAt ?? cached.at) : 0;
+  const fresh = lastGoogle && now - lastGoogle < (force ? GOOGLE_LIMITS.minGapMs : GOOGLE_LIMITS.freshMs);
+  if (cached && fresh) return { ...cached, note: force ? `Prices from ${ago(now - lastGoogle)}. Google is checked at most every 30 minutes to stay free.` : undefined };
+
+  const blocked = await useGoogleLookup();
+  if (!blocked) {
     try {
-      stations = await googleStations(http, g, point);
-      source = 'google';
+      const stations = await googleStations(http, g, point);
+      const val: StationCache = { at: now, googleAt: now, where: point, stations: stations.slice(0, 25), source: 'google' };
+      await store.setMeta(cacheKey, val);
+      return val;
     } catch (e) {
-      stations = await stationsNear(http, point).catch(() => {
-        throw e;
-      });
+      const msg = googleMessage((e as Error).message);
+      const stations = await stationsNear(http, point).catch(() => cached?.stations ?? []);
+      const val: StationCache = { at: now, where: point, stations: stations.slice(0, 25), source: 'osm', googleError: msg };
+      await store.setMeta(cacheKey, val);
+      return val;
     }
-  } else stations = await stationsNear(http, point);
-  const val: StationCache = { at: Date.now(), where: point, stations: stations.slice(0, 25), source };
-  await store.setMeta(key, val);
+  }
+  // over the free limits: keep showing the last prices
+  if (cached && !moved) return { ...cached, note: blocked };
+  const val: StationCache = { at: now, where: point, stations: (await stationsNear(http, point)).slice(0, 25), source: 'osm', note: blocked };
+  await store.setMeta(cacheKey, val);
   return val;
+}
+
+/** Turn Google's error into what to do about it. */
+export function googleMessage(raw: string): string {
+  if (/not been used|is disabled|SERVICE_DISABLED|has not been enabled/i.test(raw)) return 'Google says Places API (New) isn’t turned on for this key’s project. In Google Cloud: APIs & Services → Library → “Places API (New)” → Enable. (The older “Places API” is a different one.)';
+  if (/billing/i.test(raw)) return 'Google says billing isn’t set up on this project. Places needs a billing account even though Pebbles stays in the free tier.';
+  if (/API key not valid|API_KEY_INVALID/i.test(raw)) return 'Google says the key isn’t valid. Copy it again from Google Cloud → APIs & Services → Credentials.';
+  if (/referer|android|ios|restricted|not authorized|API_KEY_.*BLOCKED|blocked/i.test(raw))
+    return 'Google blocked the key because of its restrictions. In Google Cloud → Credentials → your key: set Application restrictions to “None” and API restrictions to “Places API (New)”.';
+  if (/quota|RESOURCE_EXHAUSTED|429/i.test(raw)) return 'Google’s daily limit for this key was reached. Prices come back tomorrow.';
+  return `Google couldn’t load prices: ${raw}`;
 }
 
 export async function logGasPrice(st: Station, perGallon: number, grade = 'Regular'): Promise<void> {

@@ -48,7 +48,7 @@ export function UpdateCard() {
                 : 'Pebbles checks for new versions once a day.'}
           </p>
           <button className="btn small" style={{ alignSelf: 'flex-start' }} disabled={u.status === 'checking'} onClick={() => void checkForUpdate()}>
-            <RefreshCw /> {u.status === 'checking' ? 'Checking…' : 'Check for Updates'}
+            <RefreshCw className={u.status === 'checking' ? 'spin' : ''} /> {u.status === 'checking' ? 'Checking…' : 'Check for Updates'}
           </button>
         </div>
       )}

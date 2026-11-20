@@ -114,6 +114,8 @@ export async function stationsNear(http: HttpFn, p: Point, radiusMeters = 8000):
 // ---------------- Google Maps (optional, live posted prices) ----------------
 
 export const PLACES_URL = 'https://places.googleapis.com/v1/places:searchNearby';
+/** SHA-1 of the certificate the Android app is signed with (for Google keys restricted to this app). */
+export const PEBBLES_CERT_SHA1 = '5670154DF4373C66C568DFCB2B3DFD368C7265D9';
 
 interface GPlace {
   id: string;
@@ -156,6 +158,9 @@ export async function googleStations(http: HttpFn, key: string, p: Point, radius
       'Content-Type': 'application/json',
       'X-Goog-Api-Key': key,
       'X-Goog-FieldMask': 'places.id,places.displayName,places.shortFormattedAddress,places.location,places.fuelOptions',
+      // lets a key restricted to "Android apps" (package app.pebbles.money + this signing fingerprint) work
+      'X-Android-Package': 'app.pebbles.money',
+      'X-Android-Cert': PEBBLES_CERT_SHA1,
     },
     body: JSON.stringify({ includedTypes: ['gas_station'], maxResultCount: 20, rankPreference: 'DISTANCE', locationRestriction: { circle: { center: { latitude: p.lat, longitude: p.lon }, radius: radiusMeters } } }),
   });

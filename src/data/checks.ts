@@ -9,6 +9,7 @@ import { fetchBls, fetchEiaColoradoGas } from '../core/market';
 import { BUILTIN_EIA_KEY, krogerStoresOf } from '../core/defaults';
 import { RELEASES_API } from '../core/updates';
 import { googleStations } from '../core/gas';
+import { googleMessage, useGoogleLookup } from './pantryActions';
 
 export type CheckId = 'plaid' | 'kroger' | 'eia' | 'bls' | 'google' | 'github';
 
@@ -82,7 +83,11 @@ async function attempt(id: CheckId): Promise<CheckResult> {
         const key = s.googlePlacesKey.trim();
         if (!key) return done(null, 'Optional · not set up');
         const at = s.homeLat != null && s.homeLon != null ? { lat: s.homeLat, lon: s.homeLon } : { lat: 38.8339, lon: -104.8214 };
-        const st = await googleStations(http, key, at);
+        const blocked = await useGoogleLookup();
+        if (blocked) return done(true, 'Key saved · test skipped to stay in the free tier');
+        const st = await googleStations(http, key, at).catch((e) => {
+          throw new Error(googleMessage((e as Error).message));
+        });
         const withPrice = st.filter((x) => x.live).length;
         return done(true, `Key accepted · ${st.length} stations, ${withPrice} with posted prices`);
       }

@@ -53,7 +53,7 @@ export function AccountsView({ data, openSettings }: { data: AppData; openSettin
                 toast('Banks checked');
               }}
             >
-              <RefreshCw /> {refreshing ? 'Checking…' : 'Refresh'}
+              <RefreshCw className={refreshing ? 'spin' : ''} /> {refreshing ? 'Checking…' : 'Refresh'}
             </button>
           )}
         </div>

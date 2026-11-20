@@ -1759,3 +1759,21 @@ ol.step-list li.now strong {
   padding: 0 4px;
   margin-top: auto;
 }
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.spinning svg {
+  animation: spin 0.8s linear infinite;
+}
+.list.refreshing {
+  opacity: 0.45;
+  transition: opacity 0.2s ease;
+}
+.list {
+  transition: opacity 0.2s ease;
+}
+svg.spin {
+  animation: spin 0.8s linear infinite;
+}

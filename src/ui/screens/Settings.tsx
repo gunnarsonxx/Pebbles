@@ -335,7 +335,7 @@ function TaxSection({ data, set }: { data: AppData; set: (f: (s: Settings) => Se
               toast(r.error ? r.error : r.updated ? `Updated to tax tables ${r.version}` : 'Your tax tables are up to date');
             }}
           >
-            <RefreshCw /> {checking ? 'Checking…' : 'Check for Updates'}
+            <RefreshCw className={checking ? 'spin' : ''} /> {checking ? 'Checking…' : 'Check for Updates'}
           </button>
         </div>
         {yr.rules.statusNote && <p className="tiny ink2 mt">{yr.rules.statusNote}</p>}

@@ -134,3 +134,13 @@ describe('nearby gas', () => {
     expect(worthTheDrive(priced[1], priced[0], 12, 25)).toBeGreaterThan(0);
   });
 });
+
+describe('Google gas price errors explain the fix', async () => {
+  const { googleMessage } = await import('../data/pantryActions');
+  it('maps Google errors to steps', () => {
+    expect(googleMessage('Places API (New) has not been used in project 123 before or it is disabled')).toMatch(/Enable/);
+    expect(googleMessage('Requests from this Android client application <empty> are blocked.')).toMatch(/restrictions/);
+    expect(googleMessage('API key not valid. Please pass a valid API key.')).toMatch(/isn’t valid/);
+    expect(googleMessage('This API project is not authorized to use this API. Please ensure billing')).toMatch(/billing|restrictions/);
+  });
+});

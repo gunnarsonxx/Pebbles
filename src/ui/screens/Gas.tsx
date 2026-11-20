@@ -37,7 +37,15 @@ export function GasView({ data, go }: { data: AppData; go: GoTo }) {
         if (i.homeLat == null || i.homeLon == null) return;
         point = { lat: i.homeLat, lon: i.homeLon };
       } else point = await currentPosition();
-      setCache(await loadStations(where, point, force));
+      const started = Date.now();
+      const res = await loadStations(where, point, force);
+      // let the refresh be seen even when the answer comes from the saved copy
+      if (force) await new Promise((r) => setTimeout(r, Math.max(0, 700 - (Date.now() - started))));
+      setCache(res);
+      if (force) {
+        const withPrice = priceStations(res.stations, data.gasPrices, data.today).filter((x) => x.price != null).length;
+        toast(res.googleError ? 'Couldn’t get live prices. See the note below.' : res.note ? 'Showing the latest prices' : `Updated · ${res.stations.length} stations, ${withPrice} with prices`);
+      }
     } catch (e) {
       setErr(friendly(e));
     } finally {
@@ -148,6 +156,7 @@ export function GasView({ data, go }: { data: AppData; go: GoTo }) {
               <div className="tiny muted">
                 {stations.length} within 5 miles · {cache.source === 'google' ? 'live prices from Google Maps' : 'prices from your receipts and taps'}
               </div>
+              <div className="tiny muted">{busy ? 'Refreshing…' : `Updated ${new Date(cache.googleAt ?? cache.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`}</div>
             </div>
             <div className="row gap-s">
               {where === 'home' && (
@@ -155,11 +164,18 @@ export function GasView({ data, go }: { data: AppData; go: GoTo }) {
                   <Pencil size={16} />
                 </button>
               )}
-              <button className="icon-btn" disabled={busy} onClick={() => void load(true)} aria-label="Refresh stations">
+              <button className={`icon-btn${busy ? ' spinning' : ''}`} disabled={busy} onClick={() => void load(true)} aria-label="Refresh stations">
                 <RefreshCw size={16} />
               </button>
             </div>
           </div>
+          {cache.googleError && (
+            <div className="card tint" style={{ padding: 12, marginBottom: 10, borderLeft: '4px solid var(--warn)' }}>
+              <div className="strong small">Live Prices Didn’t Load</div>
+              <div className="tiny ink2">{cache.googleError}</div>
+            </div>
+          )}
+          {cache.note && <div className="tiny muted" style={{ marginBottom: 8 }}>{cache.note}</div>}
           {cheapest && (
             <div className="card tint" style={{ padding: 12, marginBottom: 10 }}>
               <div className="strong small">
@@ -174,7 +190,7 @@ export function GasView({ data, go }: { data: AppData; go: GoTo }) {
               )}
             </div>
           )}
-          <div className="list">
+          <div className={`list${busy ? ' refreshing' : ''}`}>
             {stations.slice(0, 15).map((s) => (
               <div key={s.id} className="list-item">
                 <MapPin size={18} className="muted" style={{ flexShrink: 0 }} />
@@ -198,7 +214,7 @@ export function GasView({ data, go }: { data: AppData; go: GoTo }) {
             ))}
           </div>
           {!stations.length && <p className="small muted">No stations found nearby.</p>}
-          {cache.source !== 'google' && (
+          {cache.source !== 'google' && !i.googlePlacesKey && (
             <p className="tiny muted mt">
               Station prices aren’t public for free. Pebbles uses your gas receipts and the prices you tap in. For live posted prices,{' '}
               <button className="link-btn" onClick={() => go('settings', 'connections')}>
