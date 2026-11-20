@@ -147,3 +147,21 @@ describe('I Made This takes off what the recipe uses', () => {
     expect(BUILT_IN_RECIPES.length).toBeGreaterThanOrEqual(70);
   });
 });
+
+describe('recipe ingredients mean what they say', () => {
+  it('corn starch isn’t a vegetable, sliced American isn’t mozzarella, taquitos aren’t chicken', async () => {
+    const { haveFor, BUILT_IN_RECIPES } = await import('./recipes');
+    const ing = (id: string, name: string) => BUILT_IN_RECIPES.find((r) => r.id === id)!.ingredients.find((i) => i.name.startsWith(name))!;
+    const veg = ing('chicken-rice-bowls', 'Veggies');
+    expect(haveFor(veg, [newPantryItem('Corn Starch')])).toBeNull();
+    expect(haveFor(veg, [{ ...newPantryItem('Corn'), desc: 'Argo Corn Starch 16 oz' }])).toBeNull();
+    expect(haveFor(veg, [newPantryItem('Frozen Corn')])?.name).toBe('Frozen Corn');
+    const mozz = ing('lasagna', 'Mozzarella');
+    expect(haveFor(mozz, [newPantryItem('Sliced Cheese'), { ...newPantryItem('American Singles') }])).toBeNull();
+    expect(haveFor(mozz, [newPantryItem('Shredded Mozzarella')])?.name).toBe('Shredded Mozzarella');
+    const shredded = ing('taco-bowls', 'Shredded cheese');
+    expect(haveFor(shredded, [newPantryItem('Sliced Cheese')])).toBeNull();
+    const chicken = ing('chicken-rice-bowls', 'Chicken');
+    expect(haveFor(chicken, [{ ...newPantryItem('Taquitos'), desc: 'El Monterey Chicken & Cheese Frozen Flour Taquitos' }])).toBeNull();
+  });
+});

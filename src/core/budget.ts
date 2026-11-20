@@ -268,6 +268,20 @@ export function allocateSavings(
   return rows.filter((r) => r.amount > 0).map(({ goalId, amount: a, reason }) => ({ goalId, amount: a, reason }));
 }
 
+/**
+ * What a goal really gets each paycheck: the paycheck deposits it got over the last few pay periods plus the
+ * one planned next, averaged. One big or small check doesn't swing its finish date around.
+ */
+export function averagePerCheck(goalId: string, contributions: Contribution[], plannedNext: number, today: ISODate, checks = 6): { avg: number; periods: number } {
+  const since = addDays(today, -14 * checks);
+  const deposits = contributions.filter((c) => c.goalId === goalId && c.amount > 0 && c.kind !== 'interest' && c.date > since && c.date <= today);
+  if (!deposits.length) return { avg: round2(plannedNext), periods: 1 };
+  const first = deposits.reduce((m, c) => (c.date < m ? c.date : m), deposits[0].date);
+  const past = Math.min(checks, Math.max(1, Math.ceil((diffDays(today, first) + 1) / 14)));
+  const sum = deposits.reduce((s2, c) => s2 + c.amount, 0);
+  return { avg: round2((sum + plannedNext) / (past + 1)), periods: past + 1 };
+}
+
 export function projectGoalDate(goal: Goal, balance: number, perPaycheck: number, nextPayday: ISODate): ISODate | null {
   const remaining = goal.target - balance;
   if (remaining <= 0) return nextPayday;

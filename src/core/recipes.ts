@@ -12,8 +12,8 @@ const BEEF = I('Ground beef or turkey', ['ground beef', 'ground turkey', 'hambur
 const RICE = I('Rice', ['rice'], { not: ['krispie', 'cake', 'a roni', 'roni'] });
 const EGGS = I('Eggs', ['egg'], { not: ['egg roll', 'eggplant', 'egg noodle', 'nog'] });
 const TORTILLAS = I('Tortillas', ['tortilla'], { not: ['chip'] });
-const CHEESE = I('Shredded cheese', ['cheese', 'cheddar', 'mozzarella', 'colby', 'pepper jack', 'mexican blend'], { not: ['mac', 'cream cheese', 'cheez', 'stick', 'cheesecake', 'puff'] });
-const VEG = I('Veggies (frozen is great)', ['broccoli', 'mixed vegetable', 'frozen vegetable', 'stir fry', 'green bean', 'peas', 'carrot', 'spinach', 'pepper', 'corn', 'veggie'], { not: ['chip', 'dr pepper', 'pepperoni', 'corn dog', 'popcorn', 'cornbread', 'bell pepper flakes'] });
+const CHEESE = I('Shredded cheese', ['shredded', 'cheddar', 'mozzarella', 'colby', 'pepper jack', 'mexican blend', 'monterey', 'italian blend', 'cheese'], { not: ['mac', 'cream cheese', 'cheez', 'stick', 'cheesecake', 'puff', 'slice', 'single', 'american', 'string', 'cottage', 'ricotta', 'parmesan', 'cracker', 'dip', 'sauce'] });
+const VEG = I('Veggies (frozen is great)', ['broccoli', 'mixed vegetable', 'frozen vegetable', 'stir fry vegetable', 'green bean', 'peas', 'carrot', 'spinach', 'bell pepper', 'corn', 'veggie', 'cauliflower', 'zucchini', 'asparagus', 'brussels'], { not: ['chip', 'dr pepper', 'pepperoni', 'corn dog', 'popcorn', 'cornbread', 'starch', 'cornmeal', 'corn meal', 'flake', 'syrup', 'muffin', 'tortilla', 'nut', 'pea protein', 'peanut', 'cake', 'dip', 'puff'] });
 const BREAD = I('Bread', ['bread', 'texas toast', 'sourdough'], { not: ['crumb', 'stick'] });
 const MAYO = I('Mayo', ['mayo', 'mayonnaise', 'miracle whip']);
 const PASTA = I('Pasta', ['pasta', 'spaghetti', 'penne', 'rotini', 'macaroni', 'fettuccine', 'elbow', 'noodle'], { not: ['ramen', 'mac and cheese', 'mac & cheese', 'kraft dinner', 'cup'] });
@@ -317,7 +317,7 @@ const RECIPES: Recipe[] = [
     minutes: 10,
     servings: 2,
     tags: ['quick', 'air fryer', 'snack'],
-    ingredients: [I('Bagels or English muffins', ['bagel', 'english muffin'], { not: ['bite'], uses: 2 }), I('Pasta or pizza sauce', ['pizza sauce', 'pasta sauce', 'marinara']), I('Mozzarella', ['mozzarella', 'shredded cheese', 'italian blend', 'pizza blend']), opt('Pepperoni', ['pepperoni', 'salami'])],
+    ingredients: [I('Bagels or English muffins', ['bagel', 'english muffin'], { not: ['bite'], uses: 2 }), I('Pasta or pizza sauce', ['pizza sauce', 'pasta sauce', 'marinara']), I('Mozzarella', ['mozzarella', 'italian blend', 'pizza blend', 'pizza cheese'], { not: ['stick', 'string'] }), opt('Pepperoni', ['pepperoni', 'salami'])],
     steps: ['Split the bagels, spoon on sauce, top with cheese and pepperoni.', 'Air fry at 360°F for 5–6 minutes (or bake at 400°F for 8).'],
   },
   {
@@ -534,7 +534,7 @@ const RECIPES: Recipe[] = [
     minutes: 10,
     servings: 2,
     tags: ['quick', 'air fryer'],
-    ingredients: [{ ...TORTILLAS, uses: 2 }, I('Mozzarella', ['mozzarella', 'cheese'], { not: ['cream cheese', 'mac'] }), opt('Pepperoni', ['pepperoni']), opt('Pizza sauce for dipping', ['pizza sauce', 'pasta sauce', 'marinara'])],
+    ingredients: [{ ...TORTILLAS, uses: 2 }, I('Mozzarella (or any shredded cheese)', ['mozzarella', 'italian blend', 'pizza blend', 'shredded', 'mexican blend', 'cheddar'], { not: ['stick', 'string', 'slice', 'single', 'cream cheese', 'mac'] }), opt('Pepperoni', ['pepperoni']), opt('Pizza sauce for dipping', ['pizza sauce', 'pasta sauce', 'marinara'])],
     steps: ['Fill tortillas with cheese and pepperoni, fold.', 'Air fry at 375°F for 5 minutes or crisp in a pan. Dip in warm sauce.'],
   },
   // ---------- slow cooker and weekend cooking (an hour or more, mostly hands-off) ----------
@@ -721,8 +721,12 @@ export function haveFor(ing: RecipeIngredient, pantry: PantryItem[]): PantryItem
   return (
     pantry.find((p) => {
       if (p.archived || stockOf(p) === 'out') return false;
+      // by whole word: "corn" is in "frozen corn", not in "corn starch" (that's excluded) or "acorn squash"
+      // the name says what it is; the full description can only rule it out ("Corn" that's really corn starch)
       const n = ` ${lc(p.name)} `;
-      return ing.match.some((m) => n.includes(lc(m))) && !(ing.not ?? []).some((x) => n.includes(lc(x)));
+      const all = ` ${lc(p.name)} ${lc(p.desc ?? '')} `;
+      const word = (m: string) => new RegExp(`(^|[^a-z])${lc(m).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`).test(n);
+      return ing.match.some(word) && !(ing.not ?? []).some((x) => all.includes(lc(x)));
     }) ?? null
   );
 }

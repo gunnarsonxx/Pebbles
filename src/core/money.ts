@@ -28,8 +28,10 @@ export function signedUsd(n: number, whole = false): string {
   return (n > 0 ? '+' : '−') + usd(Math.abs(n), whole);
 }
 
+/** Pebbles are dollars: shown in full, cents included when there are any (1,234.56). */
 export function pebbles(n: number): string {
-  return int.format(Math.max(0, Math.floor(n)));
+  const v = Math.max(0, round2(n));
+  return Number.isInteger(v) ? int.format(v) : new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v);
 }
 
 export function pct(n: number, digits = 0): string {

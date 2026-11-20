@@ -6,7 +6,7 @@ import { compressImage, Empty, Field, GemIcon, NumberInput, Progress, Segmented,
 import { GEMS, GEM_BY_ID, gemBar } from '../../core/categories';
 import { fmtLong, fmtShort, diffDays, today } from '../../core/dates';
 import { pebbles, usd, uid } from '../../core/money';
-import { projectGoalDate } from '../../core/budget';
+import { averagePerCheck, projectGoalDate } from '../../core/budget';
 import { addContribution, deleteContribution, deleteGoal, newGoal, saveGoal } from '../../data/actions';
 import { SavingsAccountCard } from '../AutopilotCards';
 import type { Goal, GemName } from '../../core/types';
@@ -103,7 +103,9 @@ function GoalsView({ data }: { data: AppData }) {
           const bal = data.balances.get(g.id) ?? 0;
           const pct = g.target > 0 ? bal / g.target : 0;
           const next = perCheck.get(g.id) ?? 0;
-          const eta = projectGoalDate(g, bal, next, data.upcoming.period.payday);
+          // finish date from your average per paycheck, not just this one check
+          const avg = averagePerCheck(g.id, data.contributions, next, data.today);
+          const eta = projectGoalDate(g, bal, avg.avg, data.upcoming.period.payday);
           const gem = GEM_BY_ID[g.gem];
           return (
             <button key={g.id} className="card" style={{ textAlign: 'left', border: 0, cursor: 'pointer', color: 'inherit', width: '100%' }} onClick={() => setViewing(g.id)}>
@@ -135,7 +137,12 @@ function GoalsView({ data }: { data: AppData }) {
               </div>
               <div className="row between tiny muted">
                 <span>{g.completedAt ? 'Reached! 🎉' : next > 0 ? `+${pebbles(next)} next payday` : 'Not in this paycheck’s plan'}</span>
-                <span>{!g.completedAt && eta ? `on track for ${fmtShort(eta)}${eta.slice(0, 4) !== today().slice(0, 4) ? ` ${eta.slice(0, 4)}` : ''}` : ''}</span>
+                <span title={`At your average of ${usd(avg.avg)} a paycheck (last ${avg.periods} paychecks, including the next one)`}>
+                  {!g.completedAt && eta ? `on track for ${fmtShort(eta)}${eta.slice(0, 4) !== today().slice(0, 4) ? ` ${eta.slice(0, 4)}` : ''}` : ''}
+                </span>
+              </div>
+              <div className="tiny muted" style={{ textAlign: 'right' }}>
+                {!g.completedAt && eta && avg.avg > 0 ? `at your average ${usd(avg.avg)} a paycheck` : ''}
               </div>
               <div className="row mt" style={{ gap: 4 }}>
                 {MILESTONES.map((m) => (
@@ -327,7 +334,7 @@ function GoalDetail({ goal, data, onClose, onEdit }: { goal: Goal; data: AppData
         {goal.isEmergency && data.emergency?.goalId === goal.id && <EmergencySteps data={data} goal={goal} />}
         {checksLeft && remaining > 0 && (
           <p className="small ink2 center">
-            To reach it by {fmtLong(goal.targetDate!)}: about {usd(remaining / checksLeft, true)} per paycheck for {checksLeft} paycheck{checksLeft === 1 ? '' : 's'}.
+            To reach it by {fmtLong(goal.targetDate!)}: about {usd(remaining / checksLeft)} per paycheck for {checksLeft} paycheck{checksLeft === 1 ? '' : 's'}.
           </p>
         )}
         <div className="row">
@@ -406,13 +413,13 @@ function EmergencySteps({ data, goal }: { data: AppData; goal: Goal }) {
                 {done ? '✓ ' : now ? '→ ' : ''}
                 {l.name} · {l.months} month{l.months === 1 ? '' : 's'}
               </span>
-              <span className="num">{usd(l.amount, true)}</span>
+              <span className="num">{usd(l.amount)}</span>
             </div>
           );
         })}
       </div>
       <p className="tiny muted" style={{ margin: '6px 0 0' }}>
-        {e.monthsCovered.toFixed(1)} months of expenses covered ({usd(e.monthlyNeeds, true)} a month for bills, groceries and gas).{' '}
+        {e.monthsCovered.toFixed(1)} months of expenses covered ({usd(e.monthlyNeeds)} a month for bills, groceries and gas).{' '}
         {!auto
           ? 'Steps are off, so the goal stays where you set it.'
           : e.full

@@ -106,7 +106,7 @@ export function SavingsAccountCard({ data }: { data: AppData }) {
       <div className="grid three">
         <div>
           <div className="small muted">Balance</div>
-          <div className="big-number">{usd(balance, true)}</div>
+          <div className="big-number">{usd(balance)}</div>
           {acct.balanceDate && <div className="tiny muted">as of {fmtShort(acct.balanceDate)}</div>}
         </div>
         <div>
@@ -117,8 +117,8 @@ export function SavingsAccountCard({ data }: { data: AppData }) {
         {proj && (
           <div>
             <div className="small muted">In 12 months</div>
-            <div className="big-number">{usd(proj[12].balance, true)}</div>
-            <div className="tiny muted">incl. about {usd(proj[12].interestTotal, true)} interest</div>
+            <div className="big-number">{usd(proj[12].balance)}</div>
+            <div className="tiny muted">incl. about {usd(proj[12].interestTotal)} interest</div>
           </div>
         )}
       </div>
@@ -154,12 +154,12 @@ export function SavingsAccountCard({ data }: { data: AppData }) {
               <div className="row wrap tiny muted mt-s" style={{ gap: 12 }}>
                 {[3, 6, 9].map((m) => (
                   <span key={m}>
-                    {m} months: {usd(proj[m].balance, true)}
+                    {m} months: {usd(proj[m].balance)}
                   </span>
                 ))}
               </div>
               <p className="tiny muted" style={{ margin: '6px 0 0' }}>
-                Assumes you keep saving this paycheck’s planned {usd(data.plan.savings, true)}, the rate stays at {apy}%, and nothing is taken out. Deposits count from
+                Assumes you keep saving this paycheck’s planned {usd(data.plan.savings)}, the rate stays at {apy}%, and nothing is taken out. Deposits count from
                 the middle of the month they land, so they earn about half a month of interest at first. It updates as your plan, balance or rate change.
               </p>
             </div>
