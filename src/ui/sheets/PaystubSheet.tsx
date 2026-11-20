@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { FileText, TriangleAlert } from 'lucide-react';
+import { Check, FileText, TriangleAlert } from 'lucide-react';
 import { Field, NumberInput, Sheet, ToggleRow, useToast } from '../components';
 import { parsePaystub, deductionsFromStub, type ParsedPaystub } from '../../core/paystub';
 import { estimatePaycheck } from '../../core/paycheck';
@@ -34,26 +34,50 @@ export function PaystubSheet({ data, onClose }: { data: AppData; onClose: () => 
   const [recordPaycheck, setRecordPaycheck] = useState(true);
   const [useRate, setUseRate] = useState(true);
 
+  const known = [data.settings.pay.baseRate, ...data.rates.map((r) => r.rate)];
+  const parse = async (file: File, label = 'the stub') => {
+    const { lines } = await linesFromFile(
+      file,
+      (p, st) => setProgress(st.includes('second') ? 'Taking a second look…' : st.includes('recogniz') ? `Reading ${label}… ${Math.round(p * 100)}%` : 'Getting the reader ready…'),
+      (first) => {
+        const t = parsePaystub(first, known);
+        return t.gross == null || t.net == null;
+      },
+      'table',
+    );
+    return parsePaystub(lines, known);
+  };
   const read = async (file: File) => {
     setError('');
     setProgress('Reading…');
-    const known = [data.settings.pay.baseRate, ...data.rates.map((r) => r.rate)];
     try {
-      const { lines } = await linesFromFile(
-        file,
-        (p, st) => setProgress(st.includes('second') ? 'Taking a second look…' : st.includes('recogniz') ? `Reading the stub… ${Math.round(p * 100)}%` : 'Getting the reader ready…'),
-        (first) => {
-          const t = parsePaystub(first, known);
-          return t.gross == null || t.net == null;
-        },
-        'table',
-      );
-      setStub(parsePaystub(lines, known));
+      setStub(await parse(file));
     } catch (e) {
       setError((e as Error).message || 'Could not read that file.');
     } finally {
       setProgress(null);
     }
+  };
+
+  // several stubs at once: read them one by one, then save them all together
+  const [batch, setBatch] = useState<{ name: string; stub: ParsedPaystub | null; error?: string; include: boolean; duplicate?: boolean }[] | null>(null);
+  const [editing, setEditing] = useState<number | null>(null);
+  const [saving, setSaving] = useState(false);
+  const readBatch = async (files: File[]) => {
+    setError('');
+    let list = files.map((f) => ({ name: f.name, stub: null as ParsedPaystub | null, include: false, error: undefined as string | undefined, duplicate: false }));
+    setBatch(list);
+    for (let k = 0; k < files.length; k++) {
+      try {
+        const st = await parse(files[k], `stub ${k + 1} of ${files.length}`);
+        const dup = data.paystubs.some((x) => x.payDate && x.payDate === st.payDate && x.net === st.net);
+        list = list.map((b, j) => (j === k ? { ...b, stub: st, include: !dup && st.net != null, duplicate: dup } : b));
+      } catch (e) {
+        list = list.map((b, j) => (j === k ? { ...b, error: (e as Error).message || 'Couldn’t read this file.' } : b));
+      }
+      setBatch(list);
+    }
+    setProgress(null);
   };
 
   // compare with Pebbles' estimate for the same pay period
@@ -65,13 +89,112 @@ export function PaystubSheet({ data, onClose }: { data: AppData; onClose: () => 
   const setLine = (i: number, patch: Partial<PaystubLine>) => stub && setStub({ ...stub, lines: stub.lines.map((l, k) => (k === i ? { ...l, ...patch } : l)) });
   const ded = stub ? deductionsFromStub(stub) : [];
 
+  if (batch && editing == null) {
+    const reading = batch.some((b) => !b.stub && !b.error);
+    const ready = batch.filter((b) => b.include && b.stub && b.stub.net != null);
+    return (
+      <Sheet
+        title={`${batch.length} Pay Stubs`}
+        wide
+        onClose={onClose}
+        footer={
+          <>
+            <button className="btn" onClick={onClose}>
+              Cancel
+            </button>
+            <button
+              className="btn primary"
+              disabled={reading || !ready.length || saving}
+              onClick={async () => {
+                setSaving(true);
+                // oldest first; your deductions and rate come only from the newest one
+                const sorted = [...ready].sort((a, b) => (a.stub!.payDate ?? '').localeCompare(b.stub!.payDate ?? ''));
+                const notes: string[] = [];
+                for (const [i, b] of sorted.entries()) {
+                  const newest = i === sorted.length - 1;
+                  const { warnings: _w, ...st } = b.stub!;
+                  const rate = st.hours.find((h) => /reg/i.test(h.label) && h.rate)?.rate ?? null;
+                  const done = await applyPaystub(st, { applyDeductions: newest, recordPaycheck: true, updateBaseRate: newest && rate && Math.abs(rate - data.settings.pay.baseRate) > 0.005 ? rate : null });
+                  if (newest) notes.push(...done.filter((d) => !/Recorded/.test(d)));
+                }
+                setSaving(false);
+                toast(`Saved ${sorted.length} pay stub${sorted.length === 1 ? '' : 's'}${notes.length ? ` · ${notes[0]}` : ''}`);
+                onClose();
+              }}
+            >
+              {reading ? (progress ?? 'Reading…') : saving ? 'Saving…' : `Save ${ready.length} Stub${ready.length === 1 ? '' : 's'}`}
+            </button>
+          </>
+        }
+      >
+        <div className="col gap-l">
+          <p className="small ink2" style={{ margin: 0 }}>
+            Each one records its paycheck. Your deductions and pay rate are taken from the newest stub only, so older ones can’t undo a raise. Tap one to check it.
+          </p>
+          <div className="list">
+            {batch.map((b, i) => (
+              <div key={i} className="list-item" style={{ alignItems: 'flex-start', gap: 10, opacity: b.include ? 1 : 0.6 }}>
+                <button className={`check-btn${b.include ? ' on' : ''}`} disabled={!b.stub} aria-label={b.include ? 'Leave this one out' : 'Include this one'} onClick={() => setBatch(batch.map((x, j) => (j === i ? { ...x, include: !x.include } : x)))}>
+                  {b.include && <Check size={16} />}
+                </button>
+                <button
+                  className="grow"
+                  style={{ textAlign: 'left', background: 'none', border: 0, padding: 0, color: 'inherit', font: 'inherit', cursor: b.stub ? 'pointer' : 'default', minWidth: 0 }}
+                  disabled={!b.stub}
+                  onClick={() => {
+                    setStub(b.stub);
+                    setEditing(i);
+                  }}
+                >
+                  {b.stub ? (
+                    <>
+                      <div className="strong small">Paid {b.stub.payDate ? fmtDay(b.stub.payDate) : '(date not found)'}</div>
+                      <div className="tiny muted">
+                        {b.stub.gross != null ? `${usd(b.stub.gross)} gross` : 'gross not found'} · {b.stub.net != null ? `${usd(b.stub.net)} take-home` : 'take-home not found'}
+                      </div>
+                      {b.duplicate && <div className="tiny warn">Already saved. Left out.</div>}
+                      {b.stub.warnings.slice(0, 2).map((w) => (
+                        <div key={w} className="tiny warn">
+                          {w}
+                        </div>
+                      ))}
+                      <div className="tiny muted ellipsis">{b.name}</div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="strong small ellipsis">{b.name}</div>
+                      <div className={`tiny ${b.error ? 'bad' : 'muted'}`}>{b.error ?? progress ?? 'Waiting…'}</div>
+                    </>
+                  )}
+                </button>
+                {b.stub && <span className="tiny muted">Check ›</span>}
+              </div>
+            ))}
+          </div>
+        </div>
+      </Sheet>
+    );
+  }
+
   return (
     <Sheet
       title="Upload a Pay Stub"
       wide
       onClose={onClose}
       footer={
-        stub ? (
+        stub && batch && editing != null ? (
+          <button
+            className="btn primary"
+            style={{ flex: 1 }}
+            onClick={() => {
+              setBatch(batch.map((b, j) => (j === editing ? { ...b, stub, include: stub.net != null } : b)));
+              setStub(null);
+              setEditing(null);
+            }}
+          >
+            Done, Back to the List
+          </button>
+        ) : stub ? (
           <>
             <button className="btn" onClick={onClose}>
               Cancel
@@ -96,10 +219,12 @@ export function PaystubSheet({ data, onClose }: { data: AppData; onClose: () => 
         ref={fileRef}
         type="file"
         accept="application/pdf,.pdf,image/*"
+        multiple
         style={{ display: 'none' }}
         onChange={(e) => {
-          const f = e.target.files?.[0];
-          if (f) void read(f);
+          const files = Array.from(e.target.files ?? []);
+          if (files.length > 1) void readBatch(files);
+          else if (files[0]) void read(files[0]);
           e.target.value = '';
         }}
       />
@@ -108,9 +233,9 @@ export function PaystubSheet({ data, onClose }: { data: AppData; onClose: () => 
           <button className="card tint" style={{ border: '1.5px dashed var(--line-2)', cursor: 'pointer', textAlign: 'center', width: '100%' }} onClick={() => fileRef.current?.click()} disabled={!!progress}>
             <FileText style={{ width: 28, height: 28, color: 'var(--moss)' }} />
             <div className="strong" style={{ marginTop: 6 }}>
-              {progress ?? 'Choose your pay stub'}
+              {progress ?? 'Choose your pay stubs'}
             </div>
-            <div className="small muted">PDF from your payroll site works best; a clear photo works too. Read right on your device.</div>
+            <div className="small muted">One or several at once. PDFs from your payroll site work best; clear photos work too. Read right on your device.</div>
           </button>
           {error && <p className="small bad">{error}</p>}
           <p className="small ink2">Pebbles copies your retirement and insurance deductions, checks your rate, records this paycheck, and fine-tunes every future estimate to match.</p>
