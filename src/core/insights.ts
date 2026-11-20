@@ -257,7 +257,7 @@ export function generateInsights(i: InsightInput): Insight[] {
         id: 'emergency-month',
         kind: 'win',
         title: 'One Full Month of Bills Is Covered',
-        body: `Your ${emergency.name} holds ${usd(bal, true)}, enough for a month of bills. Pebbles will now share more of your savings with your other goals.`,
+        body: `Your ${emergency.name} holds ${usd(bal, true)}, enough for a month of bills. Pebbles raised the goal to the full emergency fund (${settings.budget.emergencyMonths} months) and keeps a steady share going there; the rest of your savings goes to your other goals.`,
         monthlyImpact: 0,
         priority: 35,
       });

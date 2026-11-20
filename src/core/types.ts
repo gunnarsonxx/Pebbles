@@ -430,6 +430,7 @@ export interface Goal {
   gem: GemName;
   priority: 1 | 2 | 3; // 3 = high
   isEmergency: boolean;
+  autoTarget?: boolean; // emergency fund: Pebbles raises the target step by step (default on)
   createdAt: number;
   completedAt: number | null;
   archived: boolean;

@@ -11,6 +11,7 @@ import { addContribution, deleteContribution, deleteGoal, newGoal, saveGoal } fr
 import { SavingsAccountCard } from '../AutopilotCards';
 import type { Goal, GemName } from '../../core/types';
 import type { GoTo } from '../App';
+import { autoTarget } from '../../core/emergency';
 import { RetirementView } from './Retirement';
 
 export const MILESTONES: { pct: number; gem: GemName; label: string }[] = [
@@ -114,7 +115,7 @@ function GoalsView({ data }: { data: AppData }) {
                       {g.name}
                     </div>
                     <div className="tiny" style={{ opacity: 0.9 }}>
-                      {g.isEmergency ? 'Emergency fund' : g.targetDate ? `by ${fmtLong(g.targetDate)}` : 'No deadline'}
+                      {g.isEmergency ? emergencyLabel(data, g) : g.targetDate ? `by ${fmtLong(g.targetDate)}` : 'No deadline'}
                     </div>
                   </div>
                   <GemIcon gem={g.gem} size={26} />
@@ -223,7 +224,7 @@ function GoalEditor({ goal, onClose }: { goal: Goal; onClose: () => void }) {
           <TextInput value={g.name} onChange={(v) => setG({ ...g, name: v })} placeholder="Engagement ring, new car, down payment…" autoFocus={!goal.name} />
         </Field>
         <div className="form-grid two">
-          <Field label="Goal Amount" hint="1 pebble = $1">
+          <Field label="Goal Amount" hint={autoTarget(g) ? 'Set by the steps below' : '1 pebble = $1'}>
             <NumberInput value={g.target} onChange={(v) => setG({ ...g, target: v ?? 0 })} prefix="$" />
           </Field>
           <Field label="Target Date (Optional)" hint="Pebbles paces savings to hit it">
@@ -250,7 +251,15 @@ function GoalEditor({ goal, onClose }: { goal: Goal; onClose: () => void }) {
             ))}
           </div>
         </Field>
-        <ToggleRow title="This Is My Emergency Fund" hint="Filled first until it covers a month of bills" on={g.isEmergency} onChange={(v) => setG({ ...g, isEmergency: v })} />
+        <ToggleRow title="This Is My Emergency Fund" hint="Filled first until it covers a month of expenses" on={g.isEmergency} onChange={(v) => setG({ ...g, isEmergency: v })} />
+        {g.isEmergency && (
+          <ToggleRow
+            title="Raise the Goal Step by Step"
+            hint="Starter month first, then the full fund. Pebbles moves the goal amount up on its own and follows your expenses."
+            on={g.autoTarget !== false}
+            onChange={(v) => setG({ ...g, autoTarget: v })}
+          />
+        )}
       </div>
     </Sheet>
   );
@@ -271,7 +280,7 @@ function GoalDetail({ goal, data, onClose, onEdit }: { goal: Goal; data: AppData
     if (!amount || amount <= 0) return;
     setPrevBal(bal);
     await addContribution({ id: uid('c_'), goalId: goal.id, amount: sign * amount, date: today(), note: sign > 0 ? 'Added' : 'Taken out', paycheckId: null });
-    if (sign > 0 && bal + amount >= goal.target && !goal.completedAt) {
+    if (sign > 0 && bal + amount >= goal.target && !goal.completedAt && !autoTarget(goal)) {
       await saveGoal({ ...goal, completedAt: Date.now() });
       toast(`You reached ${goal.name}! 🎉`);
     } else toast(sign > 0 ? `+${pebbles(amount)} pebbles` : `${pebbles(amount)} pebbles taken out`);
@@ -315,6 +324,7 @@ function GoalDetail({ goal, data, onClose, onEdit }: { goal: Goal; data: AppData
           </div>
         </div>
         <Progress value={bal / goal.target} color={gemBar(goal.gem)} />
+        {goal.isEmergency && data.emergency?.goalId === goal.id && <EmergencySteps data={data} goal={goal} />}
         {checksLeft && remaining > 0 && (
           <p className="small ink2 center">
             To reach it by {fmtLong(goal.targetDate!)}: about {usd(remaining / checksLeft, true)} per paycheck for {checksLeft} paycheck{checksLeft === 1 ? '' : 's'}.
@@ -369,5 +379,46 @@ function GoalDetail({ goal, data, onClose, onEdit }: { goal: Goal; data: AppData
         )}
       </div>
     </Sheet>
+  );
+}
+
+function emergencyLabel(data: AppData, g: Goal): string {
+  const e = data.emergency;
+  if (!e || e.goalId !== g.id || !autoTarget(g)) return 'Emergency fund';
+  if (e.full) return `Emergency fund · full (${e.levels[e.levels.length - 1].months} months)`;
+  return `Step ${e.step + 1} of ${e.levels.length}: ${e.levels[e.step].name}`;
+}
+
+/** The steps of the emergency fund: starter month, then the full fund. */
+function EmergencySteps({ data, goal }: { data: AppData; goal: Goal }) {
+  const e = data.emergency!;
+  const auto = autoTarget(goal);
+  return (
+    <div style={{ background: 'var(--card-2)', borderRadius: 'var(--radius-sm)', padding: '10px 12px' }}>
+      <div className="eyebrow">Emergency Fund Steps</div>
+      <div className="list mt-s">
+        {e.levels.map((l, i) => {
+          const done = i < e.step;
+          const now = i === e.step;
+          return (
+            <div key={l.months} className="row between small" style={{ padding: '4px 0', opacity: done || now ? 1 : 0.6 }}>
+              <span className={now ? 'strong' : ''}>
+                {done ? '✓ ' : now ? '→ ' : ''}
+                {l.name} · {l.months} month{l.months === 1 ? '' : 's'}
+              </span>
+              <span className="num">{usd(l.amount, true)}</span>
+            </div>
+          );
+        })}
+      </div>
+      <p className="tiny muted" style={{ margin: '6px 0 0' }}>
+        {e.monthsCovered.toFixed(1)} months of expenses covered ({usd(e.monthlyNeeds, true)} a month for bills, groceries and gas).{' '}
+        {!auto
+          ? 'Steps are off, so the goal stays where you set it.'
+          : e.full
+            ? 'All steps reached. New savings now go to your other goals; if you dip into it, Pebbles builds it back first.'
+            : 'When a step is reached, Pebbles raises the goal to the next one. Once the full fund is there, savings go to your other goals.'}
+      </p>
+    </div>
   );
 }

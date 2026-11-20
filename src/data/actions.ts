@@ -1,4 +1,5 @@
 import { store } from './store';
+import { autoTarget } from '../core/emergency';
 import { effectiveRules } from './useData';
 import { http } from '../platform';
 import { BUILTIN_EIA_KEY, feedUrls, normalizeSettings } from '../core/defaults';
@@ -211,7 +212,8 @@ export async function receivePaycheck(opts: {
   // mark goals completed
   for (const g of store.list('goals')) {
     const bal = store.list('contributions').filter((c) => c.goalId === g.id).reduce((s, c) => s + c.amount, 0);
-    if (!g.completedAt && bal >= g.target) await store.put('goals', { ...g, completedAt: Date.now() });
+    // the emergency fund steps its own target up, so autopilot decides when it's done
+    if (!g.completedAt && bal >= g.target && !autoTarget(g)) await store.put('goals', { ...g, completedAt: Date.now() });
   }
 }
 

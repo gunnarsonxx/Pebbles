@@ -1,6 +1,7 @@
 // Autopilot: keeps your goals and paychecks in step with the bank, so the only
 // thing you do is move the money Pebbles tells you to.
 import { store } from './store';
+import { emergencyGoalUpdate } from '../core/emergency';
 import { computeData } from './useData';
 import { today } from '../core/dates';
 import { dedupePaypal } from '../core/paypal';
@@ -104,6 +105,15 @@ export async function runAutopilot(): Promise<void> {
       });
       if (res.remove.length) await store.remove('contributions', res.remove);
       if (res.put.length) await store.putMany('contributions', res.put);
+    }
+
+    // 1c) the Bedrock fund steps up on its own: starter month → full fund, following your expenses
+    {
+      const fresh = computeData(store.version, today());
+      const em = fresh.emergency;
+      const goal = em ? fresh.goals.find((g) => g.id === em.goalId) : undefined;
+      const patch = goal && em ? emergencyGoalUpdate(goal, em) : null;
+      if (goal && patch) await store.put('goals', { ...goal, ...patch });
     }
 
     // 2) the paycheck landed → record it

@@ -6,7 +6,7 @@ import { today as todayISO, parts, diffDays } from '../core/dates';
 import { computeGross, periodByIndex, periodContaining, upcomingPayPeriod, type Period } from '../core/pay';
 import { calibrationFrom, estimatePaycheck, type PaycheckEstimate } from '../core/paycheck';
 import { BUNDLED_RULES, isValidRulesFile, newerVersion, rulesForYear, type TaxRulesFile } from '../core/taxrules';
-import { buildPlan, estimateEssentials, goalBalance, totalSaved, type EssentialsEstimate, type PaycheckPlan } from '../core/budget';
+import { monthlyBillsTotal, buildPlan, estimateEssentials, goalBalance, totalSaved, type EssentialsEstimate, type PaycheckPlan } from '../core/budget';
 import { generateInsights, type Insight } from '../core/insights';
 import { overtimeDeductionEstimate } from '../core/tax';
 import type { Bill, Contribution, Goal, ISODate, MarketData, PaycheckRecord, PayRate, Settings, Transaction, WorkDay, Account, CategoryRule, ImportBatch, BankLink, Receipt, ItemRule, Paystub, StorePrice } from '../core/types';
@@ -16,6 +16,7 @@ import { goalsAccount, interestNextMonth, reconcile, type Reconcile } from '../c
 import { paydayMoves, type Move } from '../core/moves';
 import { threePaycheckMonths } from '../core/budget';
 import type { GasPrice, PantryItem, ShopItem } from '../core/types';
+import { emergencyStatus, type EmergencyStatus } from '../core/emergency';
 import { billsAccount, coverage, spendingAccount, type Coverage } from '../core/coverage';
 
 export function useVersion(): number {
@@ -67,6 +68,7 @@ export interface AppData {
   reconcile: Reconcile | null;
   movesFor: { period: Period; estimate: PaycheckEstimate; plan: PaycheckPlan; moves: Move[]; isPast: boolean } | null;
   coverage: Coverage;
+  emergency: EmergencyStatus | null;
   pantry: PantryItem[];
   shoplist: ShopItem[];
   gasPrices: GasPrice[];
@@ -313,6 +315,7 @@ export function computeData(version: number, today: ISODate): AppData {
     reconcile: reconcile(gAcct, saved),
     movesFor,
     coverage: cov,
+    emergency: emergencyStatus(emergency, emergency ? (balances.get(emergency.id) ?? 0) : 0, monthlyBillsTotal(bills) + essentials.totalMonthly, settings.budget.emergencyMonths),
     pantry: store.list('pantry').filter((p) => !p.archived).sort((a, b) => a.name.localeCompare(b.name)),
     shoplist: store.list('shoplist').sort((a, b) => a.addedAt - b.addedAt),
     gasPrices,

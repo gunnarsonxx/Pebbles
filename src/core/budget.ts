@@ -214,6 +214,11 @@ export function allocateSavings(
       const share = Math.min(em.remaining, open.length > 1 ? left * 0.5 : left, monthlyNeeds - bal + 1);
       give(em.g.id, share, 'Building your first month of safety');
       left -= share;
+    } else {
+      // past the starter month: a steady third until the full fund is there (then it's done and steps aside)
+      const share = Math.min(em.remaining, open.length > 1 ? left * 0.35 : left);
+      give(em.g.id, share, 'Growing to the full emergency fund');
+      left -= share;
     }
   }
 
@@ -238,7 +243,9 @@ export function allocateSavings(
 
   // 3) the rest by priority weight
   if (left > 0.01) {
-    const pool = open.filter((x) => x.remaining - (alloc.get(x.g.id)?.amount ?? 0) > 0.5);
+    let pool = open.filter((x) => x.remaining - (alloc.get(x.g.id)?.amount ?? 0) > 0.5);
+    // the emergency fund already got its share; the rest goes to your other goals while they have room
+    if (pool.some((x) => !x.g.isEmergency)) pool = pool.filter((x) => !x.g.isEmergency);
     const wsum = pool.reduce((s, x) => s + x.g.priority, 0);
     for (const x of pool) {
       const room = x.remaining - (alloc.get(x.g.id)?.amount ?? 0);
