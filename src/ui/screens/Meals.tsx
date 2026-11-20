@@ -7,14 +7,15 @@ import { addToList, addToPlan, clearCookedPlan, cooked, deleteRecipe, removeFrom
 import { uid } from '../../core/money';
 import { titleCase } from '../../core/text';
 import type { PantryItem, Recipe } from '../../core/types';
+import { loadMeal, searchMeals, type MealDetail, type MealHit } from '../../core/mealdb';
+import { http } from '../../platform';
 
 const FILTERS = ['All', 'Quick', 'Air Fryer', 'Breakfast', 'Lunch', 'Dinner', 'Meal Prep', 'Slow Cooker', 'Soup', 'Pasta', 'Freezer', 'Takes a While'] as const;
 type Filter = (typeof FILTERS)[number];
 const TAGS = ['quick', 'air fryer', 'breakfast', 'lunch', 'dinner', 'snack', 'meal prep', 'slow cooker', 'soup', 'pasta', 'baking', 'freezer', 'no cook', 'one pan', 'one pot'];
 
 /** Quick = 20 minutes or less; Takes a While = an hour or more (mostly hands-off); the rest by tag. */
-const fits = (r: Recipe, f: Filter) =>
-  f === 'All' ? true : f === 'Quick' ? r.minutes <= 20 || r.tags.includes('quick') : f === 'Takes a While' ? r.minutes >= 60 : r.tags.includes(f.toLowerCase());
+const fits = (r: Recipe, f: Filter) => (f === 'All' ? true : f === 'Quick' ? r.minutes <= 20 || r.tags.includes('quick') : f === 'Takes a While' ? r.minutes >= 60 : r.tags.includes(f.toLowerCase()));
 
 /** "15 min", "1 hr 15 min", "8 hr". */
 export const fmtMinutes = (m: number) => (m < 60 ? `${m} min` : m % 60 ? `${Math.floor(m / 60)} hr ${m % 60} min` : `${m / 60} hr`);
@@ -167,6 +168,8 @@ export function MealsView({ data, openPantry }: { data: AppData; openPantry: () 
         )}
       </div>
 
+      <OnlineRecipes data={data} />
+
       <div className="row between">
         <span className="tiny muted">{BASICS_NOTE}</span>
         <button className="btn small" onClick={() => setEditing('new')}>
@@ -190,8 +193,17 @@ function RecipeRow({ m, onOpen }: { m: RecipeMatch; onOpen: () => void }) {
       <div className="grow">
         <div className="strong small">{m.recipe.name}</div>
         <div className="tiny muted">
-          {fmtMinutes(m.recipe.minutes)} · {m.recipe.tags.slice(0, 2).map((t) => titleCase(t)).join(', ')}
-          {m.ready ? ` · uses ${m.have.map((h) => h.item.name).slice(0, 3).join(', ')}` : ''}
+          {fmtMinutes(m.recipe.minutes)} ·{' '}
+          {m.recipe.tags
+            .slice(0, 2)
+            .map((t) => titleCase(t))
+            .join(', ')}
+          {m.ready
+            ? ` · uses ${m.have
+                .map((h) => h.item.name)
+                .slice(0, 3)
+                .join(', ')}`
+            : ''}
         </div>
         {!m.ready && <div className="tiny warn">Need: {m.missing.map((x) => x.name).join(', ')}</div>}
       </div>
@@ -223,11 +235,7 @@ function RecipeSheet({ data, recipe, onClose, onEdit }: { data: AppData; recipe:
               <CalendarCheck /> Meal Prep
             </button>
           )}
-          <button
-            className="btn primary"
-            disabled={!m.have.length}
-            onClick={() => setCooking(true)}
-          >
+          <button className="btn primary" disabled={!m.have.length} onClick={() => setCooking(true)}>
             <Check /> I Made This
           </button>
         </>
@@ -408,7 +416,10 @@ function RecipeEditor({ recipe, onClose }: { recipe: Recipe | null; onClose: () 
               servings: servings ?? 2,
               tags,
               ingredients: parsed,
-              steps: steps.split('\n').map((s) => s.trim()).filter(Boolean),
+              steps: steps
+                .split('\n')
+                .map((s) => s.trim())
+                .filter(Boolean),
               custom: true,
             });
             toast('Recipe saved');
@@ -441,7 +452,14 @@ function RecipeEditor({ recipe, onClose }: { recipe: Recipe | null; onClose: () 
           </div>
         </Field>
         <Field label="Ingredients" hint="One per line. Add “optional” to ones you can skip.">
-          <textarea className="input" rows={6} value={ings} onChange={(e) => setIngs(e.target.value)} placeholder={'Chicken breast\nRice\nCream of chicken soup\nCheese (optional)'} style={{ minHeight: 120, padding: 10 }} />
+          <textarea
+            className="input"
+            rows={6}
+            value={ings}
+            onChange={(e) => setIngs(e.target.value)}
+            placeholder={'Chicken breast\nRice\nCream of chicken soup\nCheese (optional)'}
+            style={{ minHeight: 120, padding: 10 }}
+          />
         </Field>
         <Field label="Steps" hint="One per line">
           <textarea className="input" rows={6} value={steps} onChange={(e) => setSteps(e.target.value)} style={{ minHeight: 120, padding: 10 }} />
@@ -507,7 +525,11 @@ function CookedSheet({ m, batches, onClose, onBack, toast }: { m: RecipeMatch; b
                   </div>
                 ) : (
                   <div className="stepper" style={{ border: '1px solid var(--line)', borderRadius: 999 }}>
-                    <button className="icon-btn" aria-label={`Less ${p.name}`} onClick={() => set(p.id, { qty: Math.max(0, Math.round((p.qty - (p.mode === 'count' ? 1 : p.perBuy * 0.25)) * 100) / 100) })}>
+                    <button
+                      className="icon-btn"
+                      aria-label={`Less ${p.name}`}
+                      onClick={() => set(p.id, { qty: Math.max(0, Math.round((p.qty - (p.mode === 'count' ? 1 : p.perBuy * 0.25)) * 100) / 100) })}
+                    >
                       <Minus size={15} />
                     </button>
                     <span className="num strong small">
@@ -522,6 +544,150 @@ function CookedSheet({ m, batches, onClose, onBack, toast }: { m: RecipeMatch; b
             );
           })}
         </div>
+      </div>
+    </Sheet>
+  );
+}
+
+/** More ideas from TheMealDB (free): search a dish or an ingredient you have, preview it against your pantry, save it. */
+function OnlineRecipes({ data }: { data: AppData }) {
+  const [q, setQ] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [hits, setHits] = useState<MealHit[] | null>(null);
+  const [err, setErr] = useState('');
+  const [open, setOpen] = useState<MealDetail | null>(null);
+  const [loadingId, setLoadingId] = useState<string | null>(null);
+  // a few things you have, to search by
+  const ideas = [...new Set(data.pantry.filter((p) => !p.archived && ['meat', 'pantry', 'produce', 'dairy', 'frozen'].includes(p.dept)).map((p) => p.name))].slice(0, 8);
+  const search = async (term: string) => {
+    setQ(term);
+    setBusy(true);
+    setErr('');
+    const r = await searchMeals(http, term);
+    setHits(r.hits);
+    setErr(r.error ?? (r.hits.length ? '' : `Nothing found for “${term}”. Try one main ingredient, like chicken or rice.`));
+    setBusy(false);
+  };
+  return (
+    <div className="card">
+      <div className="eyebrow">Find More Recipes Online</div>
+      <div className="small muted">Search a dish or an ingredient. From TheMealDB (free). Save any you like to your recipes.</div>
+      <div className="row mt-s" style={{ gap: 8 }}>
+        <div className="grow">
+          <TextInput value={q} onChange={setQ} placeholder="Chicken, pasta, tacos…" onEnter={() => q.trim() && void search(q)} ariaLabel="Search recipes" />
+        </div>
+        <button className="btn primary" disabled={!q.trim() || busy} onClick={() => void search(q)}>
+          {busy ? '…' : 'Search'}
+        </button>
+      </div>
+      {ideas.length > 0 && (
+        <div className="row wrap mt-s" style={{ gap: 6 }}>
+          {ideas.map((n) => (
+            <button key={n} className="chip" onClick={() => void search(n)}>
+              {n}
+            </button>
+          ))}
+        </div>
+      )}
+      {err && <p className="small warn mt-s">{err}</p>}
+      {hits && hits.length > 0 && (
+        <div className="list mt-s">
+          {hits.slice(0, 25).map((h) => (
+            <button
+              key={h.id}
+              className="list-item"
+              style={{ width: '100%', textAlign: 'left' }}
+              onClick={async () => {
+                setLoadingId(h.id);
+                const d = await loadMeal(http, h.id);
+                setLoadingId(null);
+                if (d) setOpen(d);
+                else setErr('Couldn’t open that recipe. Try again.');
+              }}
+            >
+              {h.thumb ? <img src={`${h.thumb}/preview`} alt="" width={44} height={44} style={{ borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} loading="lazy" /> : <ChefHat />}
+              <div className="grow strong small">{h.name}</div>
+              <span className="tiny muted">{loadingId === h.id ? 'Opening…' : 'View ›'}</span>
+            </button>
+          ))}
+        </div>
+      )}
+      {open && <OnlineRecipeSheet data={data} meal={open} onClose={() => setOpen(null)} />}
+    </div>
+  );
+}
+
+function OnlineRecipeSheet({ data, meal, onClose }: { data: AppData; meal: MealDetail; onClose: () => void }) {
+  const toast = useToast();
+  const m = matchRecipe(meal.recipe, data.pantry);
+  const saved = data.customRecipes.some((r) => r.id === meal.recipe.id);
+  return (
+    <Sheet
+      title={meal.name}
+      onClose={onClose}
+      footer={
+        <>
+          {m.missing.length > 0 && (
+            <button
+              className="btn"
+              onClick={async () => {
+                for (const x of m.missing) await addToList(x.name);
+                toast(`Added ${m.missing.length} to your list`);
+              }}
+            >
+              <ListPlus /> Missing to List
+            </button>
+          )}
+          <button
+            className="btn primary"
+            disabled={saved}
+            onClick={async () => {
+              await saveRecipe(meal.recipe);
+              toast(`${meal.name} is in your recipes`);
+              onClose();
+            }}
+          >
+            {saved ? 'Saved' : 'Save to My Recipes'}
+          </button>
+        </>
+      }
+    >
+      <div className="col gap-l">
+        {meal.thumb && <img src={meal.thumb} alt="" style={{ width: '100%', maxHeight: 220, objectFit: 'cover', borderRadius: 'var(--radius-sm)' }} />}
+        <div className="small ink2">
+          {[meal.category, meal.area].filter(Boolean).join(' · ')} · about {fmtMinutes(meal.recipe.minutes)} (the site doesn’t list a time; this is a guess)
+        </div>
+        <div>
+          <div className="eyebrow">Ingredients</div>
+          <div className="list">
+            {meal.recipe.ingredients.map((ing) => {
+              const h = m.have.find((x) => x.ing === ing);
+              return (
+                <div key={ing.name} className="row between small" style={{ padding: '5px 0' }}>
+                  <span className={h ? '' : 'warn'}>
+                    {h ? '✓ ' : '✗ '}
+                    {ing.qty ? `${ing.qty} ` : ''}
+                    {ing.name}
+                  </span>
+                  <span className="tiny muted">{h ? h.item.name : ''}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+        <div>
+          <div className="eyebrow">Steps</div>
+          <ol className="small" style={{ margin: 0, paddingLeft: 20, lineHeight: 1.55 }}>
+            {meal.recipe.steps.map((st, i) => (
+              <li key={i} style={{ marginBottom: 4 }}>
+                {st}
+              </li>
+            ))}
+          </ol>
+        </div>
+        <p className="tiny muted" style={{ margin: 0 }}>
+          From TheMealDB{meal.source ? ' · original recipe linked there' : ''}. {BASICS_NOTE}
+        </p>
       </div>
     </Sheet>
   );
