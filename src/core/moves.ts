@@ -32,6 +32,7 @@ export function paydayMoves(opts: {
   bonusMonth: boolean;
   billsAccountName?: string | null; // a bills-only account you top up from each check
   billsThrough?: ISODate; // the top-up covers bills due before this payday
+  billsSteady?: boolean; // the same amount every check
 }): Move[] {
   const { period, plan, goals, savingsName, states, bonusMonth } = opts;
   const st = (k: MoveKey) => states.get(moveId(period, k));
@@ -56,7 +57,7 @@ export function paydayMoves(opts: {
         ? {
             key: 'bills',
             title: `Move ${usd(plan.bills, true)} to ${opts.billsAccountName}`,
-            detail: `Tops it up so every bill through ${through} is paid.`,
+            detail: opts.billsSteady ? 'The same every check: it pays every bill in full, on time, all year.' : `Tops it up so every bill through ${through} is paid.`,
             amount: plan.bills,
             checkable: true,
             done: !!st('bills')?.done,

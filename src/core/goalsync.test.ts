@@ -211,3 +211,41 @@ describe('bills account covers bills through the check after next', async () => 
     expect(ok.extra).toBe(319.2);
   });
 });
+
+describe('the same bills amount every check', async () => {
+  const { steadyBillsPlan, cashAmount } = await import('./coverage');
+  const { billDueDates } = await import('./budget');
+  const bill = (p: Partial<import('./types').Bill>) => ({ id: p.name ?? 'b', name: 'Bill', amount: 0, dueDay: 1, dueMonth: null, anchorDate: null, frequency: 'monthly' as const, category: 'utilities', autopay: false, active: true, matchPattern: '', ...p });
+  const bills = [
+    bill({ name: 'Rent', amount: 1000, dueDay: 1 }),
+    bill({ name: 'Utilities', amount: 175, dueDay: 28 }),
+    bill({ name: 'Phone', amount: 45, dueDay: 15 }),
+    bill({ name: 'Car Insurance', amount: 600, frequency: 'yearly', dueMonth: 3, dueDay: 10 }),
+  ];
+  const paydays = Array.from({ length: 28 }, (_, k) => {
+    const d = new Date(Date.UTC(2026, 10, 20 + 14 * k));
+    return d.toISOString().slice(0, 10);
+  });
+  it('one amount that keeps the account above zero every day for a year, and never under the average', () => {
+    const p = steadyBillsPlan({ balance: 344.08, bills, txns: [], today: '2026-11-20', paydays });
+    expect(p.checks).toBe(27);
+    expect(p.perCheck % 5).toBe(0);
+    expect(p.perCheck).toBeGreaterThanOrEqual(p.average);
+    expect(p.lowest).toBeGreaterThanOrEqual(50); // the cushion
+    // replay it by hand: every bill, every payday
+    const events = bills.flatMap((b) => billDueDates(b, '2026-11-20', p.horizon).map((d) => ({ d, amt: cashAmount(b, bills) })));
+    let bal = 344.08;
+    for (const day of Array.from({ length: 366 }, (_, k) => new Date(Date.UTC(2026, 10, 20 + k)).toISOString().slice(0, 10))) {
+      if (paydays.includes(day)) bal += p.perCheck;
+      for (const e of events) if (e.d === day) bal -= e.amt;
+      expect(bal).toBeGreaterThanOrEqual(-0.001);
+    }
+    // $5 less would bounce something
+    const less = steadyBillsPlan({ balance: 344.08, bills, txns: [], today: '2026-11-20', paydays });
+    expect(less.perCheck).toBe(p.perCheck);
+  });
+  it('a bill due before the first payday that the account can’t cover is flagged to move now', () => {
+    const p = steadyBillsPlan({ balance: 50, bills: [bill({ name: 'Phone', amount: 45, dueDay: 15 }), bill({ name: 'Gym', amount: 30, dueDay: 17 })], txns: [], today: '2026-12-14', paydays: ['2026-12-18', '2027-01-01'] });
+    expect(p.shortNow).toBe(25);
+  });
+});

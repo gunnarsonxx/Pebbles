@@ -4,6 +4,7 @@ import { store } from './store';
 import { emergencyGoalUpdate } from '../core/emergency';
 import { looksVariable } from '../core/billPrompt';
 import { plainNameFor } from '../core/groceries';
+import { knownTotal, paypalPurchases } from '../core/paypal';
 import { computeData } from './useData';
 import { today } from '../core/dates';
 import { dedupePaypal } from '../core/paypal';
@@ -97,6 +98,17 @@ export async function runAutopilot(): Promise<void> {
         'transactions',
         dups.filter((u) => byId.has(u.id)).map((u) => ({ ...byId.get(u.id)!, ...u.patch })),
       );
+    }
+
+    // 0c) a new PayPal purchase: note the paying bank's balance now, to tell when the bank has taken it out
+    if (d.paypalFrom) {
+      const from = d.paypalFrom;
+      const now = from.available ?? from.balance;
+      const fresh = paypalPurchases(d.txns, d.accounts, d.today).filter((t) => !t.seenBank || t.seenBank.accountId !== from.id);
+      if (fresh.length && now != null) {
+        const known = knownTotal(d.txns, from.id);
+        await store.putMany('transactions', fresh.map((t) => ({ ...t, seenBank: { accountId: from.id, available: now, known } })));
+      }
     }
 
     // 1) interest paid into the goals account → pebbles in each goal

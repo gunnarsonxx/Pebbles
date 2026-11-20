@@ -28,6 +28,7 @@ export interface BillsCoverage {
   topUp: number; // move this into the Bills account from the next check (rounded up to $5)
   extra: number; // what's left over after everything through the following payday
   status: 'ok' | 'topup' | 'short';
+  steady?: SteadyPlan | null; // when you put the same amount in every check
 }
 
 export interface SpendingCoverage {
@@ -78,6 +79,78 @@ export function cashAmount(b: Bill, bills: Bill[]): number {
   }
   if (b.yourSharePct != null && b.yourSharePct < 100) return b.fromRent ? b.amount : yourAmount(b);
   return b.amount;
+}
+
+// ---------------- the same amount every check ----------------
+
+export interface SteadyPlan {
+  perCheck: number; // put this in the Bills account every payday
+  average: number; // the bills' true average per check over the year
+  lowest: number; // the lowest the account gets over the next 12 months, putting in perCheck each payday (at least the cushion)
+  lowestDate: ISODate | null;
+  shortNow: number; // due before the first payday and not covered: has to be moved now
+  horizon: ISODate;
+  checks: number;
+}
+
+/**
+ * One steady amount per paycheck that pays every bill in full and on time.
+ * Plays out the next 12 months day by day (each bill on its due date, the deposit on each payday) and
+ * takes the smallest amount, rounded up to $5, at which the account never goes below zero, and never
+ * less than the bills' real average per check, so it doesn't fall behind over the year.
+ */
+export function steadyBillsPlan(opts: { balance: number; bills: Bill[]; txns: Transaction[]; today: ISODate; paydays: ISODate[]; cushion?: number }): SteadyPlan {
+  // never run the account right down to zero: a bill that comes in higher (utilities) still clears
+  const cushion = opts.cushion ?? 50;
+  const { bills, txns, today } = opts;
+  const paydays = opts.paydays.filter((p) => p >= today).sort();
+  const horizon = paydays.length ? addDays(paydays[0], 365) : addDays(today, 365);
+  const inYear = paydays.filter((p) => p < horizon);
+  const events: { date: ISODate; amount: number }[] = [];
+  for (const b of bills.filter((x) => x.active)) {
+    for (const d of billDueDates(b, today, horizon)) {
+      const paid = d <= addDays(today, 10) && txns.some((t) => t.date >= addDays(d, -10) && t.date <= today && matchesBill(t, b));
+      if (!paid) events.push({ date: d, amount: cashAmount(b, bills) });
+    }
+  }
+  events.sort((a, b) => a.date.localeCompare(b.date));
+  // deposits made on or before a date (a payday's deposit is there before that day's bills)
+  const depositsBy = (d: ISODate) => inYear.filter((p) => p <= d).length;
+  let cum = 0;
+  let shortNow = 0;
+  let need = 0;
+  for (const e of events) {
+    cum += e.amount;
+    const n = depositsBy(e.date);
+    if (n === 0) shortNow = Math.max(shortNow, cum - opts.balance);
+  }
+  const start = opts.balance + Math.max(0, shortNow);
+  cum = 0;
+  for (const e of events) {
+    cum += e.amount;
+    const n = depositsBy(e.date);
+    if (n > 0) need = Math.max(need, (cum - (start - cushion)) / n);
+  }
+  const yearBills = events.reduce((s2, e) => s2 + e.amount, 0);
+  const average = inYear.length ? yearBills / inYear.length : 0;
+  const perCheck = Math.ceil(Math.max(need, average, 0) / 5) * 5;
+  // the lowest point with that amount
+  let bal = start;
+  let lowest = start;
+  let lowestDate: ISODate | null = null;
+  let pi = 0;
+  for (const e of events) {
+    while (pi < inYear.length && inYear[pi] <= e.date) {
+      bal += perCheck;
+      pi++;
+    }
+    bal -= e.amount;
+    if (bal < lowest) {
+      lowest = bal;
+      lowestDate = e.date;
+    }
+  }
+  return { perCheck, average: Math.round(average * 100) / 100, lowest: Math.round(lowest * 100) / 100, lowestDate, shortNow: Math.round(Math.max(0, shortNow) * 100) / 100, horizon, checks: inYear.length };
 }
 
 export function coverage(opts: {

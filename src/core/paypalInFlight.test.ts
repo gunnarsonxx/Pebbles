@@ -35,3 +35,26 @@ describe('PayPal purchases the bank balance doesn’t show yet', () => {
     expect(paypalFundingAccount(accounts, history, 'paypal-balance', bills)).toBeNull();
   });
 });
+
+describe('the bank updates its balance before its PayPal line comes through', async () => {
+  const { bankHasIt, knownTotal } = await import('./paypal');
+  const usaa = { id: 'spend', name: 'Spending', type: 'checking' as const, available: 100, balance: 100, source: 'plaid' as const };
+  const lunch = tx({ id: 'lunch', accountId: 'spend', description: 'TACO BELL', amount: -8, date: '2026-11-20' });
+  const steam = tx({ id: 'steam', description: 'Payment to Valve', merchant: 'Steam', amount: -15.99, date: '2026-11-20' });
+  const seen = { accountId: 'spend', available: 100, known: knownTotal([lunch], 'spend') };
+  it('still out when the balance hasn’t moved', () => {
+    expect(bankHasIt({ ...steam, seenBank: seen }, [lunch], usaa)).toBe(false);
+  });
+  it('taken out once the balance drops by the purchase, even with no PAYPAL line yet', () => {
+    expect(bankHasIt({ ...steam, seenBank: seen }, [lunch], { ...usaa, available: 84.01 })).toBe(true);
+  });
+  it('a drop the bank’s own transactions explain doesn’t count', () => {
+    const gas = tx({ id: 'gas', accountId: 'spend', description: 'SHELL', amount: -40, date: '2026-11-21' });
+    expect(bankHasIt({ ...steam, seenBank: seen }, [lunch, gas], { ...usaa, available: 60 })).toBe(false);
+    expect(bankHasIt({ ...steam, seenBank: seen }, [lunch, gas], { ...usaa, available: 44.01 })).toBe(true);
+  });
+  it('a pending bank line for the same amount counts, whatever it’s called', () => {
+    const pending = tx({ id: 'p1', accountId: 'spend', description: 'VALVE CORP', amount: -15.99, date: '2026-11-20', pending: true });
+    expect(bankHasIt(steam, [pending], usaa)).toBe(true);
+  });
+});

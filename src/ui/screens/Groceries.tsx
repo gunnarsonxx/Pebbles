@@ -19,6 +19,7 @@ export function GroceriesView({ data, openSettings }: { data: AppData; openSetti
   const [scanning, setScanning] = useState(false);
   const [viewing, setViewing] = useState<Receipt | null>(null);
   const [pricing, setPricing] = useState(false);
+  const [showMath, setShowMath] = useState(false);
   const g = data.groceries;
   const kroger = data.settings.integrations;
   const krogerStores = krogerStoresOf(kroger);
@@ -86,41 +87,71 @@ export function GroceriesView({ data, openSettings }: { data: AppData; openSetti
         <div className="grid two">
           <div className="card">
             <div className="card-head">
-              <div className="eyebrow">A Usual Grocery Trip</div>
+              <div className="eyebrow">Your Groceries</div>
               <button className="btn primary small" onClick={() => setScanning(true)}>
                 <Camera /> Add Receipt
               </button>
             </div>
-            {g && g.usual.length ? (
+            {g ? (
               <>
-                <div className="big-number">{usd(g.usualTrip * (1 + taxRate))}</div>
-                <div className="small ink2">
-                  a needs-only trip with {(taxRate * 100).toFixed(1)}% sales tax
-                  {g.taxRate ? ' (learned from your receipts)' : ' (estimate until a receipt shows tax)'}
-                </div>
+                <div className="big-number">{`${usd(data.essentials.groceriesMonthly, true)}/month`}</div>
+                <div className="small ink2">{data.essentials.groceriesReason}. This is the grocery money in your paycheck plan.</div>
                 <div className="divider" />
-                <div className="row between small">
-                  <span>Trips a month</span>
-                  <span className="num strong">{g.tripsPerMonth.toFixed(1)}</span>
-                </div>
                 <div className="row between small">
                   <span>Your average trip</span>
                   <span className="num strong">{usd(g.avgTrip)}</span>
                 </div>
                 <div className="row between small">
-                  <span>Extras per trip</span>
+                  <span>Trips a month</span>
+                  <span className="num strong">{g.tripsPerMonth.toFixed(1)}</span>
+                </div>
+                <div className="row between small">
+                  <span>Extras per trip (snacks, drinks…)</span>
                   <span className="num strong">{usd(g.extrasPerTrip)}</span>
                 </div>
-                {need != null && (
-                  <div className="row between small">
-                    <span>Monthly grocery budget</span>
-                    <span className="num strong">{usd(need, true)}</span>
+                {g.usual.length > 0 && (
+                  <div className="row between small" style={{ alignItems: 'flex-start', gap: 10 }}>
+                    <span>
+                      On almost every trip: <span className="ink2">{g.usual.slice(0, 5).map((u) => u.name).join(', ')}{g.usual.length > 5 ? '…' : ''}</span>
+                    </span>
+                    <span className="num strong">{usd(g.usualTrip * (1 + taxRate))}</span>
                   </div>
                 )}
-                <p className="tiny muted mt">Your grocery budget in the paycheck plan now uses these numbers.</p>
+                {(g.trips < 4 || g.spanDays < 28) && (
+                  <p className="tiny warn" style={{ margin: '8px 0 0' }}>
+                    From {g.trips} receipt{g.trips === 1 ? '' : 's'} over {g.spanDays} days, so these are rough. They firm up after about a month of receipts.
+                  </p>
+                )}
+                <button className="link-btn small mt-s" onClick={() => setShowMath(!showMath)}>
+                  {showMath ? 'Hide the Math' : 'How These Are Figured'}
+                </button>
+                {showMath && (
+                  <div className="coverage-math mt-s tiny ink2" style={{ gap: 6 }}>
+                    <div>
+                      <strong>Grocery budget:</strong> everything on your receipts from the last {Math.min(120, g.spanDays)} days that’s a need (not snacks, drinks, alcohol, nicotine or hot food), ÷ {g.spanDays} days × 30.4 days, plus {(taxRate * 100).toFixed(1)}% tax
+                      {need != null ? ` = ${usd(need)} a month` : ''}. It’s never set below the USDA Thrifty plan for your household
+                      {need != null && data.essentials.groceriesMonthly > need + 1 ? ` (${usd(data.essentials.groceriesMonthly, true)}), so that’s what’s used for now` : ''}. {need == null ? 'Until you have three receipts it uses the USDA plan.' : ''}
+                    </div>
+                    <div>
+                      <strong>Average trip:</strong> the totals of your {g.trips} receipts ÷ {g.trips}.
+                    </div>
+                    <div>
+                      <strong>Trips a month:</strong> {g.trips} trips ÷ {g.spanDays} days × 30.4.
+                    </div>
+                    <div>
+                      <strong>Extras per trip:</strong> everything that isn’t on almost every trip, ÷ {g.trips} trips.
+                    </div>
+                    {g.usual.length > 0 && (
+                      <div>
+                        <strong>On almost every trip:</strong> items on {g.trips >= 3 ? 'at least 40% of your trips (or 3+ of them)' : 'both of your trips'}: {g.usual.map((u) => `${u.name} ${usd(u.avgPrice)} × ${Math.round(u.share * 100)}% of trips`).join(', ')}, plus tax. That’s just your regulars, not a whole trip.
+                      </div>
+                    )}
+                    <div className="muted">Backlog receipts count from the oldest one, so if you skip trips in between, the monthly numbers come out low until newer receipts fill in.</div>
+                  </div>
+                )}
               </>
             ) : (
-              <p className="small ink2">After two or three receipts, Pebbles can tell your regular items from the extras.</p>
+              <p className="small ink2">After a receipt or two, Pebbles shows what your groceries really cost a month.</p>
             )}
           </div>
 

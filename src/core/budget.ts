@@ -315,7 +315,8 @@ export function buildPlan(opts: {
   const billsDue = billsDueBetween(bills, payday, nextPayday);
   const steady = b.billsMode === 'due_dates' ? round2(billsDue.reduce((s, x) => s + x.amount, 0)) : round2((monthlyBillsTotal(bills) * 12) / 26);
   // money already sitting in a bills-only account counts; "same every check" still never puts in less than needed
-  const billsAmt = opts.billsTopUp == null ? steady : b.billsMode === 'due_dates' ? round2(opts.billsTopUp) : round2(Math.max(steady, opts.billsTopUp));
+  // with a bills-only account the amount is worked out from it (a top-up, or the same amount every check)
+  const billsAmt = opts.billsTopUp == null ? steady : round2(opts.billsTopUp);
   const essentialsAmt = essentials.perPaycheck;
   const available = round2(net - billsAmt - essentialsAmt);
   const step = b.roundTo || 1;

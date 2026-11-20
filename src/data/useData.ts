@@ -19,7 +19,7 @@ import type { DriveEntry, GasPrice, MealPlanEntry, PantryItem, Recipe, ShopItem,
 import { paypalFundingAccount, paypalInFlight, withInFlight, type InFlight } from '../core/paypal';
 import { drivingStats, trustworthy, type DrivingStats } from '../core/driving';
 import { emergencyStatus, type EmergencyStatus } from '../core/emergency';
-import { billsAccount, coverage, spendingAccount, type Coverage } from '../core/coverage';
+import { billsAccount, coverage, spendingAccount, steadyBillsPlan, type Coverage } from '../core/coverage';
 
 export function useVersion(): number {
   return useSyncExternalStore(store.subscribe, store.getVersion);
@@ -121,7 +121,17 @@ export function computeData(version: number, today: ISODate): AppData {
   const rates = store.list('rates').filter((r) => !r.archived);
   const workdays = new Map(store.list('workdays').map((w) => [w.date, w]));
   const bills = store.list('bills');
-  const goals = store.list('goals').sort((a, b) => b.priority - a.priority || a.createdAt - b.createdAt);
+  // the emergency fund first, then by goal date (soonest first), then undated ones by priority; finished ones last
+  const goals = store
+    .list('goals')
+    .sort(
+      (a, b) =>
+        Number(!!a.completedAt) - Number(!!b.completedAt) ||
+        Number(b.isEmergency) - Number(a.isEmergency) ||
+        (a.targetDate && b.targetDate ? a.targetDate.localeCompare(b.targetDate) : a.targetDate ? -1 : b.targetDate ? 1 : 0) ||
+        b.priority - a.priority ||
+        a.createdAt - b.createdAt,
+    );
   const contributions = store.list('contributions');
   const txns = store.list('transactions').sort((a, b) => b.date.localeCompare(a.date));
   const accounts = store.list('accounts');
@@ -193,8 +203,23 @@ export function computeData(version: number, today: ISODate): AppData {
   });
   // only once you've told Pebbles which account is bills-only; otherwise the old "share of bills" plan
   // before the check: what it has to add for bills through the check after it; after it landed: what's still missing
+  // "same amount every check": one steady amount that a 12-month run-through shows pays every bill on time
+  const nextIdx = nextPayday === upPeriod.payday ? upPeriod.index : upPeriod.index + 1;
+  const steady =
+    settings.budget.billsAccountId && cov.bills && settings.budget.billsMode === 'even'
+      ? steadyBillsPlan({ balance: cov.bills.balance, bills, txns, today, paydays: Array.from({ length: 28 }, (_, k) => periodByIndex(settings.pay, nextIdx + k).payday) })
+      : null;
+  if (cov.bills) cov.bills.steady = steady;
   const topUpFor = (payday: string) =>
-    !settings.budget.billsAccountId || !cov.bills ? null : payday === nextPayday ? cov.bills.topUp : payday < today ? Math.ceil(cov.bills.shortNow / 5) * 5 : null;
+    !settings.budget.billsAccountId || !cov.bills
+      ? null
+      : steady && (payday === nextPayday || payday < today)
+        ? steady.perCheck
+        : payday === nextPayday
+          ? cov.bills.topUp
+          : payday < today
+            ? Math.ceil(cov.bills.shortNow / 5) * 5
+            : null;
   // ONE plan for the next paycheck, used by every card: the recorded stub pay when there is one, else the estimate
   const upRecord = paychecks.get(upPeriod.start);
   const plan = buildPlan({
@@ -300,6 +325,7 @@ export function computeData(version: number, today: ISODate): AppData {
       bonusMonth,
       billsAccountName: settings.budget.billsAccountId && cov.bills ? cov.bills.account.name : null,
       billsThrough: mPeriod.payday === nextPayday ? followingPayday : nextPayday,
+      billsSteady: !!steady,
     }),
   };
 

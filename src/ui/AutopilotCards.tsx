@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Check, Circle, Compass, PiggyBank, TriangleAlert, CircleCheck, CircleDot, SlidersHorizontal } from 'lucide-react';
-import { GemIcon, NumberInput, Sheet, useToast } from './components';
+import { GemIcon, NumberInput, Segmented, Sheet, useToast } from './components';
 import { store } from '../data/store';
 import { saveSettings } from '../data/actions';
 import { setGoalSplit } from '../core/savingsAccount';
@@ -339,6 +339,7 @@ export function CoverageCard({ data, compact }: { data: AppData; compact?: boole
   const NextCheck = isToday ? 'Today’s' : nextCheck;
   const through = fmtDay(c.followingPayday);
   // "Same amount every check" can put in a bit more than the bare top-up, to smooth out rent; show what the plan says
+  const st = chosen ? (b.steady ?? null) : null;
   const planned = chosen && data.plan.billsTopUp && data.upcoming.period.payday === c.nextPayday ? data.plan.bills : b.topUp;
   const ahead = round2(planned - b.topUp);
   const before = b.bills.filter((x) => x.beforePayday && !x.paid);
@@ -382,11 +383,13 @@ export function CoverageCard({ data, compact }: { data: AppData; compact?: boole
   );
   return (
     <div className={`card coverage cov-${tone} mt`}>
-      <div className="eyebrow">Bills Through {through}</div>
+      <div className="eyebrow">{st ? 'Bills · Same Every Check' : `Bills Through ${through}`}</div>
       <div className={`strong ${b.status === 'short' ? 'bad' : ''}`} style={{ fontSize: 17, marginTop: 2 }}>
         {b.status === 'short'
           ? `Short ${usd(b.shortNow)} for Bills Before ${next}`
-          : b.status === 'topup'
+          : st
+            ? `${usd(st.perCheck, true)} to ${b.account.name} Every Check`
+            : b.status === 'topup'
             ? `Move ${usd(planned, true)} to ${b.account.name} From ${NextCheck} Check`
             : `${b.account.name} Covers Every Bill Through ${through}`}
       </div>
@@ -440,14 +443,27 @@ export function CoverageCard({ data, compact }: { data: AppData; compact?: boole
               : `Move what you can into ${b.account.name}, and if a bill allows it, pay it the day after payday. `}
         </p>
       )}
-      {b.status === 'topup' && b.shortNow === 0 && (
+      {st && b.shortNow === 0 && (
+        <div className="small ink2" style={{ margin: '8px 0 0' }}>
+          <p style={{ margin: 0 }}>
+            Pebbles played out the next 12 months ({st.checks} paychecks): with {usd(st.perCheck, true)} going in every payday, every bill is paid in full on its due date. The lowest the account gets is{' '}
+            <strong>{usd(st.lowest)}</strong>
+            {st.lowestDate ? ` on ${fmtShort(st.lowestDate)}` : ''}, so there’s always at least a $50 cushion.
+          </p>
+          <p className="tiny muted" style={{ margin: '6px 0 0' }}>
+            Your bills average {usd(st.average)} a check; {st.perCheck > st.average + 5 ? `the extra ${usd(st.perCheck - st.average, true)} covers the months when big bills land close together and keeps the cushion.` : 'that, rounded up, is the steady amount.'} If a bill changes
+            (like the utility bill each month), the amount is checked again.
+          </p>
+        </div>
+      )}
+      {!st && b.status === 'topup' && b.shortNow === 0 && (
         <p className="small ink2" style={{ margin: '8px 0 0' }}>
           {before.length ? `Everything due before ${next} is covered. ` : ''}
           {!chosen ? 'Confirm your accounts below and the payday plan will use this amount.' : <>The payday plan puts {usd(planned, true)} of {isToday ? 'today’s' : 'that'} check into {b.account.name}
           {ahead > 0 ? ` (${usd(ahead, true)} of it toward later bills, since you set bills to the same amount every check)` : ''}, and the rest is planned for savings and you.</>}
         </p>
       )}
-      {b.status === 'ok' && (
+      {!st && b.status === 'ok' && (
         <p className="small ink2" style={{ margin: '8px 0 0' }}>
           Nothing from {nextCheck} check has to go to bills, so the payday plan leaves it for savings and you.
         </p>
@@ -505,6 +521,21 @@ export function CoverageCard({ data, compact }: { data: AppData; compact?: boole
       )}
 
       <div className="coverage-accounts mt">
+        {chosen && (
+          <label className="row between small" style={{ gap: 8 }}>
+            <span className="ink2">How Much Goes In</span>
+            <div style={{ minWidth: 230 }}>
+              <Segmented
+                value={data.settings.budget.billsMode}
+                options={[
+                  { value: 'even', label: 'Same Every Check' },
+                  { value: 'due_dates', label: 'Just What’s Due' },
+                ]}
+                onChange={(v) => void saveSettings((x) => ({ ...x, budget: { ...x.budget, billsMode: v } }))}
+              />
+            </div>
+          </label>
+        )}
         {!chosen && <p className="small ink2" style={{ margin: '0 0 6px' }}>Which account is only for bills? Once you pick it, the payday plan counts what’s already in it and only tops it up.</p>}
         {select('billsAccountId', b.account.id, 'Bills Account', false)}
         {select('spendingAccountId', sp?.account.id ?? '', 'Spending Account', true)}

@@ -434,6 +434,8 @@ export interface Transaction {
   pending?: boolean;
   source?: 'import' | 'plaid';
   dupOf?: string; // the same purchase seen in another account (e.g. USAA's line for a PayPal purchase)
+  // a PayPal purchase: the paying bank account as Pebbles first saw it, to tell when the bank has taken it out
+  seenBank?: { accountId: string; available: number; known: number } | null;
 }
 
 export interface ImportBatch {

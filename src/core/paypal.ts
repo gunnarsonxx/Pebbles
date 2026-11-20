@@ -63,20 +63,40 @@ export function paypalFundingAccount(accounts: Account[], txns: Transaction[], c
   return ranked[0] ?? fallback;
 }
 
+/** The sum of every transaction Pebbles has for an account (to tell balance moves it can explain from ones it can't). */
+export const knownTotal = (txns: Transaction[], accountId: string) => Math.round(txns.filter((t) => t.accountId === accountId).reduce((s, t) => s + t.amount, 0) * 100) / 100;
+
+/** PayPal purchases not yet tied to the bank: the ones to snapshot the bank's balance for. */
+export function paypalPurchases(txns: Transaction[], accounts: Account[], today: string): Transaction[] {
+  const ppIds = new Set(accounts.filter(isPaypalAccount).map((a) => a.id));
+  return txns.filter((t) => ppIds.has(t.accountId) && t.amount < 0 && !FUNDING.test(`${t.description} ${t.merchant}`) && diffDays(today, t.date) <= 7 && diffDays(today, t.date) >= 0);
+}
+
+/**
+ * Has the bank already taken this PayPal purchase out? Yes when:
+ *  - the bank's own line for it is in (pending or posted, same amount, within a few days), or
+ *  - the bank's balance has dropped by the amount since Pebbles first saw the purchase, beyond what the
+ *    bank transactions Pebbles knows about explain (the balance updates before the line comes through).
+ */
+export function bankHasIt(p: Transaction, txns: Transaction[], funding: Account): boolean {
+  if (txns.some((t) => t.dupOf === p.id)) return true;
+  const line = txns.some(
+    (t) => t.accountId === funding.id && Math.abs(t.amount - p.amount) <= 0.01 && diffDays(t.date, p.date) >= -2 && diffDays(t.date, p.date) <= 10 && (BANK_PAYPAL.test(`${t.description} ${t.merchant}`) || t.pending),
+  );
+  if (line) return true;
+  const seen = p.seenBank;
+  const now = funding.available ?? funding.balance;
+  if (!seen || seen.accountId !== funding.id || now == null) return false;
+  const unexplained = now - seen.available - (knownTotal(txns, funding.id) - seen.known);
+  return unexplained <= p.amount + 0.01; // dropped by at least the purchase (p.amount is negative)
+}
+
 export function paypalInFlight(txns: Transaction[], accounts: Account[], funding: Account | null, today: string): InFlight | null {
   if (!funding) return null;
   const ppIds = new Set(accounts.filter(isPaypalAccount).map((a) => a.id));
   if (!ppIds.size) return null;
-  const matched = new Set(txns.filter((t) => t.dupOf).map((t) => t.dupOf as string));
-  const open = txns.filter(
-    (t) =>
-      ppIds.has(t.accountId) &&
-      t.amount < 0 &&
-      !matched.has(t.id) && // the bank line is in: the bank balance has it
-      !FUNDING.test(`${t.description} ${t.merchant}`) &&
-      diffDays(today, t.date) <= 7 && // past a week the bank has surely posted it (or PayPal used its own balance)
-      diffDays(today, t.date) >= 0,
-  );
+  // past a week the bank has surely posted it (or PayPal used its own balance)
+  const open = paypalPurchases(txns, accounts, today).filter((t) => !bankHasIt(t, txns, funding));
   if (!open.length) return null;
   return { accountId: funding.id, amount: Math.round(open.reduce((s, t) => s - t.amount, 0) * 100) / 100, txns: open };
 }
