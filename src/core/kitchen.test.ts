@@ -76,3 +76,20 @@ describe('meals from the pantry', () => {
     ]);
   });
 });
+
+describe('filling the pantry from old receipts', () => {
+  it('lists what you bought that isn’t in the pantry, most-bought first, and keeps each one’s date', async () => {
+    const { pastItems, applyPicks } = await import('./kitchen');
+    const r = (date: string, names: string[]) => ({ id: date, store: 'King Soopers', date, items: names.map((n) => item(n)), subtotal: null, tax: null, total: null, savings: null, source: 'pdf' as const, createdAt: 0 });
+    const receipts = [r('2026-09-01', ['Rice', 'Sugar']), r('2026-10-01', ['Rice', 'Coffee']), r('2026-11-01', ['Rice', 'Milk'])];
+    const list = pastItems(receipts, [newPantryItem('Milk')], new Set(['rice']));
+    expect(list.map((x) => [x.item.name, x.trips, x.date, x.usual])).toEqual([
+      ['Rice', 3, '2026-11-01', true],
+      ['Coffee', 1, '2026-10-01', false],
+      ['Sugar', 1, '2026-09-01', false],
+    ]);
+    const sugar = list.find((x) => x.item.name === 'Sugar')!;
+    const out = applyPicks([{ item: sugar.item, left: 'half', count: null, always: false, stapleId: null, date: sugar.date }], [], [], '2026-11-20');
+    expect(out.pantry[0]).toMatchObject({ name: 'Sugar', level: 'half', lastBought: '2026-09-01' });
+  });
+});

@@ -60,6 +60,7 @@ export interface KitchenPick {
   count: number | null; // for things you count (12 eggs, 3 cans): how many you have now
   always: boolean; // a staple: you always get it
   stapleId: string | null; // swaps with similar things (a group)
+  date?: ISODate; // when it was bought, when picks come from different receipts
 }
 
 /** One line per product (the same thing bought twice is one pick), groceries only. */
@@ -101,7 +102,8 @@ export function applyPicks(picks: KitchenPick[], pantry: PantryItem[], staples: 
     if (gone && !pk.always) continue;
     const existing = pantry.find((x) => !x.archived && matches(x, pk.item.key, pk.item.name));
     const base = existing ?? newPantryItem(pk.item.name, { key: pk.item.key, dept: pk.item.dept }, rules);
-    const next: PantryItem = { ...base, lastBought: !base.lastBought || base.lastBought < receiptDate ? receiptDate : base.lastBought };
+    const bought = pk.date ?? receiptDate;
+    const next: PantryItem = { ...base, lastBought: !base.lastBought || base.lastBought < bought ? bought : base.lastBought };
     if (pk.count != null) {
       // counted: "12 eggs", "3 cans"; one purchase adds a pack
       const pack = pk.item.pack && pk.item.pack > 1 ? pk.item.pack : 1;
@@ -126,4 +128,32 @@ export function applyPicks(picks: KitchenPick[], pantry: PantryItem[], staples: 
 /** Pantry items a new staple should claim: ones whose names match it and aren't in another staple. */
 export function claimForStaple(st: Staple, pantry: PantryItem[]): PantryItem[] {
   return pantry.filter((p) => !p.archived && !p.stapleId && stapleFor(p.name, [st])?.id === st.id).map((p) => ({ ...p, stapleId: st.id }));
+}
+
+// ---------------- everything you've bought, for filling the pantry from old receipts ----------------
+
+export interface PastItem {
+  item: ReceiptItem; // the most recent time you bought it
+  date: ISODate;
+  trips: number; // how many receipts it's on
+  usual: boolean; // on most of your trips
+}
+
+/** Every grocery item across your receipts that isn't in the pantry yet, most-bought and most recent first. */
+export function pastItems(receipts: Receipt[], pantry: PantryItem[], usualKeys: Set<string> = new Set()): PastItem[] {
+  const by = new Map<string, PastItem & { dates: Set<string> }>();
+  for (const r of [...receipts].sort((a, b) => b.date.localeCompare(a.date))) {
+    for (const it of pickableItems(r)) {
+      const k = it.key || lc(it.name);
+      const cur = by.get(k);
+      if (cur) {
+        if (!cur.dates.has(r.date)) cur.trips++;
+        cur.dates.add(r.date);
+      } else by.set(k, { item: it, date: r.date, trips: 1, usual: usualKeys.has(it.key), dates: new Set([r.date]) });
+    }
+  }
+  return [...by.values()]
+    .filter((x) => !pantry.some((p) => !p.archived && matches(p, x.item.key, x.item.name)))
+    .map(({ item, date, trips, usual }) => ({ item, date, trips, usual }))
+    .sort((a, b) => Number(b.usual) - Number(a.usual) || b.trips - a.trips || b.date.localeCompare(a.date));
 }

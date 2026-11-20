@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react';
 import { Check, Minus, Plus, Trash2 } from 'lucide-react';
 import { Field, Sheet, TextInput, useConfirm, useToast } from '../components';
-import { STAPLE_PRESETS, defaultPicks, isRecent, newStaple, stapleFor, type KitchenPick, type LeftAmount } from '../../core/kitchen';
+import { STAPLE_PRESETS, defaultPicks, isRecent, newStaple, pastItems, stapleFor, type KitchenPick, type LeftAmount } from '../../core/kitchen';
 import { fmtShort } from '../../core/dates';
+import { usd } from '../../core/money';
 import { applyKitchenPicks, deleteStaple, gotForStaple, saveStaple } from '../../data/pantryActions';
 import type { AppData } from '../../data/useData';
 import type { Receipt, Staple } from '../../core/types';
@@ -387,6 +388,115 @@ export function StapleGotSheet({ data, staple, options, onClose }: { data: AppDa
             )}
           </div>
         </Field>
+      </div>
+    </Sheet>
+  );
+}
+
+/**
+ * Fill the pantry from everything on your receipts, however old: things that keep (rice, coffee, sugar)
+ * or haven't been opened yet. Nothing is added unless you say how much is left.
+ */
+export function PastItemsSheet({ data, onClose }: { data: AppData; onClose: () => void }) {
+  const toast = useToast();
+  const usualKeys = useMemo(() => new Set((data.groceries?.usual ?? []).map((u) => u.key)), [data.groceries]);
+  const past = useMemo(() => pastItems(data.receipts, data.pantry, usualKeys), [data.receipts, data.pantry, usualKeys]);
+  const [picks, setPicks] = useState<Map<string, KitchenPick>>(new Map());
+  const [q, setQ] = useState('');
+  const keyOf = (x: (typeof past)[number]) => x.item.key || x.item.name.toLowerCase();
+  const bought = (x: (typeof past)[number]) => (x.item.pack ?? 1) * Math.max(1, x.item.qty || 1);
+  const pickFor = (x: (typeof past)[number]): KitchenPick =>
+    picks.get(keyOf(x)) ?? { item: x.item, left: 'gone', count: bought(x) > 1 ? 0 : null, always: false, stapleId: null, date: x.date };
+  const set = (x: (typeof past)[number], patch: Partial<KitchenPick>) => setPicks(new Map(picks).set(keyOf(x), { ...pickFor(x), ...patch }));
+  const chosen = [...picks.values()].filter((p) => (p.count != null ? p.count > 0 : p.left !== 'gone') || p.always);
+  const shown = past.filter((x) => !q.trim() || x.item.name.toLowerCase().includes(q.trim().toLowerCase()));
+  const usual = shown.filter((x) => x.usual);
+  const rest = shown.filter((x) => !x.usual);
+
+  const row = (x: (typeof past)[number]) => {
+    const p = pickFor(x);
+    return (
+      <div key={keyOf(x)} className="list-item" style={{ flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
+        <div className="grow" style={{ minWidth: 150 }}>
+          <div className="row" style={{ gap: 6, alignItems: 'center' }}>
+            <button className={`staple-star${p.always ? ' on' : ''}`} aria-pressed={p.always} aria-label={`${x.item.name} is a staple`} title="Staple: something you always get" onClick={() => set(x, { always: !p.always })}>
+              {p.always ? '★' : '☆'}
+            </button>
+            <span className="strong small">{x.item.name}</span>
+          </div>
+          <div className="tiny muted" style={{ marginLeft: 30 }}>
+            Last bought {fmtShort(x.date)} · {x.trips} trip{x.trips === 1 ? '' : 's'}
+            {x.item.price > 0 ? ` · ${usd(x.item.price / Math.max(1, x.item.qty || 1))}` : ''}
+          </div>
+        </div>
+        {p.count != null ? (
+          <div className="col" style={{ alignItems: 'flex-end', gap: 2 }}>
+            <div className="stepper" style={{ border: '1px solid var(--line)', borderRadius: 999 }}>
+              <button className="icon-btn" aria-label={`One less ${x.item.name}`} onClick={() => set(x, { count: Math.max(0, (p.count ?? 0) - 1) })}>
+                <Minus size={15} />
+              </button>
+              <span className="num strong small">{p.count}</span>
+              <button className="icon-btn" aria-label={`One more ${x.item.name}`} onClick={() => set(x, { count: (p.count ?? 0) + 1 })}>
+                <Plus size={15} />
+              </button>
+            </div>
+            <span className="tiny muted">left of {bought(x)} last time</span>
+          </div>
+        ) : (
+          <div className="level-pills" role="group" aria-label={`${x.item.name}: how much is left`}>
+            {LEFT.map((l) => (
+              <button key={l.v} className={`level-pill ${PILL[l.v]}${p.left === l.v ? ' on' : ''}`} aria-pressed={p.left === l.v} onClick={() => set(x, { left: l.v })}>
+                {l.label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <Sheet
+      title="Add From Your Receipts"
+      wide
+      onClose={onClose}
+      footer={
+        <>
+          <button className="btn" onClick={onClose}>
+            Cancel
+          </button>
+          <button
+            className="btn primary"
+            disabled={!chosen.length}
+            onClick={async () => {
+              const n = await applyKitchenPicks(chosen, data.today);
+              toast(`${n} item${n === 1 ? '' : 's'} added to your pantry`);
+              onClose();
+            }}
+          >
+            Add {chosen.length || ''} to Pantry
+          </button>
+        </>
+      }
+    >
+      <div className="col gap-l">
+        <p className="small ink2" style={{ margin: 0 }}>
+          Everything on your receipts that isn’t in your pantry yet. Set how much is left of anything you still have (things that keep, or haven’t been opened), and ★ the ones you always get. The rest stays off.
+        </p>
+        {past.length > 8 && <TextInput value={q} onChange={setQ} placeholder="Find an item…" ariaLabel="Find an item" />}
+        {!past.length && <p className="small muted">Everything from your receipts is already in your pantry.</p>}
+        {usual.length > 0 && (
+          <div>
+            <div className="eyebrow">You Get These Most Trips</div>
+            <div className="list">{usual.map(row)}</div>
+          </div>
+        )}
+        {rest.length > 0 && (
+          <div>
+            <div className="eyebrow">{usual.length ? 'Everything Else You’ve Bought' : 'What You’ve Bought'}</div>
+            <div className="list">{rest.map(row)}</div>
+          </div>
+        )}
       </div>
     </Sheet>
   );

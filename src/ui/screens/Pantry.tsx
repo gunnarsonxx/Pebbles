@@ -3,7 +3,7 @@ import { Camera, Check, ListPlus, Minus, Plus, ShoppingCart, Trash2, Sparkles } 
 import type { AppData } from '../../data/useData';
 import { Empty, Field, NumberInput, Segmented, Sheet, TextInput, ToggleRow, useConfirm, useToast } from '../components';
 import { ReceiptSheet } from '../sheets/ReceiptSheet';
-import { StapleGotSheet, StaplePicker, StapleSheet } from '../sheets/KitchenSheets';
+import { PastItemsSheet, StapleGotSheet, StaplePicker, StapleSheet } from '../sheets/KitchenSheets';
 import { stapleStatus } from '../../core/kitchen';
 import { DEPT_LABEL, NON_GROCERY_DEPTS } from '../../core/groceries';
 import { buildList, estimateTrip, LEVEL_LABEL, LEVELS, makePriceOf, newPantryItem, nextLevel, parseQuickAdd, stockOf, type ListLine } from '../../core/pantry';
@@ -185,6 +185,7 @@ function ListRow({ line, onTick, onRemove }: { line: ListLine; onTick: () => voi
 export function PantryView({ data }: { data: AppData }) {
   const toast = useToast();
   const [bulk, setBulk] = useState(false);
+  const [fromReceipts, setFromReceipts] = useState(false);
   const [editing, setEditing] = useState<PantryItem | null>(null);
   const [filter, setFilter] = useState<'all' | 'low'>('all');
   const items = data.pantry.filter((p) => filter === 'all' || stockOf(p) !== 'ok');
@@ -194,7 +195,6 @@ export function PantryView({ data }: { data: AppData }) {
   const groups = new Map<GroceryDept, PantryItem[]>();
   for (const p of others) groups.set(p.dept, [...(groups.get(p.dept) ?? []), p]);
   const lowCount = data.pantry.filter((p) => stockOf(p) !== 'ok').length;
-  const usual = (data.groceries?.usual ?? []).filter((u) => !data.pantry.some((p) => p.key === u.key));
   const [stapleEdit, setStapleEdit] = useState<Staple | 'new' | null>(null);
   const staples = stapleStatus(data.staples, data.pantry);
   const [newStapleName, setNewStapleName] = useState('');
@@ -258,19 +258,14 @@ export function PantryView({ data }: { data: AppData }) {
           <button className="btn primary" onClick={() => setBulk(true)}>
             <ListPlus /> Add What You Have
           </button>
-          {usual.length > 0 && (
-            <button
-              className="btn"
-              onClick={async () => {
-                await savePantryItems(usual.map((u) => newPantryItem(u.name, { key: u.key, dept: u.dept }, data.itemRules)));
-                toast(`Added ${usual.length} items you usually buy`);
-              }}
-            >
+          {data.receipts.length > 0 && (
+            <button className="btn" onClick={() => setFromReceipts(true)}>
               <Sparkles /> From My Receipts
             </button>
           )}
         </div>
         {bulk && <BulkAdd data={data} onClose={() => setBulk(false)} />}
+        {fromReceipts && <PastItemsSheet data={data} onClose={() => setFromReceipts(false)} />}
       </div>
     );
   }
@@ -289,15 +284,9 @@ export function PantryView({ data }: { data: AppData }) {
           />
         </div>
         <div className="row gap-s">
-          {usual.length > 0 && (
-            <button
-              className="btn small"
-              onClick={async () => {
-                await savePantryItems(usual.map((u) => newPantryItem(u.name, { key: u.key, dept: u.dept }, data.itemRules)));
-                toast(`Added ${usual.length} items you usually buy`);
-              }}
-            >
-              <Sparkles /> {usual.length} from receipts
+          {data.receipts.length > 0 && (
+            <button className="btn small" onClick={() => setFromReceipts(true)}>
+              <Sparkles /> From Receipts
             </button>
           )}
           <button className="btn primary small" onClick={() => setBulk(true)}>
@@ -362,6 +351,7 @@ export function PantryView({ data }: { data: AppData }) {
         ))}
       <p className="tiny muted">Receipts ask what’s still in your kitchen before anything goes here. Tap an item to change how it’s tracked or make it a staple.</p>
       {bulk && <BulkAdd data={data} onClose={() => setBulk(false)} />}
+      {fromReceipts && <PastItemsSheet data={data} onClose={() => setFromReceipts(false)} />}
       {editing && <PantryEditor data={data} item={editing} onClose={() => setEditing(null)} />}
       {stapleEdit && <StapleSheet data={data} staple={stapleEdit === 'new' ? null : stapleEdit} onClose={() => setStapleEdit(null)} />}
     </div>
