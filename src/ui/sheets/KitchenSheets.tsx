@@ -16,7 +16,7 @@ const LEFT: { v: LeftAmount; label: string }[] = [
 const PILL: Record<LeftAmount, string> = { gone: 'out', low: 'low', half: 'half', full: 'full' };
 
 /** Pick a staple for an item: yours, a ready-made idea, or a new one you name. */
-export function StaplePicker({ data, value, onChange, label = 'Staple' }: { data: AppData; value: string | null; onChange: (id: string | null, created?: Staple) => void; label?: string }) {
+export function StaplePicker({ data, value, onChange, label = 'Swaps with' }: { data: AppData; value: string | null; onChange: (id: string | null, created?: Staple) => void; label?: string }) {
   const [naming, setNaming] = useState(false);
   const [name, setName] = useState('');
   const presets = STAPLE_PRESETS.filter((p) => !data.staples.some((s) => s.name.toLowerCase() === p.name.toLowerCase()));
@@ -41,14 +41,14 @@ export function StaplePicker({ data, value, onChange, label = 'Staple' }: { data
           onChange(v || null);
         }}
       >
-        <option value="">Not a staple</option>
+        <option value="">Doesn’t swap with anything</option>
         {data.staples.map((s) => (
           <option key={s.id} value={s.id}>
             {s.name}
           </option>
         ))}
         {presets.length > 0 && (
-          <optgroup label="Start a staple">
+          <optgroup label="Swaps with similar things">
             {presets.map((p) => (
               <option key={p.name} value={`preset:${STAPLE_PRESETS.indexOf(p)}`}>
                 {p.name}
@@ -56,7 +56,7 @@ export function StaplePicker({ data, value, onChange, label = 'Staple' }: { data
             ))}
           </optgroup>
         )}
-        <option value="__new">New Staple…</option>
+        <option value="__new">New Swap Group…</option>
       </select>
       {naming && (
         <div className="row" style={{ gap: 6 }}>
@@ -83,9 +83,12 @@ export function StaplePicker({ data, value, onChange, label = 'Staple' }: { data
 /** After a receipt: what from it is still in your kitchen, and how much. Nothing goes in unless you say so. */
 export function KitchenPickSheet({ data, receipt, onClose }: { data: AppData; receipt: Pick<Receipt, 'items' | 'date' | 'store'>; onClose: () => void }) {
   const toast = useToast();
-  const [picks, setPicks] = useState<KitchenPick[]>(() => defaultPicks(receipt, data.today, data.pantry, data.staples));
+  const usualKeys = new Set((data.groceries?.usual ?? []).map((u) => u.key));
+  const [picks, setPicks] = useState<KitchenPick[]>(() => defaultPicks(receipt, data.today, data.pantry, data.staples, usualKeys));
   const recent = isRecent(receipt.date, data.today);
-  const kept = picks.filter((p) => p.left !== 'gone').length;
+  const kept = picks.filter((p) => p.left !== 'gone' || p.always).length;
+  // the swap-group picker only shows where it could matter
+  const groupable = (name: string) => data.staples.length > 0 || !!stapleFor(name, STAPLE_PRESETS.map((x) => newStaple(x.name, x.keywords)));
   const set = (i: number, patch: Partial<KitchenPick>) => setPicks(picks.map((p, k) => (k === i ? { ...p, ...patch } : p)));
   const all = (left: LeftAmount) => setPicks(picks.map((p) => ({ ...p, left })));
 
@@ -118,7 +121,7 @@ export function KitchenPickSheet({ data, receipt, onClose }: { data: AppData; re
           {recent
             ? 'Everything starts as Full. Change anything you’ve already used up.'
             : `This receipt is from ${fmtShort(receipt.date)}. Its prices are saved. Pick only what’s still in your kitchen and about how much is left.`}{' '}
-          Mark things like pizza rolls as a staple, like “Air Fryer Frozen Food”, and your list asks for that kind of food instead of the exact product.
+          Tap ★ on the things you always get (milk, bread, coffee) to make them staples: they stay at the top of your pantry and go on your list as soon as they run low.
         </p>
         <div className="row gap-s">
           <button className="btn ghost small" onClick={() => all('full')}>
@@ -133,8 +136,20 @@ export function KitchenPickSheet({ data, receipt, onClose }: { data: AppData; re
           {picks.map((p, i) => (
             <div key={`${p.item.key}${i}`} className="list-item" style={{ flexWrap: 'wrap', alignItems: 'center', gap: 8, opacity: p.left === 'gone' ? 0.7 : 1 }}>
               <div className="grow" style={{ minWidth: 140 }}>
-                <div className="strong small">{p.item.name}</div>
-                {p.left !== 'gone' && (
+                <div className="row" style={{ gap: 6, alignItems: 'center' }}>
+                  <button
+                    className={`staple-star${p.always ? ' on' : ''}`}
+                    aria-pressed={p.always}
+                    aria-label={`${p.item.name} is a staple`}
+                    title="Staple: something you always get"
+                    onClick={() => set(i, { always: !p.always })}
+                  >
+                    {p.always ? '★' : '☆'}
+                  </button>
+                  <span className="strong small">{p.item.name}</span>
+                  {p.always && <span className="tiny muted">Staple</span>}
+                </div>
+                {p.left !== 'gone' && groupable(p.item.name) && (
                   <div style={{ marginTop: 6, maxWidth: 260 }}>
                     <StaplePicker
                       data={data}
@@ -162,7 +177,7 @@ export function KitchenPickSheet({ data, receipt, onClose }: { data: AppData; re
   );
 }
 
-/** Make or edit a staple: a kind of food you always want, whatever the exact product. */
+/** Make or edit a swap group: similar things where any one will do (pizza rolls, popcorn chicken…). */
 export function StapleSheet({ data, staple, onClose }: { data: AppData; staple: Staple | null; onClose: () => void }) {
   const toast = useToast();
   const ask = useConfirm();
@@ -172,7 +187,7 @@ export function StapleSheet({ data, staple, onClose }: { data: AppData; staple: 
   const presets = STAPLE_PRESETS.filter((p) => !data.staples.some((x) => x.name.toLowerCase() === p.name.toLowerCase()));
   return (
     <Sheet
-      title={staple ? staple.name : 'New Staple'}
+      title={staple ? staple.name : 'New Swap Group'}
       onClose={onClose}
       footer={
         <>
@@ -243,7 +258,7 @@ export function StapleSheet({ data, staple, onClose }: { data: AppData; staple: 
           </Field>
         )}
         <p className="tiny muted" style={{ margin: 0 }}>
-          When everything in a staple runs out, your list says “{s.name || 'Air Fryer Frozen Food'}” with what you got before, so you can grab whatever looks good.
+          When everything in the group runs out, your list says “{s.name || 'Air Fryer Frozen Food'}” with what you got before, so you can grab whatever looks good.
         </p>
       </div>
     </Sheet>

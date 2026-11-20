@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { Camera, Plus, Trash2, TriangleAlert } from 'lucide-react';
 import { Field, NumberInput, Sheet, useToast } from '../components';
 import { parseReceipt, type ParsedReceipt } from '../../core/receipts';
-import { cleanItemName, deptFor, DEPT_LABEL } from '../../core/groceries';
+import { cleanItemName, deptFor, DEPT_LABEL, plainNameFor } from '../../core/groceries';
 import { round2, usd } from '../../core/money';
 import { rememberItem, saveReceipt } from '../../data/groceryActions';
 import { linesFromFile } from '../ocr';
@@ -65,7 +65,13 @@ export function ReceiptSheet({ data, existing, onClose }: { data: AppData; exist
               disabled={!r.items.length}
               onClick={async () => {
                 const { warnings: _w, itemsTotal: _t, ...rest } = r;
-                const items = r.items.map(({ lowConfidence: _l, ...i }) => i);
+                // plain names for everyday things, however they were typed or read ("KS CM VIT D" → Milk)
+                const items = r.items.map(({ lowConfidence: _l, ...i }) => {
+                  const plain = plainNameFor(i.name);
+                  if (plain) return { ...i, name: plain.name, key: plain.key };
+                  // typed in all caps, like a receipt: give it normal capitals
+                  return /[A-Z]/.test(i.name) && i.name === i.name.toUpperCase() ? { ...i, name: cleanItemName(i.name).name } : i;
+                });
                 await saveReceipt({ ...rest, store: rest.store.trim() || 'Store', items, source, id: existing?.id }, false);
                 toast(`Saved ${r.items.length} items from ${r.store}${r.fuel ? ` · gas ${'$' + r.fuel.perGallon.toFixed(3)}/gal logged` : ''}`);
                 // a new grocery receipt: ask what's still in the kitchen

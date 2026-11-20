@@ -122,10 +122,10 @@ describe('receipts', () => {
     expect(r.date).toBe('2026-11-14');
     expect(r.items.map((i) => [i.name, i.price])).toEqual([
       ['Milk', 3.49],
-      ['Organic Bananas', 0.86],
-      ['Large Eggs', 4.29],
+      ['Bananas', 0.86],
+      ['Eggs', 4.29],
       ['Doritos Nacho Cheese', 5.49],
-      ['Boneless Skinless Chicken Breast', 9.87],
+      ['Chicken Breast', 9.87],
     ]);
     expect(r.subtotal).toBe(24);
     expect(r.tax).toBe(0.31);
@@ -152,13 +152,13 @@ TOTAL 7.84
 11/16/26 12:01:15
 `));
     expect(r.store).toBe('Walmart');
-    expect(r.items.map((i) => i.name)).toEqual(['Whole Milk', 'Bananas', 'Large Eggs']);
+    expect(r.items.map((i) => i.name)).toEqual(['Milk', 'Bananas', 'Eggs']);
     expect(r.items[0].price).toBe(3.48);
     expect(r.warnings.find((w) => w.includes('add up'))).toBeUndefined();
   });
 
   it('cleans names and departments', () => {
-    expect(cleanItemName('GV 2% WHL MLK 128 OZ')).toEqual({ name: 'Whole Milk', key: 'wholemilk' });
+    expect(cleanItemName('GV 2% WHL MLK 128 OZ')).toEqual({ name: 'Milk', key: 'milk' });
     expect(deptFor('Toilet Paper', 'toiletpaper')).toBe('household');
     expect(deptFor('Coors Light', 'coorslight')).toBe('alcohol');
     expect(deptFor('Mystery', 'mystery', [{ id: 'mystery', name: 'Mystery', dept: 'pantry' }])).toBe('pantry');
@@ -181,7 +181,7 @@ TOTAL 7.84
     const receipts = [mk('2026-10-20'), mk('2026-10-27', ['MONSTER ENERGY', 3.29]), mk('2026-11-03'), mk('2026-11-10', ['OREO COOKIES', 4.99])];
     const s = analyzeGroceries(receipts, '2026-11-19')!;
     expect(s.trips).toBe(4);
-    expect(s.usual.map((u) => u.name)).toContain('Large Eggs');
+    expect(s.usual.map((u) => u.name)).toContain('Eggs');
     expect(s.usualTrip).toBeCloseTo(3.49 + 0.86 + 4.29 + 9.87, 2);
     expect(s.extrasPerTrip).toBeCloseTo((3.29 + 4.99) / 4, 2);
     expect(s.taxRate).toBeGreaterThan(0.01);
@@ -478,5 +478,29 @@ describe('pay stub columns: this period vs. year to date', async () => {
       [58.5, 22.5, 1316.25],
       [14.5, 24.5, 355.25],
     ]);
+  });
+});
+
+describe('plain item names', () => {
+  it('reads store-brand lines as what they are', async () => {
+    const { cleanItemName } = await import('./groceries');
+    const cases: [string, string][] = [
+      ['KING SOOPERS CITY MARKET VITAMIN D', 'Milk'],
+      ['KS CM VIT D MILK GAL', 'Milk'],
+      ['KRO 2% RF MILK HALF GAL', 'Milk'],
+      ['PRIV SEL SOURDOUGH BREAD', 'Bread'],
+      ['KS WHITE BRD 20OZ', 'Bread'],
+      ['KS LG GRADE A EGGS 12CT', 'Eggs'],
+      ['FOLGERS CLASSIC ROAST', 'Coffee'],
+      ['COFFEE MATE CREAMER', 'Coffee Creamer'],
+      ['TOTINOS PIZZA ROLLS 40CT', 'Pizza Rolls'],
+      ['TYSON POPCORN CHICKEN', 'Popcorn Chicken'],
+      ['KS SHRD CHEDDAR CHS', 'Shredded Cheese'],
+      ['PEANUT BUTTER CREAMY', 'Peanut Butter'],
+      ['DORITOS NACHO CHEESE', 'Doritos Nacho Cheese'],
+      ['MILK CHOCOLATE BAR', 'Milk Chocolate Bar'],
+      ['EGG ROLLS', 'Egg Rolls'],
+    ];
+    for (const [raw, want] of cases) expect([raw, cleanItemName(raw).name]).toEqual([raw, want]);
   });
 });

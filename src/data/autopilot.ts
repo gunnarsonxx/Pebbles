@@ -3,6 +3,7 @@
 import { store } from './store';
 import { emergencyGoalUpdate } from '../core/emergency';
 import { looksVariable } from '../core/billPrompt';
+import { plainNameFor } from '../core/groceries';
 import { computeData } from './useData';
 import { today } from '../core/dates';
 import { dedupePaypal } from '../core/paypal';
@@ -65,6 +66,27 @@ export async function runAutopilot(): Promise<void> {
       const util = d.bills.filter((b) => b.active && !b.amountReminder && looksVariable(b));
       if (util.length) await store.putMany('bills', util.map((b) => ({ ...b, amountReminder: { day: 9, time: '10:00' } })));
       await store.setMeta('billPromptSetup:v1', true);
+    }
+
+    // 0b) receipts and pantry items saved before plain names: "King Soopers City Market Vitamin D" → Milk
+    if (!(await store.getMeta<boolean>('baseNames:v1'))) {
+      const recs = store.list('receipts').flatMap((r) => {
+        let changed = false;
+        const items = r.items.map((i) => {
+          const c = plainNameFor(i.name);
+          if (!c) return i;
+          changed = true;
+          return { ...i, name: c.name, key: c.key };
+        });
+        return changed ? [{ ...r, items }] : [];
+      });
+      if (recs.length) await store.putMany('receipts', recs);
+      const pan = store.list('pantry').flatMap((p) => {
+        const c = plainNameFor(p.name);
+        return c ? [{ ...p, name: c.name, key: c.key }] : [];
+      });
+      if (pan.length) await store.putMany('pantry', pan);
+      await store.setMeta('baseNames:v1', true);
     }
 
     // 0) a PayPal purchase shows up at PayPal and at your bank: count it once

@@ -33,7 +33,7 @@ export const NON_GROCERY_DEPTS: GroceryDept[] = ['fuel', 'tobacco', 'lottery', '
 
 // Receipt abbreviations (Kroger/King Soopers, Walmart, Safeway...)
 const ABBR: [RegExp, string][] = [
-  [/\bKRO\b|\bKROGER\b|\bKS\b|\bSIMTRU\b|\bSIMPLE TRUTH\b|\bPRIV SEL\b|\bP\$\$T\b|\bGV\b|\bGREAT VALUE\b|\bMKTSD\b|\bMARKETSIDE\b|\bEQUATE\b|\bSIGNATURE\b|\bSIG\b|\bO ORGANICS\b|\bHT\b|\bCB\b/g, ''],
+  [/\bKING SOOPERS?\b|\bCITY MARKET\b|\bKINGS? SOOP\b|\bKSCM\b|\bCM\b|\bKRO\b|\bKROGER\b|\bKS\b|\bLUCERNE\b|\bKIRKLAND\b|\bGOOD ?& ?GATHER\b|\bMARKET PANTRY\b|\bSIGNATURE SELECT\b|\bPRIVATE SELECTION\b|\bCOMFORT ZONE\b|\bHOME CHEF\b|\bSMART WAY\b|\bBIG K\b|\bSIMTRU\b|\bSIMPLE TRUTH\b|\bPRIV SEL\b|\bP\$\$T\b|\bGV\b|\bGREAT VALUE\b|\bMKTSD\b|\bMARKETSIDE\b|\bEQUATE\b|\bSIGNATURE\b|\bSIG\b|\bO ORGANICS\b|\bHT\b|\bCB\b/g, ''],
   [/\bORG\b/g, 'ORGANIC'],
   [/\bWHL\b|\bWHLE\b/g, 'WHOLE'],
   [/\bMLK\b|\bMILKK\b/g, 'MILK'],
@@ -82,6 +82,70 @@ const ABBR: [RegExp, string][] = [
   [/\bBCN\b/g, 'BACON'],
 ];
 
+// What it is, in plain words: a gallon of "KS CM VIT D MILK" is just Milk. First match wins.
+const BASE: [RegExp, string][] = [
+  [/CHOC(OLATE)? MILK/, 'Chocolate Milk'],
+  [/ALMOND ?MILK|ALMOND BEVERAGE/, 'Almond Milk'],
+  [/OAT ?MILK|OATMILK/, 'Oat Milk'],
+  [/COCONUT MILK/, 'Coconut Milk'],
+  [/\bMILK\b(?! CHOC| BONE)|\bVIT(AMIN)? ?D\b|\b[12] ?% ?(RF|LF|REDUCED|LOW)?\b(?!.*(YOGURT|CHEESE|COTTAGE))|\bSKIM\b|FAT FREE MILK|\bHALF GALLON\b/, 'Milk'],
+  [/HALF ?& ?HALF|HALF N HALF/, 'Half & Half'],
+  [/CREAMER/, 'Coffee Creamer'],
+  [/COFFEE|FOLGERS|MAXWELL|STARBUCKS|DUNKIN|K ?CUP/, 'Coffee'],
+  [/CREAM CHEESE/, 'Cream Cheese'],
+  [/SOUR CREAM/, 'Sour Cream'],
+  [/COTTAGE/, 'Cottage Cheese'],
+  [/\bEGGS?\b(?! ?ROLL| ?NOODLE|PLANT| ?NOG)|GRADE A (LARGE|LG)|\bLARGE (WHITE|BROWN)\b/, 'Eggs'],
+  [/PEANUT BUTTER|\bPEANUT\b.*\b(CREAMY|CRUNCHY)\b/, 'Peanut Butter'],
+  [/\bBUTTER\b(?!MILK)|\bMARGARINE\b/, 'Butter'],
+  [/SHREDDED.*CHEESE|CHEESE.*SHREDDED|MEXICAN BLEND|FINELY SHRED/, 'Shredded Cheese'],
+  [/SLICED.*CHEESE|CHEESE.*SLICE|\bAMERICAN SINGLES?\b|\bSINGLES\b/, 'Sliced Cheese'],
+  [/\bYOGURT\b|\bYOPLAIT\b|\bCHOBANI\b/, 'Yogurt'],
+  [/HAMBURGER BUN|HOT DOG BUN|\bBUNS\b/, 'Buns'],
+  [/\bBAGELS?\b(?! BITE)/, 'Bagels'],
+  [/ENGLISH MUFFIN/, 'English Muffins'],
+  [/\bTORTILLAS?\b(?! CHIP)/, 'Tortillas'],
+  [/\bBREAD\b(?! CRUMB)|\bSANDWICH (WHITE|WHEAT)\b|\bTEXAS TOAST\b|\bWHITE BRD\b|\bWHEAT\b(?! THIN)/, 'Bread'],
+  [/PIZZA ROLL/, 'Pizza Rolls'],
+  [/POPCORN CHICKEN/, 'Popcorn Chicken'],
+  [/NUGGET/, 'Chicken Nuggets'],
+  [/CHICKEN (BREAST|TENDERLOIN)|BONELESS SKINLESS/, 'Chicken Breast'],
+  [/CHICKEN THIGH/, 'Chicken Thighs'],
+  [/CHICKEN WING|\bWINGS\b/, 'Chicken Wings'],
+  [/GROUND BEEF|\bHAMBURGER\b|GROUND CHUCK|\d\d ?% ?LEAN/, 'Ground Beef'],
+  [/GROUND TURKEY/, 'Ground Turkey'],
+  [/\bBACON\b/, 'Bacon'],
+  [/HOT DOG|\bFRANKS?\b|WIENER/, 'Hot Dogs'],
+  [/LUNCH ?MEAT|DELI (TURKEY|HAM)|SLICED (TURKEY|HAM)/, 'Lunch Meat'],
+  [/\bBANANAS?\b/, 'Bananas'],
+  [/\bAPPLES?\b(?! JUICE| SAUCE)/, 'Apples'],
+  [/STRAWBERR/, 'Strawberries'],
+  [/BLUEBERR/, 'Blueberries'],
+  [/\bGRAPES?\b/, 'Grapes'],
+  [/\bPOTATO(ES)?\b(?! CHIP)/, 'Potatoes'],
+  [/\bONIONS?\b(?! RING)/, 'Onions'],
+  [/BROCCOLI/, 'Broccoli'],
+  [/\bLETTUCE\b|\bROMAINE\b|SALAD KIT|SALAD MIX/, 'Salad'],
+  [/ORANGE JUICE/, 'Orange Juice'],
+  [/\bRICE\b(?! KRISP| CAKE| A RONI)/, 'Rice'],
+  [/MAC(ARONI)? ?(&|AND|N) ?CHEESE|KRAFT DINNER/, 'Mac & Cheese'],
+  [/SPAGHETTI SAUCE|PASTA SAUCE|MARINARA/, 'Pasta Sauce'],
+  [/\bSPAGHETTI\b|\bPENNE\b|\bROTINI\b|\bPASTA\b|\bELBOW/, 'Pasta'],
+  [/\bRAMEN\b|TOP RAMEN|MARUCHAN/, 'Ramen'],
+  [/\bCEREAL\b|CHEERIOS|FROSTED FLAKES|CINNAMON TOAST CRUNCH/, 'Cereal'],
+  [/\bOATS\b|OATMEAL/, 'Oatmeal'],
+  [/TOILET PAPER/, 'Toilet Paper'],
+  [/PAPER TOWEL/, 'Paper Towels'],
+  [/BOTTLED WATER|SPRING WATER|PURIFIED WATER|DRINKING WATER/, 'Water'],
+];
+
+/** The plain name for a cleaned receipt line, or null to keep it as is. */
+export function baseName(upper: string): string | null {
+  const s = ` ${upper.toUpperCase()} `;
+  for (const [re, name] of BASE) if (re.test(s)) return name;
+  return null;
+}
+
 export function cleanItemName(raw: string): { name: string; key: string } {
   let s = ` ${raw.toUpperCase()} `;
   s = s
@@ -92,6 +156,11 @@ export function cleanItemName(raw: string): { name: string; key: string } {
   for (const [re, rep] of ABBR) s = s.replace(re, rep);
   s = s.replace(/\s+/g, ' ').trim();
   if (!s) s = raw.trim().toUpperCase();
+  // plain names for the everyday stuff (milk, bread, eggs, coffee…)
+  const base = baseName(s);
+  if (base) return { name: base, key: base.toLowerCase().replace(/[^a-z]/g, '').slice(0, 24) };
+  // otherwise drop filler words a receipt adds
+  s = s.replace(/\b(GRADE A|ORIGINAL|CLASSIC|FAMILY SIZE|VALUE PACK|FAMILY PACK|REGULAR|FRESH)\b/g, ' ').replace(/\s+/g, ' ').trim() || s;
   const name = s
     .toLowerCase()
     .split(' ')
@@ -283,4 +352,10 @@ export function receiptSpendByDept(receipts: Receipt[], month: string): { dept: 
     }
   }
   return [...map.entries()].map(([dept, v]) => ({ dept, total: round2(v.total), stores: [...v.stores] })).sort((a, b) => b.total - a.total);
+}
+
+/** A plain name for something already saved ("King Soopers City Market Vitamin D" → Milk), or null if it's fine. */
+export function plainNameFor(name: string): { name: string; key: string } | null {
+  const c = cleanItemName(name);
+  return baseName(c.name) && c.name !== name ? c : null;
 }

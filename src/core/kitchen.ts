@@ -13,21 +13,12 @@ export interface StaplePreset {
   keywords: string[];
 }
 
-/** Ideas to start from; you can rename them or make your own. */
+/** A ready-made group idea; you can make your own. */
 export const STAPLE_PRESETS: StaplePreset[] = [
   {
     name: 'Air Fryer Frozen Food',
     keywords: ['pizza roll', 'popcorn chicken', 'nugget', 'chicken tender', 'chicken strip', 'tater tot', 'fries', 'egg roll', 'taquito', 'mozzarella stick', 'corn dog', 'hot pocket', 'wings', 'fish stick', 'bagel bite', 'pizza bite', 'jalapeno popper', 'onion ring', 'chimichanga', 'pot sticker', 'potsticker', 'dumpling'],
   },
-  { name: 'Frozen Meals', keywords: ['frozen meal', 'frozen dinner', 'bowl', 'lean cuisine', 'banquet', 'marie callender', 'stouffer', 'hungry man', 'frozen pizza', 'digiorno', 'totino', 'red baron', 'burrito'] },
-  { name: 'Meat & Protein', keywords: ['chicken breast', 'chicken thigh', 'ground beef', 'ground turkey', 'steak', 'pork chop', 'sausage', 'bacon', 'ham', 'tuna', 'salmon', 'shrimp', 'deli turkey', 'lunch meat'] },
-  { name: 'Breakfast', keywords: ['cereal', 'oatmeal', 'oats', 'waffle', 'pancake', 'bagel', 'pop tart', 'granola', 'breakfast sandwich'] },
-  { name: 'Bread & Tortillas', keywords: ['bread', 'tortilla', 'bun', 'roll', 'english muffin', 'pita'] },
-  { name: 'Rice, Pasta & Noodles', keywords: ['rice', 'pasta', 'spaghetti', 'penne', 'macaroni', 'noodle', 'ramen', 'mac and cheese', 'mac & cheese'] },
-  { name: 'Snacks', keywords: ['chips', 'crackers', 'pretzel', 'popcorn', 'granola bar', 'cookies', 'goldfish', 'cheez it', 'trail mix', 'jerky'] },
-  { name: 'Drinks', keywords: ['soda', 'coke', 'pepsi', 'sprite', 'juice', 'energy drink', 'monster', 'red bull', 'gatorade', 'sparkling water', 'coffee', 'tea'] },
-  { name: 'Fruit', keywords: ['apple', 'banana', 'orange', 'grape', 'strawberr', 'blueberr', 'clementine', 'mango', 'pineapple', 'peach', 'pear'] },
-  { name: 'Veggies', keywords: ['broccoli', 'carrot', 'lettuce', 'salad', 'spinach', 'pepper', 'onion', 'potato', 'green bean', 'corn', 'mixed vegetable', 'frozen vegetable', 'cucumber', 'tomato'] },
 ];
 
 const lc = (s: string) => s.toLowerCase();
@@ -66,7 +57,8 @@ export type LeftAmount = 'gone' | 'low' | 'half' | 'full';
 export interface KitchenPick {
   item: ReceiptItem;
   left: LeftAmount;
-  stapleId: string | null;
+  always: boolean; // a staple: you always get it
+  stapleId: string | null; // swaps with similar things (a group)
 }
 
 /** One line per product (the same thing bought twice is one pick), groceries only. */
@@ -84,11 +76,11 @@ export function pickableItems(r: Pick<Receipt, 'items'>): ReceiptItem[] {
 /** A receipt from the last few days is probably all still there; an older one, you pick. */
 export const isRecent = (date: ISODate, today: ISODate) => diffDays(today, date) <= 3;
 
-export function defaultPicks(r: Pick<Receipt, 'items' | 'date'>, today: ISODate, pantry: PantryItem[], staples: Staple[]): KitchenPick[] {
+export function defaultPicks(r: Pick<Receipt, 'items' | 'date'>, today: ISODate, pantry: PantryItem[], staples: Staple[], usualKeys: Set<string> = new Set()): KitchenPick[] {
   const recent = isRecent(r.date, today);
   return pickableItems(r).map((item) => {
     const p = pantry.find((x) => !x.archived && matches(x, item.key, item.name));
-    return { item, left: recent ? 'full' : 'gone', stapleId: p?.stapleId ?? stapleFor(item.name, staples)?.id ?? null };
+    return { item, left: recent ? 'full' : 'gone', always: p ? !!p.always : usualKeys.has(item.key), stapleId: p?.stapleId ?? stapleFor(item.name, staples)?.id ?? null };
   });
 }
 
@@ -99,12 +91,14 @@ export function applyPicks(picks: KitchenPick[], pantry: PantryItem[], staples: 
   const outPantry: PantryItem[] = [];
   const outStaples = new Map<string, Staple>();
   for (const pk of picks) {
-    if (pk.left === 'gone') continue;
+    // used up: skip it, unless it's a staple (then it goes in as Out, so your list asks for it)
+    if (pk.left === 'gone' && !pk.always) continue;
     const existing = pantry.find((x) => !x.archived && matches(x, pk.item.key, pk.item.name));
     const base = existing ?? newPantryItem(pk.item.name, { key: pk.item.key, dept: pk.item.dept }, rules);
     const next: PantryItem = { ...base, lastBought: !base.lastBought || base.lastBought < receiptDate ? receiptDate : base.lastBought };
-    if (next.mode === 'level') next.level = pk.left;
-    else next.qty = round2(Math.max(next.perBuy, 1) * FRACTION[pk.left]);
+    if (next.mode === 'level') next.level = pk.left === 'gone' ? 'out' : pk.left;
+    else next.qty = pk.left === 'gone' ? 0 : round2(Math.max(next.perBuy, 1) * FRACTION[pk.left]);
+    next.always = pk.always;
     if (pk.stapleId) {
       next.stapleId = pk.stapleId;
       const st = outStaples.get(pk.stapleId) ?? staples.find((s) => s.id === pk.stapleId);

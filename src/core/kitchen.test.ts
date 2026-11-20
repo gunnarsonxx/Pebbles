@@ -16,14 +16,17 @@ describe('receipts only fill the pantry with what you pick', () => {
     expect(defaultPicks(receipt('2026-11-19'), '2026-11-20', [], []).map((p) => p.item.name)).toEqual(['Pizza Rolls', 'Popcorn Chicken', 'Milk', 'Rice']);
   });
   it('adds only picked items, with how much is left, and files them under a staple', () => {
-    const picks = defaultPicks(receipt('2026-10-02'), '2026-11-20', [], [airFryer]);
+    const picks = defaultPicks(receipt('2026-10-02'), '2026-11-20', [], [airFryer], new Set(['milk']));
+    expect(picks.find((p) => p.item.name === 'Milk')?.always).toBe(true); // bought most trips: a staple
     expect(picks.find((p) => p.item.name === 'Pizza Rolls')?.stapleId).toBe(airFryer.id); // guessed from the staple
     picks[0].left = 'half'; // pizza rolls
     picks[3].left = 'low'; // rice
     const res = applyPicks(picks, [], [airFryer], '2026-10-02');
-    expect(res.pantry.map((p) => [p.name, p.level, p.stapleId ?? null])).toEqual([
-      ['Pizza Rolls', 'half', airFryer.id],
-      ['Rice', 'low', null],
+    // milk is gone but it's a staple: it goes in as Out so the list asks for it
+    expect(res.pantry.map((p) => [p.name, p.level, p.stapleId ?? null, !!p.always])).toEqual([
+      ['Pizza Rolls', 'half', airFryer.id, false],
+      ['Milk', 'out', null, true],
+      ['Rice', 'low', null, false],
     ]);
     expect(res.staples[0].examples).toEqual(['Pizza Rolls']);
   });

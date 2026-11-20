@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Camera, Check, ListPlus, Minus, Plus, ShoppingCart, Trash2, Sparkles } from 'lucide-react';
 import type { AppData } from '../../data/useData';
-import { Empty, Field, NumberInput, Segmented, Sheet, TextInput, useConfirm, useToast } from '../components';
+import { Empty, Field, NumberInput, Segmented, Sheet, TextInput, ToggleRow, useConfirm, useToast } from '../components';
 import { ReceiptSheet } from '../sheets/ReceiptSheet';
 import { StapleGotSheet, StaplePicker, StapleSheet } from '../sheets/KitchenSheets';
 import { stapleStatus } from '../../core/kitchen';
@@ -166,7 +166,7 @@ function ListRow({ line, onTick, onRemove }: { line: ListLine; onTick: () => voi
           <div className="tiny ink2">Any of: {line.staple.options.slice(0, 4).join(', ')}{line.staple.options.length > 4 ? '…' : ''}, or something new</div>
         )}
         <div className="tiny muted">
-          {line.staple ? 'Staple · ' : ''}
+          {line.always ? '★ Staple · ' : ''}
           {line.why === 'out' ? <span className="bad">Out</span> : line.why === 'low' ? <span className="warn">Low</span> : 'Added'}
           {line.price != null ? ` · ${usd(line.price)} ${line.priceFrom ? `· ${line.priceFrom}` : ''}` : ''}
         </div>
@@ -188,12 +188,59 @@ export function PantryView({ data }: { data: AppData }) {
   const [editing, setEditing] = useState<PantryItem | null>(null);
   const [filter, setFilter] = useState<'all' | 'low'>('all');
   const items = data.pantry.filter((p) => filter === 'all' || stockOf(p) !== 'ok');
+  // staples sit on their own at the top; everything else by aisle
+  const always = items.filter((p) => p.always).sort((a, b) => a.name.localeCompare(b.name));
+  const others = items.filter((p) => !p.always);
   const groups = new Map<GroceryDept, PantryItem[]>();
-  for (const p of items) groups.set(p.dept, [...(groups.get(p.dept) ?? []), p]);
+  for (const p of others) groups.set(p.dept, [...(groups.get(p.dept) ?? []), p]);
   const lowCount = data.pantry.filter((p) => stockOf(p) !== 'ok').length;
   const usual = (data.groceries?.usual ?? []).filter((u) => !data.pantry.some((p) => p.key === u.key));
   const [stapleEdit, setStapleEdit] = useState<Staple | 'new' | null>(null);
   const staples = stapleStatus(data.staples, data.pantry);
+  const [newStapleName, setNewStapleName] = useState('');
+  const suggest = (data.groceries?.usual ?? []).filter((u) => !data.pantry.some((p) => p.always && (p.key === u.key || p.name.toLowerCase() === u.name.toLowerCase())));
+  const addStaple = async (name: string, key?: string) => {
+    const clean = name.trim();
+    if (!clean) return;
+    const existing = data.pantry.find((p) => (key && p.key === key) || p.name.toLowerCase() === clean.toLowerCase());
+    await savePantryItem(existing ? { ...existing, always: true } : { ...newPantryItem(clean, key ? { key } : {}, data.itemRules), always: true });
+    setNewStapleName('');
+    toast(`${existing?.name ?? clean} is a staple`);
+  };
+
+  const row = (p: PantryItem) => {
+    const st = stockOf(p);
+    return (
+      <div key={p.id} className="list-item pantry-row">
+        <button className="grow pantry-name" onClick={() => setEditing(p)}>
+          <div className="strong small">{p.name}</div>
+          <div className={`tiny ${st === 'out' ? 'bad' : st === 'low' ? 'warn' : 'muted'}`}>
+            {p.mode === 'level' ? LEVEL_LABEL[p.level] : `${num(p.qty)} ${p.unit}`}
+            {p.stapleId ? ` · swaps with ${data.staples.find((x) => x.id === p.stapleId)?.name ?? 'similar'}` : st !== 'ok' ? ' · on your list' : ''}
+          </div>
+        </button>
+        {p.mode === 'level' ? (
+          <div className="level-pills" role="group" aria-label={`${p.name} level`}>
+            {LEVELS.map((l) => (
+              <button key={l} className={`level-pill ${l}${p.level === l ? ' on' : ''}`} onClick={() => void savePantryItem({ ...p, level: l })} aria-pressed={p.level === l}>
+                {LEVEL_LABEL[l]}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div className="stepper">
+            <button className="icon-btn" onClick={() => step(p, -1)} aria-label={`Use some ${p.name}`}>
+              <Minus size={16} />
+            </button>
+            <span className="num strong small">{num(p.qty)}</span>
+            <button className="icon-btn" onClick={() => step(p, 1)} aria-label={`Add ${p.name}`}>
+              <Plus size={16} />
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   const step = (p: PantryItem, dir: 1 | -1) => {
     if (p.mode === 'level') return void savePantryItem({ ...p, level: nextLevel(p.level, dir === 1 ? -1 : 1) });
@@ -259,35 +306,50 @@ export function PantryView({ data }: { data: AppData }) {
         </div>
       </div>
       <div className="card" style={{ padding: '10px 14px' }}>
-        <div className="row between">
-          <div>
-            <div className="eyebrow" style={{ margin: '4px 0' }}>
-              Staples
-            </div>
-            <div className="tiny muted">Kinds of food you always want, whatever the exact product.</div>
-          </div>
-          <button className="btn small" onClick={() => setStapleEdit('new')}>
-            <Plus /> Staple
-          </button>
+        <div className="eyebrow" style={{ margin: '4px 0' }}>
+          Staples
         </div>
-        {staples.length ? (
-          <div className="list mt-s">
+        <div className="tiny muted">What you always get. They go on your list as soon as they run low.</div>
+        {always.length > 0 && <div className="list mt-s">{always.map(row)}</div>}
+        {staples.length > 0 && (
+          <div className="list">
             {staples.map(({ staple, items, stock }) => (
               <button key={staple.id} className="list-item" style={{ width: '100%', textAlign: 'left' }} onClick={() => setStapleEdit(staple)}>
                 <div className="grow">
                   <div className="strong small">{staple.name}</div>
-                  <div className="tiny muted ellipsis">{items.length ? items.map((p) => `${p.name} (${p.mode === 'level' ? LEVEL_LABEL[p.level] : `${num(p.qty)} ${p.unit}`})`).join(' · ') : 'Nothing in it yet'}</div>
+                  <div className="tiny muted ellipsis">Any of: {items.length ? items.map((p) => `${p.name} (${p.mode === 'level' ? LEVEL_LABEL[p.level] : `${num(p.qty)} ${p.unit}`})`).join(' · ') : 'nothing yet'}</div>
                 </div>
                 <span className={`tiny strong ${stock === 'out' ? 'bad' : stock === 'low' ? 'warn' : 'good'}`}>{stock === 'out' ? 'Out' : stock === 'low' ? 'Low' : 'Stocked'}</span>
               </button>
             ))}
           </div>
-        ) : (
-          <p className="tiny muted" style={{ margin: '6px 0 0' }}>
-            Like “Air Fryer Frozen Food”: pizza rolls this week, popcorn chicken the next. When it runs out, your list asks for that kind of food, not one exact product.
-          </p>
         )}
+        <div className="row mt-s" style={{ gap: 6 }}>
+          <div className="grow">
+            <TextInput value={newStapleName} onChange={setNewStapleName} placeholder="Add a staple: milk, bread, coffee…" onEnter={() => void addStaple(newStapleName)} />
+          </div>
+          <button className="btn primary small" disabled={!newStapleName.trim()} onClick={() => void addStaple(newStapleName)} aria-label="Add staple">
+            <Plus />
+          </button>
+        </div>
+        {suggest.length > 0 && (
+          <div className="mt-s">
+            <div className="tiny muted">You get these most trips:</div>
+            <div className="row wrap mt-s" style={{ gap: 6 }}>
+              {suggest.slice(0, 10).map((u) => (
+                <button key={u.key} className="chip" onClick={() => void addStaple(u.name, u.key)}>
+                  ☆ {u.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        <button className="btn ghost small mt-s" onClick={() => setStapleEdit('new')}>
+          <Plus /> Swap Group
+        </button>
+        <span className="tiny muted"> For things where any one will do, like air fryer food.</span>
       </div>
+      {others.length > 0 && <div className="eyebrow" style={{ margin: '4px 2px 0' }}>Everything Else</div>}
       {[...groups.entries()]
         .sort((a, b) => DEPT_LABEL[a[0]].localeCompare(DEPT_LABEL[b[0]]))
         .map(([dept, list]) => (
@@ -295,44 +357,10 @@ export function PantryView({ data }: { data: AppData }) {
             <div className="eyebrow" style={{ margin: '4px 0' }}>
               {DEPT_LABEL[dept]}
             </div>
-            <div className="list">
-              {list.map((p) => {
-                const st = stockOf(p);
-                return (
-                  <div key={p.id} className="list-item pantry-row">
-                    <button className="grow pantry-name" onClick={() => setEditing(p)}>
-                      <div className="strong small">{p.name}</div>
-                      <div className={`tiny ${st === 'out' ? 'bad' : st === 'low' ? 'warn' : 'muted'}`}>
-                        {p.mode === 'level' ? LEVEL_LABEL[p.level] : `${num(p.qty)} ${p.unit}`}
-                        {p.stapleId ? ` · ${data.staples.find((x) => x.id === p.stapleId)?.name ?? 'staple'}` : st !== 'ok' ? ' · on your list' : ''}
-                      </div>
-                    </button>
-                    {p.mode === 'level' ? (
-                      <div className="level-pills" role="group" aria-label={`${p.name} level`}>
-                        {LEVELS.map((l) => (
-                          <button key={l} className={`level-pill ${l}${p.level === l ? ' on' : ''}`} onClick={() => void savePantryItem({ ...p, level: l })} aria-pressed={p.level === l}>
-                            {LEVEL_LABEL[l]}
-                          </button>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="stepper">
-                        <button className="icon-btn" onClick={() => step(p, -1)} aria-label={`Use some ${p.name}`}>
-                          <Minus size={16} />
-                        </button>
-                        <span className="num strong small">{num(p.qty)}</span>
-                        <button className="icon-btn" onClick={() => step(p, 1)} aria-label={`Add ${p.name}`}>
-                          <Plus size={16} />
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+            <div className="list">{list.map(row)}</div>
           </div>
         ))}
-      <p className="tiny muted">Receipts ask what’s still in your kitchen before anything goes here. Tap an item to change how it’s tracked or which staple it counts toward.</p>
+      <p className="tiny muted">Receipts ask what’s still in your kitchen before anything goes here. Tap an item to change how it’s tracked or make it a staple.</p>
       {bulk && <BulkAdd data={data} onClose={() => setBulk(false)} />}
       {editing && <PantryEditor data={data} item={editing} onClose={() => setEditing(null)} />}
       {stapleEdit && <StapleSheet data={data} staple={stapleEdit === 'new' ? null : stapleEdit} onClose={() => setStapleEdit(null)} />}
@@ -462,7 +490,8 @@ function PantryEditor({ data, item, onClose }: { data: AppData; item: PantryItem
             </div>
           </>
         )}
-        <Field label="Staple" hint="Counts toward a kind of food you always want">
+        <ToggleRow title="Staple" hint="Something you always get. It stays at the top and goes on your list as soon as it runs low." on={!!p.always} onChange={(v) => setP({ ...p, always: v })} />
+        <Field label="Swaps With" hint="Optional: any one of a group will do (like air fryer food)">
           <StaplePicker data={data} value={p.stapleId ?? null} onChange={(id) => setP({ ...p, stapleId: id })} />
         </Field>
         <Field label="Aisle">

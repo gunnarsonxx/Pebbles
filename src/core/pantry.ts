@@ -208,6 +208,7 @@ export interface ListLine {
   price: number | null; // best known price for one
   priceFrom: string | null;
   staple?: { staple: Staple; options: string[] } | null; // any of these will do
+  always?: boolean; // one of your staples
 }
 
 /** Your shopping list: out and low pantry items, ones you usually rebuy by now, and anything you added. */
@@ -250,7 +251,7 @@ export function buildList(
     const due = st === 'ok' ? dueSoon(p, receipts, asOf) : null;
     if (st === 'ok' && due == null) continue;
     const pr = priceOf(p.key, p.name);
-    out.push({ id: p.id, name: p.name, key: p.key, why: st === 'ok' ? 'due' : st, qty: 1, pantry: p, shop: null, price: pr?.price ?? null, priceFrom: pr?.from ?? null });
+    out.push({ id: p.id, name: p.name, key: p.key, why: st === 'ok' ? 'due' : st, qty: 1, pantry: p, shop: null, price: pr?.price ?? null, priceFrom: pr?.from ?? null, always: !!p.always });
   }
   for (const s of shop) {
     if (s.done) continue;
@@ -259,7 +260,8 @@ export function buildList(
     out.push({ id: s.id, name: s.name, key: s.key, why: 'added', qty: s.qty, pantry: p, shop: s, price: pr?.price ?? null, priceFrom: pr?.from ?? null });
   }
   const order = { out: 0, low: 1, added: 2, due: 3 };
-  return out.sort((a, b) => order[a.why] - order[b.why] || a.name.localeCompare(b.name));
+  // staples first within out / low
+  return out.sort((a, b) => order[a.why] - order[b.why] || Number(!!b.always) - Number(!!a.always) || a.name.localeCompare(b.name));
 }
 
 /** Best price for one of an item: a King Soopers sale or shelf price, else what you last paid. */

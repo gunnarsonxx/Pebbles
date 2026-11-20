@@ -279,10 +279,11 @@ export interface PantryItem {
   level: 'full' | 'half' | 'low' | 'out'; // level mode
   lastBought: ISODate | null;
   archived?: boolean;
-  stapleId?: string | null; // counts toward a staple, e.g. pizza rolls → "Air Fryer Frozen Food"
+  always?: boolean; // a staple: something you always get (milk, bread, coffee)
+  stapleId?: string | null; // swaps with similar things in a group, e.g. pizza rolls → "Air Fryer Frozen Food"
 }
 
-/** Something you always want on hand, without caring which exact product: "Air Fryer Frozen Food". */
+/** A group of similar things that swap for each other, whichever you grab: "Air Fryer Frozen Food". */
 export interface Staple {
   id: string;
   name: string;

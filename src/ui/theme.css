@@ -1647,6 +1647,18 @@ ol.step-list li.now strong {
   border-color: var(--moss);
   color: var(--moss);
 }
+.staple-star {
+  border: 0;
+  background: none;
+  font-size: 20px;
+  line-height: 1;
+  padding: 2px 4px;
+  color: var(--ink-3);
+  cursor: pointer;
+}
+.staple-star.on {
+  color: var(--citrine, #c99a2e);
+}
 .check-btn.on {
   background: var(--moss);
   border-color: var(--moss);
