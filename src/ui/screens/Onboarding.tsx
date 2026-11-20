@@ -33,7 +33,7 @@ export function Onboarding({ data }: { data: AppData }) {
   const steps = 5;
 
   const finish = async () => {
-    await saveSettings({ ...s, onboarded: true });
+    await saveSettings({ ...s, onboarded: true, tourDone: false });
     if (bedrock) await saveGoal(newGoal({ name: 'Bedrock Fund', isEmergency: true, gem: 'obsidian', priority: 3, target: 3000 }));
     if (goalName.trim() && goalTarget && goalTarget > 0) await saveGoal(newGoal({ name: goalName.trim(), target: goalTarget, gem: 'sapphire', priority: 2 }));
   };

@@ -1920,3 +1920,39 @@ svg.spin {
   color: var(--ink-3);
   pointer-events: none;
 }
+
+/* look-around tour */
+.tour-card {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  bottom: calc(var(--nav-h) + var(--sab) + 12px);
+  z-index: 60;
+  max-width: 440px;
+  margin: 0 auto;
+  padding: 14px 16px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+}
+@media (min-width: 900px) {
+  .tour-card {
+    bottom: 24px;
+    left: auto;
+    right: 24px;
+  }
+}
+.tour-target {
+  position: relative;
+  color: var(--moss-strong) !important;
+  animation: tour-pulse 1.4s ease-in-out infinite;
+  border-radius: 12px;
+}
+@keyframes tour-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--moss) 55%, transparent); }
+  50% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--moss) 0%, transparent); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tour-target { animation: none; outline: 2px solid var(--moss); }
+}

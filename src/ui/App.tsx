@@ -11,6 +11,7 @@ import { SavingsScreen } from './screens/Savings';
 import { GroceriesScreen } from './screens/Groceries';
 import { SettingsScreen, SETTINGS_SECTIONS } from './screens/Settings';
 import { Onboarding } from './screens/Onboarding';
+import { Tour } from './Tour';
 import { onBack, pairEvents } from '../platform/native';
 import { useToast } from './components';
 import { platformKind } from '../platform';
@@ -138,6 +139,7 @@ export function App() {
   return (
     <ToastProvider>
       <BillAmountPrompt data={data} />
+      {data.settings.tourDone === false && <Tour tab={tab} go={(t, sub) => go(t, sub)} />}
       <div className="app">
         <nav className="sidebar" aria-label="Main">
           <div className="brand">

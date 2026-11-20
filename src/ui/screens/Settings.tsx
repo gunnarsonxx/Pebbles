@@ -629,6 +629,9 @@ function DataSection() {
   const fileRef = useRef<HTMLInputElement>(null);
   return (
     <Section title="Backup">
+      <button className="btn small" style={{ alignSelf: 'flex-start' }} onClick={() => void saveSettings((x) => ({ ...x, tourDone: false }))}>
+        Show the Tour Again
+      </button>
       <p className="small ink2">Your computer keeps automatic daily backups. You can also save a copy anywhere you like.</p>
       <div className="row wrap">
         <button

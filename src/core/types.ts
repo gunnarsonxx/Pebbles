@@ -127,6 +127,7 @@ export interface FireSettings {
 export interface Settings {
   id: 'settings';
   onboarded: boolean;
+  tourDone?: boolean; // false = show the look-around tour (set when setup finishes)
   name: string;
   filingStatus: FilingStatus;
   w4: W4Settings;
