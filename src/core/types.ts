@@ -250,6 +250,7 @@ export interface ReceiptItem {
   qty: number; // how many you bought (3 cans)
   dept: GroceryDept;
   lowConfidence?: boolean;
+  desc?: string; // the full name as the store wrote it ("Kroger Classic Blend Medium Roast Ground Coffee, 29 oz")
   pack?: number | null; // how many in one package (a dozen eggs = 12, 6 ct muffins = 6)
   regular?: number | null; // shelf price for one, before the deal
   deal?: Deal | null;
@@ -293,6 +294,7 @@ export interface PantryItem {
   level: 'full' | 'half' | 'low' | 'out'; // level mode
   lastBought: ISODate | null;
   archived?: boolean;
+  desc?: string; // the full product name, from the receipt or barcode ("Folgers Classic Roast Ground Coffee")
   always?: boolean; // a staple: something you always get (milk, bread, coffee)
   stapleId?: string | null; // swaps with similar things in a group, e.g. pizza rolls → "Air Fryer Frozen Food"
 }

@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react';
 import { Check, Minus, Plus, Trash2 } from 'lucide-react';
 import { Field, Sheet, TextInput, useConfirm, useToast } from '../components';
-import { STAPLE_PRESETS, defaultPicks, isRecent, newStaple, pastItems, stapleFor, type KitchenPick, type LeftAmount } from '../../core/kitchen';
+import { STAPLE_PRESETS, defaultPicks, isRecent, newStaple, pickableItems, stapleFor, type KitchenPick, type LeftAmount } from '../../core/kitchen';
+import { cleanItemName, describeItem } from '../../core/groceries';
+import { matches } from '../../core/pantry';
 import { fmtShort } from '../../core/dates';
 import { usd } from '../../core/money';
 import { applyKitchenPicks, deleteStaple, gotForStaple, saveStaple } from '../../data/pantryActions';
@@ -173,8 +175,16 @@ export function KitchenPickSheet({ data, receipt, onClose }: { data: AppData; re
                   >
                     {p.always ? '★' : '☆'}
                   </button>
-                  <span className="strong small">{p.item.name}</span>
-                  {p.always && <span className="tiny muted">Staple</span>}
+                  <input
+                    className="input pick-name"
+                    value={p.item.name}
+                    aria-label="Name in your pantry"
+                    onChange={(e) => set(i, { item: { ...p.item, name: e.target.value, key: cleanItemName(e.target.value).key || p.item.key } })}
+                  />
+                </div>
+                <div className="tiny muted pick-desc">
+                  {describeItem(p.item)}
+                  {p.item.price > 0 ? ` · ${usd(p.item.price)}` : ''}
                 </div>
                 {(p.count != null ? p.count > 0 : p.left !== 'gone') && groupable(p.item.name) && (
                   <div style={{ marginTop: 6, maxWidth: 260 }}>
@@ -393,67 +403,98 @@ export function StapleGotSheet({ data, staple, options, onClose }: { data: AppDa
   );
 }
 
-/**
- * Fill the pantry from everything on your receipts, however old: things that keep (rice, coffee, sugar)
- * or haven't been opened yet. Nothing is added unless you say how much is left.
- */
-export function PastItemsSheet({ data, onClose }: { data: AppData; onClose: () => void }) {
-  const toast = useToast();
-  const usualKeys = useMemo(() => new Set((data.groceries?.usual ?? []).map((u) => u.key)), [data.groceries]);
-  const past = useMemo(() => pastItems(data.receipts, data.pantry, usualKeys), [data.receipts, data.pantry, usualKeys]);
-  const [picks, setPicks] = useState<Map<string, KitchenPick>>(new Map());
-  const [q, setQ] = useState('');
-  const keyOf = (x: (typeof past)[number]) => x.item.key || x.item.name.toLowerCase();
-  const bought = (x: (typeof past)[number]) => (x.item.pack ?? 1) * Math.max(1, x.item.qty || 1);
-  const pickFor = (x: (typeof past)[number]): KitchenPick =>
-    picks.get(keyOf(x)) ?? { item: x.item, left: 'gone', count: bought(x) > 1 ? 0 : null, always: false, stapleId: null, date: x.date };
-  const set = (x: (typeof past)[number], patch: Partial<KitchenPick>) => setPicks(new Map(picks).set(keyOf(x), { ...pickFor(x), ...patch }));
-  const chosen = [...picks.values()].filter((p) => (p.count != null ? p.count > 0 : p.left !== 'gone') || p.always);
-  const shown = past.filter((x) => !q.trim() || x.item.name.toLowerCase().includes(q.trim().toLowerCase()));
-  const usual = shown.filter((x) => x.usual);
-  const rest = shown.filter((x) => !x.usual);
-
-  const row = (x: (typeof past)[number]) => {
-    const p = pickFor(x);
-    return (
-      <div key={keyOf(x)} className="list-item" style={{ flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
-        <div className="grow" style={{ minWidth: 150 }}>
-          <div className="row" style={{ gap: 6, alignItems: 'center' }}>
-            <button className={`staple-star${p.always ? ' on' : ''}`} aria-pressed={p.always} aria-label={`${x.item.name} is a staple`} title="Staple: something you always get" onClick={() => set(x, { always: !p.always })}>
-              {p.always ? '★' : '☆'}
-            </button>
-            <span className="strong small">{x.item.name}</span>
-          </div>
-          <div className="tiny muted" style={{ marginLeft: 30 }}>
-            Last bought {fmtShort(x.date)} · {x.trips} trip{x.trips === 1 ? '' : 's'}
-            {x.item.price > 0 ? ` · ${usd(x.item.price / Math.max(1, x.item.qty || 1))}` : ''}
-          </div>
+/** One picker row: the plain name (editable), the store's full name and price, staple star, and how much is left. */
+export function PickRow({
+  pick,
+  sub,
+  inPantry,
+  onChange,
+}: {
+  pick: KitchenPick;
+  sub?: string;
+  inPantry?: string | null;
+  onChange: (patch: Partial<KitchenPick>) => void;
+}) {
+  const bought = (pick.item.pack ?? 1) * Math.max(1, pick.item.qty || 1);
+  const each = pick.item.price > 0 ? pick.item.price / Math.max(1, pick.item.qty || 1) : null;
+  return (
+    <div className="list-item" style={{ flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
+      <div className="grow" style={{ minWidth: 170 }}>
+        <div className="row" style={{ gap: 6, alignItems: 'center' }}>
+          <button className={`staple-star${pick.always ? ' on' : ''}`} aria-pressed={pick.always} aria-label={`${pick.item.name} is a staple`} title="Staple: something you always get" onClick={() => onChange({ always: !pick.always })}>
+            {pick.always ? '★' : '☆'}
+          </button>
+          <input
+            className="input pick-name"
+            value={pick.item.name}
+            aria-label="Name in your pantry"
+            onChange={(e) => {
+              const name = e.target.value;
+              onChange({ item: { ...pick.item, name, key: cleanItemName(name).key || pick.item.key } });
+            }}
+          />
         </div>
-        {p.count != null ? (
-          <div className="col" style={{ alignItems: 'flex-end', gap: 2 }}>
-            <div className="stepper" style={{ border: '1px solid var(--line)', borderRadius: 999 }}>
-              <button className="icon-btn" aria-label={`One less ${x.item.name}`} onClick={() => set(x, { count: Math.max(0, (p.count ?? 0) - 1) })}>
-                <Minus size={15} />
-              </button>
-              <span className="num strong small">{p.count}</span>
-              <button className="icon-btn" aria-label={`One more ${x.item.name}`} onClick={() => set(x, { count: (p.count ?? 0) + 1 })}>
-                <Plus size={15} />
-              </button>
-            </div>
-            <span className="tiny muted">left of {bought(x)} last time</span>
-          </div>
-        ) : (
-          <div className="level-pills" role="group" aria-label={`${x.item.name}: how much is left`}>
-            {LEFT.map((l) => (
-              <button key={l.v} className={`level-pill ${PILL[l.v]}${p.left === l.v ? ' on' : ''}`} aria-pressed={p.left === l.v} onClick={() => set(x, { left: l.v })}>
-                {l.label}
-              </button>
-            ))}
+        <div className="tiny muted pick-desc" title={describeItem(pick.item)}>
+          {describeItem(pick.item)}
+          {each != null ? ` · ${usd(each)}${pick.item.qty > 1 ? ` each, ${pick.item.qty} bought` : ''}` : pick.item.deal ? ' · free' : ''}
+        </div>
+        {(sub || inPantry) && (
+          <div className="tiny muted" style={{ marginLeft: 30 }}>
+            {sub}
+            {sub && inPantry ? ' · ' : ''}
+            {inPantry ? <span className="good">in your pantry: {inPantry}</span> : null}
           </div>
         )}
       </div>
-    );
+      {pick.count != null ? (
+        <div className="col" style={{ alignItems: 'flex-end', gap: 2 }}>
+          <div className="stepper" style={{ border: '1px solid var(--line)', borderRadius: 999 }}>
+            <button className="icon-btn" aria-label={`One less ${pick.item.name}`} onClick={() => onChange({ count: Math.max(0, (pick.count ?? 0) - 1) })}>
+              <Minus size={15} />
+            </button>
+            <span className="num strong small">{pick.count}</span>
+            <button className="icon-btn" aria-label={`One more ${pick.item.name}`} onClick={() => onChange({ count: (pick.count ?? 0) + 1 })}>
+              <Plus size={15} />
+            </button>
+          </div>
+          <span className="tiny muted">left of {bought} bought</span>
+        </div>
+      ) : (
+        <div className="level-pills" role="group" aria-label={`${pick.item.name}: how much is left`}>
+          {LEFT.map((l) => (
+            <button key={l.v} className={`level-pill ${PILL[l.v]}${pick.left === l.v ? ' on' : ''}`} aria-pressed={pick.left === l.v} onClick={() => onChange({ left: l.v })}>
+              {l.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Fill the pantry from your receipts, however old: things that keep (rice, coffee, sugar) or haven't been
+ * opened yet. Pick a receipt (or see them all, newest first); nothing is added unless you say how much is left.
+ */
+export function PastItemsSheet({ data, onClose, receiptId }: { data: AppData; onClose: () => void; receiptId?: string }) {
+  const toast = useToast();
+  const usualKeys = useMemo(() => new Set((data.groceries?.usual ?? []).map((u) => u.key)), [data.groceries]);
+  const receipts = useMemo(() => [...data.receipts].filter((r) => pickableItems(r).length).sort((a, b) => b.date.localeCompare(a.date) || b.createdAt - a.createdAt), [data.receipts]);
+  const [which, setWhich] = useState<string>(receiptId ?? 'all');
+  const [picks, setPicks] = useState<Map<string, KitchenPick>>(new Map());
+  const [q, setQ] = useState('');
+  const shown = receipts.filter((r) => which === 'all' || r.id === which);
+  const keyOf = (r: Receipt, i: number) => `${r.id}:${i}`;
+  const pickFor = (r: Receipt, i: number, item: Receipt['items'][number]): KitchenPick => {
+    const units = (item.pack ?? 1) * Math.max(1, item.qty || 1);
+    return picks.get(keyOf(r, i)) ?? { item, left: 'gone', count: units > 1 ? 0 : null, always: false, stapleId: null, date: r.date };
   };
+  const chosen = [...picks.values()].filter((p) => (p.count != null ? p.count > 0 : p.left !== 'gone') || p.always);
+  const inPantry = (item: Receipt['items'][number]) => {
+    const p = data.pantry.find((x) => !x.archived && matches(x, item.key, item.name) && (!x.desc || !item.desc || x.desc === describeItem(item)));
+    return p ? (p.mode === 'level' ? p.level : `${p.qty} ${p.unit}`) : null;
+  };
+  const filter = (item: Receipt['items'][number]) => !q.trim() || `${item.name} ${describeItem(item)}`.toLowerCase().includes(q.trim().toLowerCase());
 
   return (
     <Sheet
@@ -481,22 +522,43 @@ export function PastItemsSheet({ data, onClose }: { data: AppData; onClose: () =
     >
       <div className="col gap-l">
         <p className="small ink2" style={{ margin: 0 }}>
-          Everything on your receipts that isn’t in your pantry yet. Set how much is left of anything you still have (things that keep, or haven’t been opened), and ★ the ones you always get. The rest stays off.
+          Set how much is left of anything you still have, and ★ the ones you always get. Under each name is the store’s full name and price, so you can tell similar things apart; rename any
+          of them. Anything you leave at Gone stays off.
         </p>
-        {past.length > 8 && <TextInput value={q} onChange={setQ} placeholder="Find an item…" ariaLabel="Find an item" />}
-        {!past.length && <p className="small muted">Everything from your receipts is already in your pantry.</p>}
-        {usual.length > 0 && (
-          <div>
-            <div className="eyebrow">You Get These Most Trips</div>
-            <div className="list">{usual.map(row)}</div>
-          </div>
-        )}
-        {rest.length > 0 && (
-          <div>
-            <div className="eyebrow">{usual.length ? 'Everything Else You’ve Bought' : 'What You’ve Bought'}</div>
-            <div className="list">{rest.map(row)}</div>
-          </div>
-        )}
+        <select className="input" value={which} onChange={(e) => setWhich(e.target.value)} aria-label="Which receipt">
+          <option value="all">All receipts, newest first ({receipts.length})</option>
+          {receipts.map((r) => (
+            <option key={r.id} value={r.id}>
+              {r.store} · {fmtShort(r.date)} · {pickableItems(r).length} items{r.total != null ? ` · ${usd(r.total)}` : ''}
+            </option>
+          ))}
+        </select>
+        {receipts.reduce((n, r) => n + r.items.length, 0) > 12 && <TextInput value={q} onChange={setQ} placeholder="Find an item…" ariaLabel="Find an item" />}
+        {!receipts.length && <p className="small muted">No grocery receipts yet.</p>}
+        {shown.map((r) => {
+          const items = pickableItems(r)
+            .map((item, i) => ({ item, i }))
+            .filter(({ item }) => filter(item));
+          if (!items.length) return null;
+          return (
+            <div key={r.id}>
+              <div className="eyebrow">
+                {r.store} · {fmtShort(r.date)}
+              </div>
+              <div className="list">
+                {items.map(({ item, i }) => (
+                  <PickRow
+                    key={keyOf(r, i)}
+                    pick={pickFor(r, i, item)}
+                    sub={usualKeys.has(item.key) ? 'you get this most trips' : undefined}
+                    inPantry={inPantry(item)}
+                    onChange={(patch) => setPicks(new Map(picks).set(keyOf(r, i), { ...pickFor(r, i, item), ...patch }))}
+                  />
+                ))}
+              </div>
+            </div>
+          );
+        })}
       </div>
     </Sheet>
   );

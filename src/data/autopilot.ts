@@ -3,7 +3,7 @@
 import { store } from './store';
 import { emergencyGoalUpdate } from '../core/emergency';
 import { looksVariable } from '../core/billPrompt';
-import { plainNameFor } from '../core/groceries';
+import { cleanItemName, fullName, plainNameFor } from '../core/groceries';
 import { knownTotal, paypalPurchases } from '../core/paypal';
 import { computeData } from './useData';
 import { today } from '../core/dates';
@@ -88,6 +88,24 @@ export async function runAutopilot(): Promise<void> {
       });
       if (pan.length) await store.putMany('pantry', pan);
       await store.setMeta('baseNames:v1', true);
+    }
+
+    // 0b2) coffee drinks and pods were read as plain "Coffee" before; and keep each line's full name
+    if (!(await store.getMeta<boolean>('baseNames:v2'))) {
+      const recs = store.list('receipts').flatMap((r) => {
+        let changed = false;
+        const items = r.items.map((i) => {
+          const full = i.desc || fullName(i.raw || '');
+          const again = full ? cleanItemName(full) : null;
+          const fix = i.name === 'Coffee' && again && again.name !== 'Coffee' ? { name: again.name, key: again.key } : {};
+          if (!Object.keys(fix).length && i.desc) return i;
+          changed = true;
+          return { ...i, ...fix, desc: i.desc || full || undefined };
+        });
+        return changed ? [{ ...r, items }] : [];
+      });
+      if (recs.length) await store.putMany('receipts', recs);
+      await store.setMeta('baseNames:v2', true);
     }
 
     // 0) a PayPal purchase shows up at PayPal and at your bank: count it once

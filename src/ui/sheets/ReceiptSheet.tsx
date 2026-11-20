@@ -1,10 +1,10 @@
 import { useRef, useState } from 'react';
 import { Camera, Check, ImagePlus, Minus, Plus, Tag, Trash2, TriangleAlert } from 'lucide-react';
-import { Field, NumberInput, Sheet, useToast } from '../components';
+import { Field, NumberInput, Sheet, useConfirm, useToast } from '../components';
 import { mergeReceipts, parseReceipt, type ParsedReceipt } from '../../core/receipts';
-import { cleanItemName, deptFor, packOf, plainNameFor } from '../../core/groceries';
+import { cleanItemName, deptFor, describeItem, packOf, plainNameFor } from '../../core/groceries';
 import { round2, usd } from '../../core/money';
-import { saveReceipt } from '../../data/groceryActions';
+import { deleteReceipt, saveReceipt } from '../../data/groceryActions';
 import { linesFromFile } from '../ocr';
 import { KitchenPickSheet } from './KitchenSheets';
 import { isRecent, pickableItems } from '../../core/kitchen';
@@ -79,6 +79,7 @@ const continues = (prev: ParsedReceipt | null, next: ParsedReceipt) =>
 /** Scan or edit a grocery receipt. Anything Pebbles wasn't sure about is highlighted to check. */
 export function ReceiptSheet({ data, existing, onClose }: { data: AppData; existing?: Receipt; onClose: () => void }) {
   const toast = useToast();
+  const ask = useConfirm();
   const fileRef = useRef<HTMLInputElement>(null);
   const appendRef = useRef(false);
   const [progress, setProgress] = useState<string | null>(null);
@@ -365,9 +366,31 @@ export function ReceiptSheet({ data, existing, onClose }: { data: AppData; exist
               </button>
             ) : (
               <>
-                <button className="btn" onClick={onClose}>
-                  Cancel
-                </button>
+                {existing ? (
+                  <button
+                    className="btn danger"
+                    onClick={async () => {
+                      if (
+                        await ask({
+                          title: `Delete this ${existing.store} receipt?`,
+                          body: 'Its prices come out of your grocery numbers. Anything you already added to your pantry from it stays.',
+                          confirm: 'Delete',
+                          danger: true,
+                        })
+                      ) {
+                        await deleteReceipt(existing.id);
+                        toast('Receipt deleted');
+                        onClose();
+                      }
+                    }}
+                  >
+                    <Trash2 /> Delete
+                  </button>
+                ) : (
+                  <button className="btn" onClick={onClose}>
+                    Cancel
+                  </button>
+                )}
                 <button
                   className="btn primary"
                   disabled={!r.items.length}
@@ -479,8 +502,8 @@ export function ReceiptSheet({ data, existing, onClose }: { data: AppData; exist
                     <input
                       className="input grow"
                       value={it.name}
-                      aria-label="Item"
-                      placeholder="Item"
+                      aria-label="Name in your pantry"
+                      placeholder="Short name (Milk, Coffee…)"
                       onChange={(e) => {
                         const c = cleanItemName(e.target.value);
                         setItem(i, {
@@ -494,6 +517,16 @@ export function ReceiptSheet({ data, existing, onClose }: { data: AppData; exist
                     <button className="icon-btn" aria-label="Remove item" onClick={() => setR({ ...r, items: r.items.filter((_, k) => k !== i) })}>
                       <Trash2 size={16} />
                     </button>
+                  </div>
+                  <div className="desc-box">
+                    <input
+                      className="input"
+                      value={it.desc ?? describeItem(it)}
+                      aria-label="Description"
+                      placeholder="Full name from the receipt"
+                      onChange={(e) => setItem(i, { desc: e.target.value })}
+                    />
+                    <span className="desc-price num">{usd(it.price)}</span>
                   </div>
                   {flag && it.raw && <div className="tiny warn">Check this line: “{it.raw}”</div>}
                   <div className="receipt-item-nums">

@@ -145,6 +145,7 @@ function parseDigital(lines: OcrLine[], rules: ItemRule[], fallbackDate?: string
     if (deal && cur.price === 0) deal = { ...deal, kind: 'free' };
     items.push({
       raw: fullName,
+      desc: fullName.replace(/[®™]/g, '').replace(/\s+/g, ' ').trim(),
       ...c,
       price: round2(cur.price),
       qty: cur.qty,

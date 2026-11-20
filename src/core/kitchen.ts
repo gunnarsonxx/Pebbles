@@ -1,6 +1,6 @@
 // Staples (kinds of food you always want, whatever the exact product) and adding a receipt's
 // items to the pantry only when you say they're still in your kitchen.
-import { NON_GROCERY_DEPTS } from './groceries';
+import { NON_GROCERY_DEPTS, fullName } from './groceries';
 import { diffDays } from './dates';
 import { round2, uid } from './money';
 import { matches, newPantryItem, stockOf } from './pantry';
@@ -68,7 +68,8 @@ export function pickableItems(r: Pick<Receipt, 'items'>): ReceiptItem[] {
   const seen = new Map<string, ReceiptItem>();
   for (const i of r.items) {
     if ((i.price <= 0 && !i.deal) || NON_GROCERY_DEPTS.includes(i.dept) || !i.name.trim()) continue;
-    const k = i.key || lc(i.name);
+    // the same product twice is one line; two products that share a plain name (coffee drink and ground coffee) are not
+    const k = i.upc || lc(i.desc || i.raw || '') || i.key || lc(i.name);
     const cur = seen.get(k);
     seen.set(k, cur ? { ...cur, qty: (cur.qty || 1) + (i.qty || 1) } : i);
   }
@@ -103,7 +104,8 @@ export function applyPicks(picks: KitchenPick[], pantry: PantryItem[], staples: 
     const existing = pantry.find((x) => !x.archived && matches(x, pk.item.key, pk.item.name));
     const base = existing ?? newPantryItem(pk.item.name, { key: pk.item.key, dept: pk.item.dept }, rules);
     const bought = pk.date ?? receiptDate;
-    const next: PantryItem = { ...base, lastBought: !base.lastBought || base.lastBought < bought ? bought : base.lastBought };
+    const desc = pk.item.desc || fullName(pk.item.raw || '') || undefined;
+    const next: PantryItem = { ...base, lastBought: !base.lastBought || base.lastBought < bought ? bought : base.lastBought, desc: base.desc || desc };
     if (pk.count != null) {
       // counted: "12 eggs", "3 cans"; one purchase adds a pack
       const pack = pk.item.pack && pk.item.pack > 1 ? pk.item.pack : 1;

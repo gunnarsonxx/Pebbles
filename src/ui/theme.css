@@ -1887,3 +1887,36 @@ svg.spin {
   background: var(--sapphire, var(--moss));
   opacity: 0.85;
 }
+
+/* pickers: the plain name is editable; the store's full name sits under it */
+.input.pick-name {
+  min-height: 34px;
+  padding: 4px 10px;
+  font-weight: 600;
+  font-size: 14px;
+}
+.pick-desc {
+  margin-left: 30px;
+  margin-top: 2px;
+  overflow-wrap: anywhere;
+}
+
+/* receipt editor: the full name from the receipt, with its price inside the box */
+.desc-box {
+  position: relative;
+}
+.desc-box .input {
+  min-height: 36px;
+  padding: 4px 74px 4px 10px;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+.desc-price {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 12px;
+  color: var(--ink-3);
+  pointer-events: none;
+}

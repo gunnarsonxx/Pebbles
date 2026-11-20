@@ -112,7 +112,10 @@ const BASE: [RegExp, string][] = [
   [/\bMILK\b(?! CHOC| BONE)|\bVIT(AMIN)? ?D\b|\b[12] ?% ?(RF|LF|REDUCED|LOW)?\b(?!.*(YOGURT|CHEESE|COTTAGE))|\bSKIM\b|FAT FREE MILK|\bHALF GALLON\b/, 'Milk'],
   [/HALF ?& ?HALF|HALF N HALF/, 'Half & Half'],
   [/CREAMER/, 'Coffee Creamer'],
-  [/COFFEE|FOLGERS|MAXWELL|STARBUCKS|DUNKIN|K ?CUP/, 'Coffee'],
+  // a drink made with coffee isn't the coffee you brew
+  [/FRAPPUCCINO|COLD BREW|ICED COFFEE|COFFEE DRINK|\bLATTE\b|MOCHA DRINK|DOUBLESHOT|ENERGY COFFEE|\bNITRO\b|STARBUCKS.*(DRINK|BOTTLE|CAN|ESPRESSO &)/, 'Coffee Drink'],
+  [/K ?CUPS?|PODS\b/, 'Coffee Pods'],
+  [/COFFEE|FOLGERS|MAXWELL|STARBUCKS|DUNKIN/, 'Coffee'],
   [/CREAM CHEESE/, 'Cream Cheese'],
   [/SOUR CREAM/, 'Sour Cream'],
   [/COTTAGE/, 'Cottage Cheese'],
@@ -399,3 +402,16 @@ export function plainNameFor(name: string): { name: string; key: string } | null
   const c = cleanItemName(name);
   return baseName(c.name) && c.name !== name ? c : null;
 }
+
+/** The full product name as the store wrote it, tidied: no ®/™, UPC numbers or trailing price. */
+export function fullName(raw: string): string {
+  return raw
+    .replace(/[®™©]/g, '')
+    .replace(/\b\d{8,}\b/g, ' ')
+    .replace(/\s+-?\$?\d+[.,]\d{2}\s*[A-Z]{0,2}\s*$/i, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/** What a receipt line is, in full: the store's own name for it. */
+export const describeItem = (i: { desc?: string; raw: string; name: string }) => i.desc || fullName(i.raw) || i.name;

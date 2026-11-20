@@ -216,6 +216,7 @@ export function PantryView({ data }: { data: AppData }) {
       <div key={p.id} className="list-item pantry-row">
         <button className="grow pantry-name" onClick={() => setEditing(p)}>
           <div className="strong small">{p.name}</div>
+          {p.desc && p.desc.toLowerCase() !== p.name.toLowerCase() && <div className="tiny muted ellipsis">{p.desc}</div>}
           <div className={`tiny ${st === 'out' ? 'bad' : st === 'low' ? 'warn' : 'muted'}`}>
             {p.mode === 'level' ? LEVEL_LABEL[p.level] : `${num(p.qty)} ${p.unit}`}
             {p.stapleId ? ` · swaps with ${data.staples.find((x) => x.id === p.stapleId)?.name ?? 'similar'}` : st !== 'ok' ? ' · on your list' : ''}
@@ -450,6 +451,9 @@ function PantryEditor({ data, item, onClose }: { data: AppData; item: PantryItem
       <div className="col gap-l">
         <Field label="Name">
           <TextInput value={p.name} onChange={(v) => setP({ ...p, name: v })} />
+        </Field>
+        <Field label="Description" hint="The full product name, so similar things are easy to tell apart">
+          <TextInput value={p.desc ?? ''} onChange={(v) => setP({ ...p, desc: v || undefined })} placeholder="Kroger Classic Blend Medium Roast Ground Coffee, 29 oz" />
         </Field>
         <Field label="Keep Track By">
           <Segmented

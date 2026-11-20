@@ -131,3 +131,30 @@ describe('online order invoices (PDF)', () => {
     expect(r.warnings).toEqual([]);
   });
 });
+
+describe('telling similar things apart', async () => {
+  const { pickableItems } = await import('./kitchen');
+  const { fullName, describeItem } = await import('./groceries');
+  it('a coffee drink and ground coffee get different names, and stay two lines', () => {
+    expect(cleanItemName('Starbucks Frappuccino Mocha Chilled Coffee Drink 4 ct').name).toBe('Coffee Drink');
+    expect(cleanItemName('Kroger Classic Blend Medium Roast Ground Coffee, 29 oz').name).toBe('Coffee');
+    expect(cleanItemName('Folgers Classic Roast K-Cup Pods 24 ct').name).toBe('Coffee Pods');
+    const items = [
+      { raw: 'Starbucks Frappuccino Mocha Chilled Coffee Drink', desc: 'Starbucks Frappuccino Mocha Chilled Coffee Drink', name: 'Coffee', key: 'coffee', price: 7.49, qty: 1, dept: 'drinks' as const },
+      { raw: 'Kroger Classic Blend Medium Roast Ground Coffee', desc: 'Kroger Classic Blend Medium Roast Ground Coffee', name: 'Coffee', key: 'coffee', price: 12.99, qty: 1, dept: 'drinks' as const },
+      { raw: 'Kroger Classic Blend Medium Roast Ground Coffee', desc: 'Kroger Classic Blend Medium Roast Ground Coffee', name: 'Coffee', key: 'coffee', price: 12.99, qty: 1, dept: 'drinks' as const },
+    ];
+    // even with the same short name, different products aren't merged; the same one bought twice is
+    expect(pickableItems({ items }).map((i) => [i.desc, i.qty])).toEqual([
+      ['Starbucks Frappuccino Mocha Chilled Coffee Drink', 1],
+      ['Kroger Classic Blend Medium Roast Ground Coffee', 2],
+    ]);
+  });
+  it('keeps the store’s full name for the description', () => {
+    expect(fullName('Kroger® Classic Blend Medium Roast Ground Coffee, 29 oz')).toBe('Kroger Classic Blend Medium Roast Ground Coffee, 29 oz');
+    expect(fullName('KS WHT BRD 0001111008502 2.49 F')).toBe('KS WHT BRD');
+    expect(describeItem({ raw: 'GV 2% MLK', name: 'Milk' })).toBe('GV 2% MLK');
+    const r = parseReceipt(invoice, [], '2026-11-20');
+    expect(r.items[1].desc).toBe('El Monterey Chicken & Cheese Frozen Flour Taquitos, 20 ct / 20 oz');
+  });
+});
