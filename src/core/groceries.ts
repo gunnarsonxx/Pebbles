@@ -167,11 +167,25 @@ const BASE: [RegExp, string][] = [
 const PRODUCE = new Set(['Bananas', 'Apples', 'Strawberries', 'Blueberries', 'Grapes', 'Potatoes', 'Onions', 'Broccoli', 'Salad']);
 const MADE_FROM = /DRINK|JUICE|SODA|FLAVOR|CANDY|CHOC|\bBAR\b|BARS|CEREAL|SAUCE|\bPIE\b|CHIP|YOGURT|MUFFIN|BREAD|CAKE|SNACK|POUCH|GUMM|\bTEA\b|JAM|JELLY|PRESERVES|SYRUP|CIDER|WATER|SPREAD|POP ?TART|TOASTER|OATMEAL|SOUP|SEASONING|DIP\b/;
 
+// things for the kitchen or the house, not food: coffee FILTERS aren't coffee, peanut butter CUPS aren't peanut butter
+const NOT_FOOD = /FILTER|\bMAKER\b|\bMUGS?\b|\bCUPS\b|\bPLATES?\b|NAPKIN|\bBAGS?\b|FOIL|PLASTIC WRAP|\bSOAP|DETERGENT|CLEANER|WIPES|CANDLE|SCRUB|BRUSH|SPONGE|TISSUE|LOTION|SHAMPOO|CONDITIONER|DEODORANT|TOOTH|RAZOR|PATCH|BANDAGE|\bVITAMINS?\b(?! ?D\b)|SUPPLEMENT|GUMM(Y|IES) VITAMIN|CAPSULES?|GRINDER|SCOOP|CONTAINERS?|STORAGE|HOLDER|DESCAL|DECALCIF|AIR FRESHENER|DISH|LAUNDRY|POLISH|SPRAY BOTTLE/;
+
 /** The plain name for a cleaned receipt line, or null to keep it as is. */
 export function baseName(upper: string): string | null {
   const s = ` ${upper.toUpperCase()} `;
+  if (NOT_FOOD.test(s)) return null;
   for (const [re, name] of BASE) if (re.test(s) && !(PRODUCE.has(name) && MADE_FROM.test(s))) return name;
   return null;
+}
+
+/** Two full product names for the same thing (any size): most of the words in the shorter one are in the other. */
+export function similarDesc(a: string, b: string): boolean {
+  const wa = [...new Set(productWords(a))];
+  const wb = new Set(productWords(b));
+  if (!wa.length || !wb.size) return true;
+  const [small, big] = wa.length <= wb.size ? [wa, wb] : [[...wb], new Set(wa)];
+  const hit = small.filter((w) => big.has(w) || big.has(w.replace(/s$/, '')) || big.has(`${w}s`)).length;
+  return hit / small.length >= 0.6;
 }
 
 /** How many come in one package, from the name: "6 ct", "12CT", "dozen", "2 pc", "18 count". */
@@ -192,7 +206,8 @@ export function cleanItemName(raw: string): { name: string; key: string } {
     .replace(/\bFL OZ\b|\bCAN\b(?= *,|$)/g, ' ')
     .replace(/\b(FILLED WITH|WITH|BY)\b.*$/, ' ')
     .replace(/\bBIG DEAL\b|\bNEW\b|\bVALUE SIZE\b|\bSUPER SIZE\b/g, ' ') // "...Filled With Pumpkin Spice Cream", "...By Snowfox"
-    .replace(/\b(HALF\s+)?(GAL|GALLON|DZ|DOZ|DOZEN)\b/g, ' ')
+    // a gallon of milk is just milk; a gallon zip bag is a different bag from a quart one
+    .replace(NOT_FOOD.test(` ${raw.toUpperCase()} `) ? /(?!)/g : /\b(HALF\s+)?(GAL|GALLON|DZ|DOZ|DOZEN)\b/g, ' ')
     .replace(/[^A-Z&' ]/g, ' ');
   for (const [re, rep] of ABBR) s = s.replace(re, rep);
   s = s.replace(/\s+/g, ' ').trim();

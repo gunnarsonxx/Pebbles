@@ -1,6 +1,6 @@
 // Staples (kinds of food you always want, whatever the exact product) and adding a receipt's
 // items to the pantry only when you say they're still in your kitchen.
-import { NON_GROCERY_DEPTS, fullName } from './groceries';
+import { NON_GROCERY_DEPTS, fullName, similarDesc } from './groceries';
 import { diffDays } from './dates';
 import { round2, uid } from './money';
 import { matches, newPantryItem, stockOf } from './pantry';
@@ -61,6 +61,16 @@ export interface KitchenPick {
   always: boolean; // a staple: you always get it
   stapleId: string | null; // swaps with similar things (a group)
   date?: ISODate; // when it was bought, when picks come from different receipts
+  separate?: boolean; // add it as its own pantry item even if one looks the same
+}
+
+/**
+ * The pantry item this is (to update rather than add): the same name, and, when both have the full
+ * product name, the same product. Coffee filters never update coffee; Folgers and Kroger coffee stay apart.
+ */
+export function findSame(pantry: PantryItem[], item: Pick<ReceiptItem, 'key' | 'name' | 'raw'> & { desc?: string }): PantryItem | undefined {
+  const desc = item.desc || fullName(item.raw || '');
+  return pantry.find((p) => !p.archived && matches(p, item.key, item.name) && (!p.desc || !desc || similarDesc(p.desc, desc)));
 }
 
 /** One line per product (the same thing bought twice is one pick), groceries only. */
@@ -82,7 +92,7 @@ export const isRecent = (date: ISODate, today: ISODate) => diffDays(today, date)
 export function defaultPicks(r: Pick<Receipt, 'items' | 'date'>, today: ISODate, pantry: PantryItem[], staples: Staple[], usualKeys: Set<string> = new Set()): KitchenPick[] {
   const recent = isRecent(r.date, today);
   return pickableItems(r).map((item) => {
-    const p = pantry.find((x) => !x.archived && matches(x, item.key, item.name));
+    const p = findSame(pantry, item);
     // bought in packs or more than one: count them (2 cartons of 12 eggs → 24), else Full / Half / Low
     const bought = (item.pack ?? 1) * Math.max(1, item.qty || 1);
     const countable = bought > 1 || p?.mode === 'count';
@@ -102,7 +112,7 @@ export function applyPicks(picks: KitchenPick[], pantry: PantryItem[], staples: 
     const gone = pk.count != null ? pk.count <= 0 : pk.left === 'gone';
     if (gone && !pk.always) continue;
     // the same thing already in the pantry, or two picks of it in this batch
-    const existing = outPantry.find((x) => matches(x, pk.item.key, pk.item.name)) ?? pantry.find((x) => !x.archived && matches(x, pk.item.key, pk.item.name));
+    const existing = pk.separate ? undefined : (findSame(outPantry, pk.item) ?? findSame(pantry, pk.item));
     const base = existing ?? newPantryItem(pk.item.name, { key: pk.item.key, dept: pk.item.dept }, rules);
     const bought = pk.date ?? receiptDate;
     const desc = pk.item.desc || fullName(pk.item.raw || '') || undefined;

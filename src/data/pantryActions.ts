@@ -244,8 +244,9 @@ export async function addToPlan(id: string, batches = 1) {
 export const removeFromPlan = (id: string) => store.remove('mealplan', id);
 
 /** Cooked it: the pantry items it used go down, and it's ticked in this week's prep. */
-export async function cooked(m: RecipeMatch): Promise<() => Promise<void>> {
-  const used = usedUp(m);
+/** Cooked it: save what's left of what it used (as you set it), and tick it in this week's prep. */
+export async function cooked(m: RecipeMatch, after?: PantryItem[]): Promise<() => Promise<void>> {
+  const used = after ?? usedUp(m);
   const before = used.map((u) => store.get('pantry', u.id)).filter((x): x is PantryItem => !!x);
   const plan = store.get('mealplan', m.recipe.id);
   if (used.length) await store.putMany('pantry', used);

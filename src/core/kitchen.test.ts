@@ -112,3 +112,38 @@ describe('adding something whose name is inside another item’s name', () => {
     expect(res.pantry[0]).toMatchObject({ name: 'Coffee', level: 'full', desc: 'Kroger Classic Blend Medium Roast Ground Coffee, 29 oz' });
   });
 });
+
+describe('different things that share a word', () => {
+  it('coffee filters are their own thing, and never update the coffee', async () => {
+    const { cleanItemName } = await import('./groceries');
+    const { findSame } = await import('./kitchen');
+    expect(cleanItemName('Melitta Basket Coffee Filters 200 ct').name).toBe('Melitta Basket Coffee Filters');
+    expect(cleanItemName("Reese's Peanut Butter Cups").name).not.toBe('Peanut Butter');
+    expect(cleanItemName('Ziploc Gallon Storage Bags').name).toBe('Ziploc Gallon Storage Bags');
+    expect(cleanItemName('King Soopers City Market Vitamin D Whole Milk Gallon').name).toBe('Milk');
+    const grounds = { ...newPantryItem('Coffee'), desc: 'Kroger Classic Blend Medium Roast Ground Coffee, 29 oz' };
+    // even if a filter came in named "Coffee", its description says otherwise
+    expect(findSame([grounds], { key: 'coffee', name: 'Coffee', raw: 'Melitta Basket Coffee Filters', desc: 'Melitta Basket Coffee Filters 200 ct' })).toBeUndefined();
+    // the same coffee in another size is the same pantry item
+    expect(findSame([grounds], { key: 'coffee', name: 'Coffee', raw: 'x', desc: 'Kroger Classic Blend Medium Roast Ground Coffee, 11.5 oz' })).toBe(grounds);
+    // a pick marked "keep separate" is added on its own
+    const res = applyPicks([{ item: { raw: 'Kroger Classic Blend Coffee', name: 'Coffee', key: 'coffee', price: 0, qty: 1, dept: 'drinks' }, left: 'full', count: null, always: false, stapleId: null, separate: true }], [grounds], [], '2026-11-20');
+    expect(res.added).toEqual(['Coffee']);
+  });
+});
+
+describe('I Made This takes off what the recipe uses', () => {
+  it('counted things by the recipe’s amount, others a step', async () => {
+    const { usedUp, matchRecipe, BUILT_IN_RECIPES } = await import('./recipes');
+    const eggs = { ...newPantryItem('Eggs'), mode: 'count' as const, qty: 12, unit: 'ct', perBuy: 12 };
+    const cheese = newPantryItem('Shredded cheddar cheese');
+    const omelet = BUILT_IN_RECIPES.find((r) => r.id === 'omelet')!;
+    const after = usedUp(matchRecipe(omelet, [eggs, cheese]));
+    expect(after.find((p) => p.name === 'Eggs')?.qty).toBe(9);
+    expect(after.find((p) => p.name === 'Shredded cheddar cheese')?.level).toBe('half');
+    // two batches of breakfast burritos: 20 eggs, but never below zero
+    const burritos = BUILT_IN_RECIPES.find((r) => r.id === 'breakfast-burritos')!;
+    expect(usedUp(matchRecipe(burritos, [eggs, newPantryItem('Tortillas'), cheese]), 2).find((p) => p.name === 'Eggs')?.qty).toBe(0);
+    expect(BUILT_IN_RECIPES.length).toBeGreaterThanOrEqual(70);
+  });
+});

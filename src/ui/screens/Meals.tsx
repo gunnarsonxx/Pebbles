@@ -1,16 +1,23 @@
 import { useMemo, useState } from 'react';
-import { CalendarCheck, Check, ChefHat, Clock, EyeOff, ListPlus, Plus, Trash2, Users, X } from 'lucide-react';
+import { CalendarCheck, Check, ChefHat, Clock, EyeOff, ListPlus, Minus, Plus, Trash2, Users, X } from 'lucide-react';
 import type { AppData } from '../../data/useData';
 import { Empty, Field, NumberInput, Sheet, TextInput, useConfirm, useToast } from '../components';
-import { allRecipes, BASICS_NOTE, matchRecipe, parseIngredients, prepShopping, whatCanIMake, type RecipeMatch } from '../../core/recipes';
+import { allRecipes, BASICS_NOTE, matchRecipe, parseIngredients, prepShopping, usedUp, whatCanIMake, type RecipeMatch } from '../../core/recipes';
 import { addToList, addToPlan, clearCookedPlan, cooked, deleteRecipe, removeFromPlan, saveRecipe } from '../../data/pantryActions';
 import { uid } from '../../core/money';
 import { titleCase } from '../../core/text';
-import type { Recipe } from '../../core/types';
+import type { PantryItem, Recipe } from '../../core/types';
 
-const FILTERS = ['All', 'Quick', 'Air Fryer', 'Meal Prep', 'Breakfast', 'Freezer'] as const;
+const FILTERS = ['All', 'Quick', 'Air Fryer', 'Breakfast', 'Lunch', 'Dinner', 'Meal Prep', 'Slow Cooker', 'Soup', 'Pasta', 'Freezer', 'Takes a While'] as const;
 type Filter = (typeof FILTERS)[number];
-const TAGS = ['quick', 'air fryer', 'meal prep', 'breakfast', 'freezer', 'no cook', 'one pan', 'one pot'];
+const TAGS = ['quick', 'air fryer', 'breakfast', 'lunch', 'dinner', 'snack', 'meal prep', 'slow cooker', 'soup', 'pasta', 'baking', 'freezer', 'no cook', 'one pan', 'one pot'];
+
+/** Quick = 20 minutes or less; Takes a While = an hour or more (mostly hands-off); the rest by tag. */
+const fits = (r: Recipe, f: Filter) =>
+  f === 'All' ? true : f === 'Quick' ? r.minutes <= 20 || r.tags.includes('quick') : f === 'Takes a While' ? r.minutes >= 60 : r.tags.includes(f.toLowerCase());
+
+/** "15 min", "1 hr 15 min", "8 hr". */
+export const fmtMinutes = (m: number) => (m < 60 ? `${m} min` : m % 60 ? `${Math.floor(m / 60)} hr ${m % 60} min` : `${m / 60} hr`);
 
 /** Meals from what's already in your kitchen, and this week's meal prep. */
 export function MealsView({ data, openPantry }: { data: AppData; openPantry: () => void }) {
@@ -19,8 +26,9 @@ export function MealsView({ data, openPantry }: { data: AppData; openPantry: () 
   const [open, setOpen] = useState<Recipe | null>(null);
   const [editing, setEditing] = useState<Recipe | 'new' | null>(null);
   const [planning, setPlanning] = useState(false);
+  const [browse, setBrowse] = useState(false);
   const recipes = useMemo(() => allRecipes(data.customRecipes), [data.customRecipes]);
-  const shown = recipes.filter((r) => filter === 'All' || r.tags.includes(filter.toLowerCase()));
+  const shown = recipes.filter((r) => fits(r, filter));
   const { ready, almost } = useMemo(() => whatCanIMake(shown, data.pantry), [shown, data.pantry]);
   const plan = data.mealPlan;
   const toBuy = prepShopping(plan, recipes, data.pantry);
@@ -141,6 +149,24 @@ export function MealsView({ data, openPantry }: { data: AppData; openPantry: () 
         </div>
       )}
 
+      <div className="card">
+        <div className="row between">
+          <div className="eyebrow">All Recipes{filter !== 'All' ? ` · ${filter}` : ''}</div>
+          <button className="btn small" onClick={() => setBrowse(!browse)}>
+            {browse ? 'Hide' : `Browse ${shown.length}`}
+          </button>
+        </div>
+        {browse && (
+          <div className="list mt-s">
+            {[...shown]
+              .sort((a, b) => a.minutes - b.minutes || a.name.localeCompare(b.name))
+              .map((r) => (
+                <RecipeRow key={r.id} m={matchRecipe(r, data.pantry)} onOpen={() => setOpen(r)} />
+              ))}
+          </div>
+        )}
+      </div>
+
       <div className="row between">
         <span className="tiny muted">{BASICS_NOTE}</span>
         <button className="btn small" onClick={() => setEditing('new')}>
@@ -164,7 +190,7 @@ function RecipeRow({ m, onOpen }: { m: RecipeMatch; onOpen: () => void }) {
       <div className="grow">
         <div className="strong small">{m.recipe.name}</div>
         <div className="tiny muted">
-          {m.recipe.minutes} min · {m.recipe.tags.slice(0, 2).map((t) => titleCase(t)).join(', ')}
+          {fmtMinutes(m.recipe.minutes)} · {m.recipe.tags.slice(0, 2).map((t) => titleCase(t)).join(', ')}
           {m.ready ? ` · uses ${m.have.map((h) => h.item.name).slice(0, 3).join(', ')}` : ''}
         </div>
         {!m.ready && <div className="tiny warn">Need: {m.missing.map((x) => x.name).join(', ')}</div>}
@@ -178,6 +204,8 @@ function RecipeSheet({ data, recipe, onClose, onEdit }: { data: AppData; recipe:
   const ask = useConfirm();
   const m = matchRecipe(recipe, data.pantry);
   const planned = data.mealPlan.find((e) => e.id === recipe.id && !e.cookedAt);
+  const [cooking, setCooking] = useState(false);
+  if (cooking) return <CookedSheet m={m} batches={planned?.batches ?? 1} onClose={onClose} onBack={() => setCooking(false)} toast={toast} />;
   return (
     <Sheet
       title={recipe.name}
@@ -198,11 +226,7 @@ function RecipeSheet({ data, recipe, onClose, onEdit }: { data: AppData; recipe:
           <button
             className="btn primary"
             disabled={!m.have.length}
-            onClick={async () => {
-              const undo = await cooked(m);
-              toast('Nice. Pebbles took what you used off your pantry.', { label: 'Undo', run: undo });
-              onClose();
-            }}
+            onClick={() => setCooking(true)}
           >
             <Check /> I Made This
           </button>
@@ -212,7 +236,7 @@ function RecipeSheet({ data, recipe, onClose, onEdit }: { data: AppData; recipe:
       <div className="col gap-l">
         <div className="row wrap small ink2" style={{ gap: 12 }}>
           <span className="row gap-s">
-            <Clock size={15} /> {recipe.minutes} min
+            <Clock size={15} /> {fmtMinutes(recipe.minutes)}
           </span>
           <span className="row gap-s">
             <Users size={15} /> {recipe.servings} serving{recipe.servings === 1 ? '' : 's'}
@@ -347,7 +371,7 @@ function PlanSheet({ data, recipes, onClose }: { data: AppData; recipes: Recipe[
                 <div className="grow">
                   <div className="strong small">{m.recipe.name}</div>
                   <div className="tiny muted">
-                    {m.recipe.servings} servings · {m.recipe.minutes} min · {m.ready ? 'you have everything' : `need ${m.missing.map((x) => x.name).join(', ')}`}
+                    {m.recipe.servings} servings · {fmtMinutes(m.recipe.minutes)} · {m.ready ? 'you have everything' : `need ${m.missing.map((x) => x.name).join(', ')}`}
                   </div>
                 </div>
               </button>
@@ -422,6 +446,82 @@ function RecipeEditor({ recipe, onClose }: { recipe: Recipe | null; onClose: () 
         <Field label="Steps" hint="One per line">
           <textarea className="input" rows={6} value={steps} onChange={(e) => setSteps(e.target.value)} style={{ minHeight: 120, padding: 10 }} />
         </Field>
+      </div>
+    </Sheet>
+  );
+}
+
+const LEVELS: PantryItem['level'][] = ['full', 'half', 'low', 'out'];
+const LEVEL_LABEL: Record<PantryItem['level'], string> = { full: 'Full', half: 'Half', low: 'Low', out: 'Out' };
+
+/** "I Made This": what it used, as a suggestion you can change, before anything comes off your pantry. */
+function CookedSheet({ m, batches, onClose, onBack, toast }: { m: RecipeMatch; batches: number; onClose: () => void; onBack: () => void; toast: ReturnType<typeof useToast> }) {
+  const [after, setAfter] = useState<PantryItem[]>(() => usedUp(m, batches));
+  const before = new Map(m.have.map((h) => [h.item.id, h.item]));
+  const set = (id: string, patch: Partial<PantryItem>) => setAfter(after.map((p) => (p.id === id ? { ...p, ...patch } : p)));
+  return (
+    <Sheet
+      title={`You Made ${m.recipe.name}`}
+      onClose={onBack}
+      footer={
+        <>
+          <button className="btn" onClick={onBack}>
+            Back
+          </button>
+          <button
+            className="btn primary"
+            onClick={async () => {
+              const undo = await cooked(m, after);
+              toast('Saved what’s left in your pantry.', { label: 'Undo', run: undo });
+              onClose();
+            }}
+          >
+            <Check /> Save What’s Left
+          </button>
+        </>
+      }
+    >
+      <div className="col gap-l">
+        <p className="small ink2" style={{ margin: 0 }}>
+          Here’s what’s left after cooking it{batches > 1 ? ` (${batches} batches)` : ''}. Counted things go down by what the recipe uses; the rest go down a step. Change anything that isn’t right.
+        </p>
+        <div className="list">
+          {after.map((p) => {
+            const was = before.get(p.id)!;
+            return (
+              <div key={p.id} className="list-item" style={{ flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+                <div className="grow" style={{ minWidth: 140 }}>
+                  <div className="strong small">{p.name}</div>
+                  <div className="tiny muted">
+                    Had {was.mode === 'level' ? LEVEL_LABEL[was.level] : `${was.qty} ${was.unit}`}
+                    {p.desc ? ` · ${p.desc}` : ''}
+                  </div>
+                </div>
+                {p.mode === 'level' ? (
+                  <div className="level-pills" role="group" aria-label={`${p.name} left`}>
+                    {LEVELS.map((l) => (
+                      <button key={l} className={`level-pill ${l}${p.level === l ? ' on' : ''}`} aria-pressed={p.level === l} onClick={() => set(p.id, { level: l })}>
+                        {LEVEL_LABEL[l]}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="stepper" style={{ border: '1px solid var(--line)', borderRadius: 999 }}>
+                    <button className="icon-btn" aria-label={`Less ${p.name}`} onClick={() => set(p.id, { qty: Math.max(0, Math.round((p.qty - (p.mode === 'count' ? 1 : p.perBuy * 0.25)) * 100) / 100) })}>
+                      <Minus size={15} />
+                    </button>
+                    <span className="num strong small">
+                      {p.qty} {p.unit}
+                    </span>
+                    <button className="icon-btn" aria-label={`More ${p.name}`} onClick={() => set(p.id, { qty: Math.round((p.qty + (p.mode === 'count' ? 1 : p.perBuy * 0.25)) * 100) / 100 })}>
+                      <Plus size={15} />
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
       </div>
     </Sheet>
   );

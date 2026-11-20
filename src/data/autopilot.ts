@@ -120,6 +120,17 @@ export async function runAutopilot(): Promise<void> {
       await store.setMeta('pantryDesc:v1', true);
     }
 
+    // 0b4) barcodes remembered under a too-short name (coffee FILTERS saved as "Coffee"): use the product's own name
+    if (!(await store.getMeta<boolean>('barcodeNames:v1'))) {
+      const fix = store.list('barcodes').flatMap((b) => {
+        if (!b.product) return [];
+        const now = cleanItemName(b.product).name;
+        return baseName(b.name) && !baseName(cleanItemName(b.product).name.toUpperCase()) && now !== b.name ? [{ ...b, name: now }] : [];
+      });
+      if (fix.length) await store.putMany('barcodes', fix);
+      await store.setMeta('barcodeNames:v1', true);
+    }
+
     // 0) a PayPal purchase shows up at PayPal and at your bank: count it once
     const dups = dedupePaypal(d.txns, d.accounts);
     if (dups.length) {

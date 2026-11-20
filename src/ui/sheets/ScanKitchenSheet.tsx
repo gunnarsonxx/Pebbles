@@ -3,7 +3,7 @@ import { Camera, ImagePlus, Minus, Plus, RefreshCw, ScanBarcode, Trash2 } from '
 import { Sheet, useToast } from '../components';
 import { barcodeId, lookupLocal, lookupOnline, type BarcodeInfo } from '../../core/barcodes';
 import { cleanItemName, deptFor } from '../../core/groceries';
-import { matches } from '../../core/pantry';
+import { findSame } from '../../core/kitchen';
 import { usd } from '../../core/money';
 import { http } from '../../platform';
 import { store } from '../../data/store';
@@ -38,6 +38,7 @@ interface Found {
   count: number | null;
   always: boolean;
   inPantry: boolean;
+  separate: boolean; // add as its own item even if a pantry item looks the same
 }
 
 /** Photograph the barcodes of what's already in your kitchen; Pebbles works out what each one is. */
@@ -65,7 +66,7 @@ export function ScanKitchenSheet({ data, onClose }: { data: AppData; onClose: ()
     finish(code, info, info ? 'found' : offline ? 'offline' : 'unknown');
   };
   const finish = (code: string, info: BarcodeInfo | null, status: Found['status']) => {
-    const inPantry = !!info && data.pantry.some((p) => !p.archived && matches(p, cleanItemName(info.name).key, info.name));
+    const inPantry = !!info && !!findSame(data.pantry, { key: cleanItemName(info.name).key, name: info.name, raw: info.product ?? info.name, desc: info.product ?? undefined });
     update((all) =>
       all.map((f) => {
         if (f.key !== code) return f;
@@ -91,7 +92,7 @@ export function ScanKitchenSheet({ data, onClose }: { data: AppData; onClose: ()
               setOne(existing.key, { seen: existing.seen + 1, count: existing.count != null ? existing.count + (existing.info?.pack ?? 1) : existing.seen + 1 });
               continue;
             }
-            update((all) => [...all, { key: code, code, status: 'looking', info: null, name: '', seen: 1, left: 'full', count: null, always: false, inPantry: false }]);
+            update((all) => [...all, { key: code, code, status: 'looking', info: null, name: '', seen: 1, left: 'full', count: null, always: false, inPantry: false, separate: false }]);
             await look(code);
           }
         } catch (e) {
@@ -101,8 +102,13 @@ export function ScanKitchenSheet({ data, onClose }: { data: AppData; onClose: ()
     }
   };
 
-  const addTyped = () => update((all) => [...all, { key: `typed:${nextId.current++}`, code: null, status: 'unknown', info: null, name: '', seen: 1, left: 'full', count: null, always: false, inPantry: false }]);
+  const addTyped = () => update((all) => [...all, { key: `typed:${nextId.current++}`, code: null, status: 'unknown', info: null, name: '', seen: 1, left: 'full', count: null, always: false, inPantry: false, separate: false }]);
 
+  // the pantry item a scan would update, by name (and its full name when it has one)
+  const pantryMatch = (f: Found) => {
+    const p = f.info ? findSame(data.pantry, { key: cleanItemName(f.name || f.info.name).key, name: f.name || f.info.name, raw: f.info.product ?? f.name, desc: f.info.product ?? undefined }) : undefined;
+    return p ? `${p.name}${p.desc ? ` (${p.desc})` : ''}` : 'the same item';
+  };
   const ready = found.filter((f) => f.name.trim() && f.status !== 'looking' && ((f.count != null ? f.count > 0 : f.left !== 'gone') || f.always));
   const busy = photos.some((p) => p.status === 'reading') || found.some((f) => f.status === 'looking');
   const unreadable = photos.filter((p) => p.status === 'none' || p.status === 'error');
@@ -111,7 +117,8 @@ export function ScanKitchenSheet({ data, onClose }: { data: AppData; onClose: ()
     const picks: KitchenPick[] = ready.map((f) => {
       const c = cleanItemName(f.name);
       return {
-        item: { raw: f.info?.product ?? f.name, name: f.name.trim(), key: c.key, price: f.info?.price ?? 0, qty: f.seen, dept: f.info?.dept ?? deptFor(f.name, c.key, data.itemRules), pack: f.info?.pack ?? null, upc: f.code },
+        item: { raw: f.info?.product ?? f.name, desc: f.info?.product ?? undefined, name: f.name.trim(), key: c.key, price: f.info?.price ?? 0, qty: f.seen, dept: f.info?.dept ?? deptFor(f.name, c.key, data.itemRules), pack: f.info?.pack ?? null, upc: f.code },
+        separate: f.separate,
         left: f.left,
         count: f.count,
         always: f.always,
@@ -228,7 +235,22 @@ export function ScanKitchenSheet({ data, onClose }: { data: AppData; onClose: ()
                 </div>
                 <div className={`tiny ${f.status === 'found' ? 'muted' : f.status === 'looking' ? 'muted' : 'warn'}`} style={{ marginLeft: 30, marginTop: 2 }}>
                   {source(f)}
-                  {f.inPantry ? ' · already in your pantry (this updates it)' : ''}
+                  {f.inPantry && !f.separate ? (
+                    <>
+                      {' · '}
+                      <span className="good">updates {pantryMatch(f)}</span>
+                      <button className="link-btn tiny" style={{ marginLeft: 6 }} onClick={() => setOne(f.key, { separate: true })}>
+                        Keep Separate
+                      </button>
+                    </>
+                  ) : f.inPantry ? (
+                    <>
+                      {' · added as its own item'}
+                      <button className="link-btn tiny" style={{ marginLeft: 6 }} onClick={() => setOne(f.key, { separate: false })}>
+                        Update {pantryMatch(f)} Instead
+                      </button>
+                    </>
+                  ) : null}
                   {f.status === 'offline' && f.code && (
                     <button className="link-btn tiny" style={{ marginLeft: 6 }} onClick={() => (setOne(f.key, { status: 'looking' }), void look(f.code!))}>
                       <RefreshCw size={11} /> Try Again

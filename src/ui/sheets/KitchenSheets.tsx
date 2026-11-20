@@ -1,9 +1,8 @@
 import { useMemo, useState } from 'react';
 import { Check, Minus, Plus, Trash2 } from 'lucide-react';
 import { Field, Sheet, TextInput, useConfirm, useToast } from '../components';
-import { STAPLE_PRESETS, defaultPicks, isRecent, newStaple, pickableItems, stapleFor, type KitchenPick, type LeftAmount } from '../../core/kitchen';
+import { STAPLE_PRESETS, defaultPicks, findSame, isRecent, newStaple, pickableItems, stapleFor, type KitchenPick, type LeftAmount } from '../../core/kitchen';
 import { cleanItemName, describeItem } from '../../core/groceries';
-import { matches } from '../../core/pantry';
 import { fmtShort } from '../../core/dates';
 import { usd } from '../../core/money';
 import { applyKitchenPicks, deleteStaple, gotForStaple, saveStaple } from '../../data/pantryActions';
@@ -490,7 +489,7 @@ export function PastItemsSheet({ data, onClose, receiptId }: { data: AppData; on
   };
   const chosen = [...picks.values()].filter((p) => (p.count != null ? p.count > 0 : p.left !== 'gone') || p.always);
   const inPantry = (item: Receipt['items'][number]) => {
-    const p = data.pantry.find((x) => !x.archived && matches(x, item.key, item.name) && (!x.desc || !item.desc || x.desc === describeItem(item)));
+    const p = findSame(data.pantry, item);
     return p ? (p.mode === 'level' ? p.level : `${p.qty} ${p.unit}`) : null;
   };
   const filter = (item: Receipt['items'][number]) => !q.trim() || `${item.name} ${describeItem(item)}`.toLowerCase().includes(q.trim().toLowerCase());

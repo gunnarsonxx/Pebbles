@@ -314,6 +314,7 @@ export interface RecipeIngredient {
   not?: string[]; // ...unless they also say one of these: ["krispies"]
   optional?: boolean;
   qty?: string; // "2 cups"
+  uses?: number; // how many of a counted item one batch uses (3 eggs, 4 tortillas)
 }
 
 /** A recipe (built in, or your own). */
