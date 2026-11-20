@@ -5,7 +5,7 @@
 //   amount – rice: 5 lb, coffee: 12 oz        (tap − to take off a bit)
 //   level  – milk, peanut butter, dish soap   (Full → Half → Low → Out)
 // Receipts restock what they match; low and out items go on the shopping list by themselves.
-import { cleanItemName, deptFor, NON_GROCERY_DEPTS, type GroceryStats } from './groceries';
+import { baseName, cleanItemName, deptFor, NON_GROCERY_DEPTS, type GroceryStats } from './groceries';
 import { diffDays } from './dates';
 import { round2, uid } from './money';
 import type { ISODate, ItemRule, PantryItem, Receipt, ShopItem, Staple, StorePrice } from './types';
@@ -174,10 +174,20 @@ function words(s: string): string[] {
 /** Does a receipt line belong to this pantry item? Same key, or the pantry name's words all appear. */
 export function matches(p: PantryItem, key: string, name: string): boolean {
   if (!key && !name) return false;
-  if (p.key && key && (p.key === key || (p.key.length >= 4 && key.includes(p.key)) || (key.length >= 4 && p.key.includes(key)))) return true;
+  if (p.key && key && p.key === key) return true;
+  // both plain names Pebbles knows (Coffee, Coffee Creamer, Milk, Chocolate Milk): only the same one matches
+  const bp = baseName(p.name);
+  const bi = baseName(name);
+  if (bp && bi) return bp === bi;
+  // one key inside the other only for a plural or small spelling difference (egg / eggs), not coffee / coffeecreamer
+  if (p.key && key) {
+    const [a, b] = p.key.length <= key.length ? [p.key, key] : [key, p.key];
+    if (a.length >= 4 && b.startsWith(a) && b.length - a.length <= 2) return true;
+  }
   const pw = words(p.name).map((w) => w.replace(/s$/, ''));
   const nw = new Set(words(name).map((w) => w.replace(/s$/, '')));
-  return pw.length > 0 && pw.every((w) => nw.has(w));
+  // every word of the pantry name is in the receipt line, and the line isn't a different plain-named thing
+  return pw.length > 0 && pw.every((w) => nw.has(w)) && (!bi || bi.toLowerCase() === p.name.toLowerCase());
 }
 
 /** What a receipt does to your pantry: restock what it matches. */

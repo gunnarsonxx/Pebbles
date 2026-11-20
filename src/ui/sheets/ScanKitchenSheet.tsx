@@ -118,7 +118,7 @@ export function ScanKitchenSheet({ data, onClose }: { data: AppData; onClose: ()
         stapleId: null,
       };
     });
-    const n = await applyKitchenPicks(picks, data.today);
+    const done = await applyKitchenPicks(picks, data.today);
     // remember what each barcode is (with your name for it), for next time and the other device
     const named = found.filter((f) => f.code && f.name.trim());
     if (named.length)
@@ -129,7 +129,7 @@ export function ScanKitchenSheet({ data, onClose }: { data: AppData; onClose: ()
           return { id: barcodeId(f.code!), name: f.name.trim(), dept: f.info?.dept ?? deptFor(f.name, c.key, data.itemRules), pack: f.info?.pack ?? null, product: f.info?.product ?? null, at: Date.now() };
         }),
       );
-    toast(`${n} item${n === 1 ? '' : 's'} in your pantry`);
+    toast(done);
     onClose();
   };
 

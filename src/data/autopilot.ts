@@ -3,7 +3,7 @@
 import { store } from './store';
 import { emergencyGoalUpdate } from '../core/emergency';
 import { looksVariable } from '../core/billPrompt';
-import { cleanItemName, fullName, plainNameFor } from '../core/groceries';
+import { baseName, cleanItemName, fullName, plainNameFor } from '../core/groceries';
 import { knownTotal, paypalPurchases } from '../core/paypal';
 import { computeData } from './useData';
 import { today } from '../core/dates';
@@ -106,6 +106,18 @@ export async function runAutopilot(): Promise<void> {
       });
       if (recs.length) await store.putMany('receipts', recs);
       await store.setMeta('baseNames:v2', true);
+    }
+
+    // 0b3) undo a mix-up: adding "Coffee" from a receipt could land on "Coffee Creamer" and give it the coffee's description
+    if (!(await store.getMeta<boolean>('pantryDesc:v1'))) {
+      const fix = store.list('pantry').filter((p) => {
+        if (!p.desc) return false;
+        const fromDesc = baseName(cleanItemName(p.desc).name);
+        const own = baseName(p.name);
+        return !!fromDesc && !!own && fromDesc !== own;
+      });
+      if (fix.length) await store.putMany('pantry', fix.map((p) => ({ ...p, desc: undefined })));
+      await store.setMeta('pantryDesc:v1', true);
     }
 
     // 0) a PayPal purchase shows up at PayPal and at your bank: count it once

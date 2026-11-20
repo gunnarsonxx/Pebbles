@@ -93,3 +93,22 @@ describe('filling the pantry from old receipts', () => {
     expect(out.pantry[0]).toMatchObject({ name: 'Sugar', level: 'half', lastBought: '2026-09-01' });
   });
 });
+
+describe('adding something whose name is inside another item’s name', () => {
+  it('Coffee is added next to Coffee Creamer, not merged into it (and Milk next to Chocolate Milk)', async () => {
+    const { matches } = await import('./pantry');
+    const creamer = newPantryItem('Coffee Creamer');
+    const choc = newPantryItem('Chocolate Milk');
+    expect(matches(creamer, 'coffee', 'Coffee')).toBe(false);
+    expect(matches(newPantryItem('Coffee'), 'coffeecreamer', 'Coffee Creamer')).toBe(false);
+    expect(matches(choc, 'milk', 'Milk')).toBe(false);
+    // still the same thing: plurals, and a long receipt line for a plain pantry name
+    expect(matches(newPantryItem('Egg'), 'eggs', 'Eggs')).toBe(true);
+    expect(matches(newPantryItem('Eggs'), 'largeeggs', 'Large Eggs')).toBe(true);
+    const coffee = { raw: 'Kroger Classic Blend Medium Roast Ground Coffee, 29 oz', desc: 'Kroger Classic Blend Medium Roast Ground Coffee, 29 oz', name: 'Coffee', key: 'coffee', price: 12.99, qty: 1, dept: 'drinks' as const };
+    const res = applyPicks([{ item: coffee, left: 'full', count: null, always: false, stapleId: null }], [creamer, choc], [], '2026-10-27');
+    expect(res.added).toEqual(['Coffee']);
+    expect(res.updated).toEqual([]);
+    expect(res.pantry[0]).toMatchObject({ name: 'Coffee', level: 'full', desc: 'Kroger Classic Blend Medium Roast Ground Coffee, 29 oz' });
+  });
+});

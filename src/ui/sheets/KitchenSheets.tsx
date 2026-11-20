@@ -126,8 +126,7 @@ export function KitchenPickSheet({ data, receipt, onClose }: { data: AppData; re
             className="btn primary"
             disabled={!kept}
             onClick={async () => {
-              const n = await applyKitchenPicks(picks, receipt.date);
-              toast(`${n} item${n === 1 ? '' : 's'} in your pantry`);
+              toast(await applyKitchenPicks(picks, receipt.date));
               onClose();
             }}
           >
@@ -510,8 +509,7 @@ export function PastItemsSheet({ data, onClose, receiptId }: { data: AppData; on
             className="btn primary"
             disabled={!chosen.length}
             onClick={async () => {
-              const n = await applyKitchenPicks(chosen, data.today);
-              toast(`${n} item${n === 1 ? '' : 's'} added to your pantry`);
+              toast(await applyKitchenPicks(chosen, data.today));
               onClose();
             }}
           >

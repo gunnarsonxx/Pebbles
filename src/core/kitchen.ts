@@ -94,14 +94,15 @@ export function defaultPicks(r: Pick<Receipt, 'items' | 'date'>, today: ISODate,
 const FRACTION: Record<Exclude<LeftAmount, 'gone'>, number> = { full: 1, half: 0.5, low: 0.2 };
 
 /** What to save: pantry items to update or create, and staples that gained an example. */
-export function applyPicks(picks: KitchenPick[], pantry: PantryItem[], staples: Staple[], receiptDate: ISODate, rules: ItemRule[] = []): { pantry: PantryItem[]; staples: Staple[] } {
+export function applyPicks(picks: KitchenPick[], pantry: PantryItem[], staples: Staple[], receiptDate: ISODate, rules: ItemRule[] = []): { pantry: PantryItem[]; staples: Staple[]; added: string[]; updated: string[] } {
   const outPantry: PantryItem[] = [];
   const outStaples = new Map<string, Staple>();
   for (const pk of picks) {
     // used up: skip it, unless it's a staple (then it goes in as Out, so your list asks for it)
     const gone = pk.count != null ? pk.count <= 0 : pk.left === 'gone';
     if (gone && !pk.always) continue;
-    const existing = pantry.find((x) => !x.archived && matches(x, pk.item.key, pk.item.name));
+    // the same thing already in the pantry, or two picks of it in this batch
+    const existing = outPantry.find((x) => matches(x, pk.item.key, pk.item.name)) ?? pantry.find((x) => !x.archived && matches(x, pk.item.key, pk.item.name));
     const base = existing ?? newPantryItem(pk.item.name, { key: pk.item.key, dept: pk.item.dept }, rules);
     const bought = pk.date ?? receiptDate;
     const desc = pk.item.desc || fullName(pk.item.raw || '') || undefined;
@@ -122,9 +123,17 @@ export function applyPicks(picks: KitchenPick[], pantry: PantryItem[], staples: 
       const st = outStaples.get(pk.stapleId) ?? staples.find((s) => s.id === pk.stapleId);
       if (st && !st.examples.some((e) => lc(e) === lc(base.name))) outStaples.set(st.id, { ...st, examples: [...st.examples, base.name] });
     }
-    outPantry.push(next);
+    const at = outPantry.findIndex((x) => x.id === next.id);
+    if (at >= 0) outPantry[at] = next;
+    else outPantry.push(next);
   }
-  return { pantry: outPantry, staples: [...outStaples.values()] };
+  const before = new Set(pantry.map((p) => p.id));
+  return {
+    pantry: outPantry,
+    staples: [...outStaples.values()],
+    added: outPantry.filter((p) => !before.has(p.id)).map((p) => p.name),
+    updated: outPantry.filter((p) => before.has(p.id)).map((p) => p.name),
+  };
 }
 
 /** Pantry items a new staple should claim: ones whose names match it and aren't in another staple. */

@@ -213,11 +213,14 @@ export async function deleteStaple(id: string) {
 }
 
 /** From a receipt: only the items you said are still in your kitchen go in the pantry. */
-export async function applyKitchenPicks(picks: KitchenPick[], receiptDate: string): Promise<number> {
+/** Returns what happened, in words: "Added Coffee · updated Milk". */
+export async function applyKitchenPicks(picks: KitchenPick[], receiptDate: string): Promise<string> {
   const res = applyPicks(picks, store.list('pantry'), store.list('staples'), receiptDate, store.list('itemrules'));
   if (res.pantry.length) await store.putMany('pantry', res.pantry);
   if (res.staples.length) await store.putMany('staples', res.staples);
-  return res.pantry.length;
+  const list = (xs: string[]) => (xs.length > 3 ? `${xs.slice(0, 3).join(', ')} and ${xs.length - 3} more` : xs.join(', '));
+  const parts = [res.added.length ? `Added ${list(res.added)}` : '', res.updated.length ? `${res.added.length ? 'updated' : 'Updated'} ${list(res.updated)}` : ''].filter(Boolean);
+  return parts.length ? `${parts.join(' · ')} in your pantry` : 'Nothing to add';
 }
 
 /** Bought something for a staple: that product is now in the pantry, full. */
