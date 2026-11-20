@@ -1,5 +1,6 @@
-import { useState } from 'react';
-import { ArrowRight, CalendarDays, Fuel, Receipt, ShoppingBasket, Sprout } from 'lucide-react';
+import { allRecipes, whatCanIMake } from '../../core/recipes';
+import { useMemo, useState } from 'react';
+import { ArrowRight, CalendarDays, ChefHat, Fuel, Receipt, ShoppingBasket, Sprout } from 'lucide-react';
 import type { AppData } from '../../data/useData';
 import type { GoTo } from '../App';
 import { SplitBar } from '../charts';
@@ -37,6 +38,7 @@ export function HomeScreen({ data, go }: { data: AppData; go: GoTo }) {
   const { upcoming, settings } = data;
   // the same paycheck the payday steps are about, so every number matches
   const plan = data.movesFor?.plan ?? data.plan;
+  const mealsReady = useMemo(() => (data.pantry.length ? whatCanIMake(allRecipes(data.customRecipes), data.pantry).ready.length : 0), [data.pantry, data.customRecipes]);
   const planPayday = data.movesFor?.period.payday ?? upcoming.period.payday;
   const p = upcoming.period;
   const record = data.paychecks.get(p.start);
@@ -209,6 +211,19 @@ export function HomeScreen({ data, go }: { data: AppData; go: GoTo }) {
           <InsightList items={data.insights} limit={2} />
         </div>
       </div>
+
+      {data.pantry.length > 0 && (
+        <button className="card action-card mt" onClick={() => go('groceries', 'meals')}>
+          <span className="list-icon" style={{ background: 'var(--moss-soft)', color: 'var(--moss-strong)' }}>
+            <ChefHat />
+          </span>
+          <div className="grow">
+            <div className="strong">{mealsReady ? `${mealsReady} Meal${mealsReady === 1 ? '' : 's'} You Can Make Right Now` : 'What Can I Make?'}</div>
+            <div className="small muted">From what’s already in your kitchen, before you buy more.</div>
+          </div>
+          <ArrowRight />
+        </button>
+      )}
 
       <div className="row wrap mt" style={{ gap: 8 }}>
         {gas && (

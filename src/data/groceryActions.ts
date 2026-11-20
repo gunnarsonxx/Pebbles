@@ -22,10 +22,11 @@ import type { GroceryDept, Paystub, Receipt, ReceiptItem } from '../core/types';
 
 // ---------------- receipts ----------------
 
-export async function saveReceipt(r: Omit<Receipt, 'id' | 'createdAt'> & { id?: string }): Promise<{ restocked: number }> {
+/** Save a receipt. restock=false when you'll pick what's still in your kitchen yourself. */
+export async function saveReceipt(r: Omit<Receipt, 'id' | 'createdAt'> & { id?: string }, restock = true): Promise<{ restocked: number }> {
   const rec: Receipt = { ...r, id: r.id ?? uid('rc_'), createdAt: Date.now() };
   await store.put('receipts', rec);
-  return afterReceipt(rec);
+  return afterReceipt(rec, null, restock);
 }
 
 export const deleteReceipt = (id: string) => store.remove('receipts', id);

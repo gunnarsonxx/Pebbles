@@ -4,9 +4,11 @@ import { getSettings, saveSettings } from './actions';
 import { http } from '../platform';
 import { today } from '../core/dates';
 import { round2, uid } from '../core/money';
-import { matches, restockFromReceipt, type ListLine } from '../core/pantry';
+import { matches, newPantryItem, restockFromReceipt, type ListLine } from '../core/pantry';
+import { applyPicks, claimForStaple, type KitchenPick } from '../core/kitchen';
+import { usedUp, type RecipeMatch } from '../core/recipes';
 import { geocodeAddress, googleStations, stationsNear, type Point, type Station } from '../core/gas';
-import type { GasPrice, PantryItem, Receipt, ShopItem } from '../core/types';
+import type { GasPrice, PantryItem, Receipt, Recipe, ShopItem, Staple } from '../core/types';
 
 export const savePantryItem = (p: PantryItem) => store.put('pantry', p);
 export const savePantryItems = (ps: PantryItem[]) => store.putMany('pantry', ps);
@@ -45,9 +47,9 @@ export async function clearBought() {
 }
 
 /** After a receipt is saved: restock the pantry, tick list items it covers, and log the gas price. */
-export async function afterReceipt(r: Receipt, at: Point | null = null): Promise<{ restocked: number }> {
+export async function afterReceipt(r: Receipt, at: Point | null = null, restock = true): Promise<{ restocked: number }> {
   const pantry = store.list('pantry');
-  const changed = restockFromReceipt(pantry, r);
+  const changed = restock ? restockFromReceipt(pantry, r) : [];
   if (changed.length) await store.putMany('pantry', changed);
   const shop = store.list('shoplist').filter((s) => !s.done && r.items.some((i) => matches({ key: s.key, name: s.name } as PantryItem, i.key, i.name)));
   if (shop.length) await store.putMany('shoplist', shop.map((s) => ({ ...s, done: true, doneAt: Date.now() })));
@@ -192,4 +194,66 @@ export function areaAvgNow(): number | null {
 export async function logGasPrice(st: Station, perGallon: number, grade = 'Regular', source: GasPrice['source'] = 'manual'): Promise<void> {
   const rec: GasPrice = { id: uid('gp_'), station: st.brand ?? st.name, stationId: st.id, lat: st.lat, lon: st.lon, perGallon, grade, date: today(), source, areaAvg: areaAvgNow() };
   await store.put('gasprices', rec);
+}
+
+// ---------------- staples, receipt picks, meals ----------------
+
+/** Save a staple; pantry items that match it (and aren't in another staple) join it. */
+export async function saveStaple(st: Staple): Promise<number> {
+  await store.put('staples', st);
+  const claimed = claimForStaple(st, store.list('pantry'));
+  if (claimed.length) await store.putMany('pantry', claimed);
+  return claimed.length;
+}
+
+export async function deleteStaple(id: string) {
+  const members = store.list('pantry').filter((p) => p.stapleId === id);
+  if (members.length) await store.putMany('pantry', members.map((p) => ({ ...p, stapleId: null })));
+  await store.remove('staples', id);
+}
+
+/** From a receipt: only the items you said are still in your kitchen go in the pantry. */
+export async function applyKitchenPicks(picks: KitchenPick[], receiptDate: string): Promise<number> {
+  const res = applyPicks(picks, store.list('pantry'), store.list('staples'), receiptDate, store.list('itemrules'));
+  if (res.pantry.length) await store.putMany('pantry', res.pantry);
+  if (res.staples.length) await store.putMany('staples', res.staples);
+  return res.pantry.length;
+}
+
+/** Bought something for a staple: that product is now in the pantry, full. */
+export async function gotForStaple(st: Staple, name: string): Promise<void> {
+  const clean = name.trim();
+  if (!clean) return;
+  const pantry = store.list('pantry');
+  const existing = pantry.find((p) => !p.archived && p.name.toLowerCase() === clean.toLowerCase());
+  const item = existing ?? newPantryItem(clean, {}, store.list('itemrules'));
+  await store.put('pantry', { ...item, stapleId: st.id, lastBought: today(), ...(item.mode === 'level' ? { level: 'full' as const } : { qty: Math.max(item.qty, item.perBuy) }) });
+  if (!st.examples.some((e) => e.toLowerCase() === clean.toLowerCase())) await store.put('staples', { ...st, examples: [...st.examples, item.name] });
+}
+
+export const saveRecipe = (r: Recipe) => store.put('recipes', r);
+export const deleteRecipe = (id: string) => store.remove('recipes', id);
+
+export async function addToPlan(id: string, batches = 1) {
+  const cur = store.get('mealplan', id);
+  await store.put('mealplan', { id, batches: (cur && !cur.cookedAt ? cur.batches : 0) + batches, addedAt: cur && !cur.cookedAt ? cur.addedAt : Date.now(), cookedAt: null });
+}
+export const removeFromPlan = (id: string) => store.remove('mealplan', id);
+
+/** Cooked it: the pantry items it used go down, and it's ticked in this week's prep. */
+export async function cooked(m: RecipeMatch): Promise<() => Promise<void>> {
+  const used = usedUp(m);
+  const before = used.map((u) => store.get('pantry', u.id)).filter((x): x is PantryItem => !!x);
+  const plan = store.get('mealplan', m.recipe.id);
+  if (used.length) await store.putMany('pantry', used);
+  if (plan) await store.put('mealplan', { ...plan, cookedAt: Date.now() });
+  return async () => {
+    if (before.length) await store.putMany('pantry', before);
+    if (plan) await store.put('mealplan', plan);
+  };
+}
+
+export async function clearCookedPlan() {
+  const done = store.list('mealplan').filter((e) => e.cookedAt);
+  if (done.length) await store.remove('mealplan', done.map((e) => e.id));
 }

@@ -15,7 +15,7 @@ import { BUNDLED_GUIDELINES, checkGuidelines, isValidGuidelines, type GuidelineC
 import { goalsAccount, interestNextMonth, reconcile, type Reconcile } from '../core/savingsAccount';
 import { paydayMoves, type Move } from '../core/moves';
 import { threePaycheckMonths } from '../core/budget';
-import type { GasPrice, PantryItem, ShopItem } from '../core/types';
+import type { GasPrice, MealPlanEntry, PantryItem, Recipe, ShopItem, Staple } from '../core/types';
 import { paypalFundingAccount, paypalInFlight, withInFlight, type InFlight } from '../core/paypal';
 import { emergencyStatus, type EmergencyStatus } from '../core/emergency';
 import { billsAccount, coverage, spendingAccount, type Coverage } from '../core/coverage';
@@ -74,6 +74,9 @@ export interface AppData {
   emergency: EmergencyStatus | null;
   pantry: PantryItem[];
   shoplist: ShopItem[];
+  staples: Staple[];
+  customRecipes: Recipe[];
+  mealPlan: MealPlanEntry[];
   gasPrices: GasPrice[];
 }
 
@@ -329,6 +332,9 @@ export function computeData(version: number, today: ISODate): AppData {
     emergency: emergencyStatus(emergency, emergency ? (balances.get(emergency.id) ?? 0) : 0, monthlyBillsTotal(bills) + essentials.totalMonthly, settings.budget.emergencyMonths),
     pantry: store.list('pantry').filter((p) => !p.archived).sort((a, b) => a.name.localeCompare(b.name)),
     shoplist: store.list('shoplist').sort((a, b) => a.addedAt - b.addedAt),
+    staples: store.list('staples').sort((a, b) => a.createdAt - b.createdAt),
+    customRecipes: store.list('recipes'),
+    mealPlan: store.list('mealplan').sort((a, b) => a.addedAt - b.addedAt),
     gasPrices,
   };
 }

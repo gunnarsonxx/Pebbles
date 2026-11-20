@@ -1647,6 +1647,11 @@ ol.step-list li.now strong {
   border-color: var(--moss);
   color: var(--moss);
 }
+.check-btn.on {
+  background: var(--moss);
+  border-color: var(--moss);
+  color: #fff;
+}
 .pantry-row {
   gap: 8px;
 }

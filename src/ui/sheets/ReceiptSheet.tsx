@@ -6,6 +6,8 @@ import { cleanItemName, deptFor, DEPT_LABEL } from '../../core/groceries';
 import { round2, usd } from '../../core/money';
 import { rememberItem, saveReceipt } from '../../data/groceryActions';
 import { linesFromFile } from '../ocr';
+import { KitchenPickSheet } from './KitchenSheets';
+import { pickableItems } from '../../core/kitchen';
 import type { AppData } from '../../data/useData';
 import type { GroceryDept, Receipt, ReceiptItem } from '../../core/types';
 
@@ -38,6 +40,10 @@ export function ReceiptSheet({ data, existing, onClose }: { data: AppData; exist
     }
   };
 
+  // after saving: pick what from it is still in your kitchen (nothing goes in the pantry on its own)
+  const [kitchen, setKitchen] = useState<Pick<Receipt, 'items' | 'date' | 'store'> | null>(null);
+  if (kitchen) return <KitchenPickSheet data={data} receipt={kitchen} onClose={onClose} />;
+
   const setItem = (i: number, patch: Partial<ReceiptItem>) => r && setR({ ...r, items: r.items.map((x, k) => (k === i ? { ...x, ...patch } : x)) });
   const itemsTotal = r ? round2(r.items.reduce((s, i) => s + i.price, 0)) : 0;
   const reference = r ? (r.subtotal ?? (r.total != null && r.tax != null ? round2(r.total - r.tax) : null)) : null;
@@ -59,9 +65,12 @@ export function ReceiptSheet({ data, existing, onClose }: { data: AppData; exist
               disabled={!r.items.length}
               onClick={async () => {
                 const { warnings: _w, itemsTotal: _t, ...rest } = r;
-                const res = await saveReceipt({ ...rest, store: rest.store.trim() || 'Store', items: r.items.map(({ lowConfidence: _l, ...i }) => i), source, id: existing?.id });
-                toast(`Saved ${r.items.length} items from ${r.store}${res.restocked ? ` · restocked ${res.restocked} pantry item${res.restocked === 1 ? '' : 's'}` : ''}${r.fuel ? ` · gas ${'$' + r.fuel.perGallon.toFixed(3)}/gal logged` : ''}`);
-                onClose();
+                const items = r.items.map(({ lowConfidence: _l, ...i }) => i);
+                await saveReceipt({ ...rest, store: rest.store.trim() || 'Store', items, source, id: existing?.id }, false);
+                toast(`Saved ${r.items.length} items from ${r.store}${r.fuel ? ` · gas ${'$' + r.fuel.perGallon.toFixed(3)}/gal logged` : ''}`);
+                // a new grocery receipt: ask what's still in the kitchen
+                if (!existing && pickableItems({ items }).length) setKitchen({ items, date: r.date, store: r.store });
+                else onClose();
               }}
             >
               Save Receipt
@@ -201,6 +210,11 @@ export function ReceiptSheet({ data, existing, onClose }: { data: AppData; exist
             {r.items.length} items · {usd(itemsTotal)}
             {r.tax != null ? ` + ${usd(r.tax)} tax` : ''}
           </p>
+          {existing && pickableItems(r).length > 0 && (
+            <button className="btn small" style={{ alignSelf: 'flex-start' }} onClick={() => setKitchen({ items: r.items, date: r.date, store: r.store })}>
+              Add What’s Left to My Pantry
+            </button>
+          )}
           {!existing && (
             <button className="btn ghost small" style={{ alignSelf: 'flex-start' }} onClick={() => fileRef.current?.click()}>
               <Camera /> Read a Different File

@@ -3,16 +3,18 @@ import { Camera, Check, ListPlus, Minus, Plus, ShoppingCart, Trash2, Sparkles } 
 import type { AppData } from '../../data/useData';
 import { Empty, Field, NumberInput, Segmented, Sheet, TextInput, useConfirm, useToast } from '../components';
 import { ReceiptSheet } from '../sheets/ReceiptSheet';
+import { StapleGotSheet, StaplePicker, StapleSheet } from '../sheets/KitchenSheets';
+import { stapleStatus } from '../../core/kitchen';
 import { DEPT_LABEL, NON_GROCERY_DEPTS } from '../../core/groceries';
 import { buildList, estimateTrip, LEVEL_LABEL, LEVELS, makePriceOf, newPantryItem, nextLevel, parseQuickAdd, stockOf, type ListLine } from '../../core/pantry';
 import { num, round2, usd } from '../../core/money';
 import { addToList, boughtLine, clearBought, deletePantryItem, removeShopItem, savePantryItem, savePantryItems } from '../../data/pantryActions';
-import type { GroceryDept, PantryItem } from '../../core/types';
+import type { GroceryDept, PantryItem, Staple } from '../../core/types';
 
 function useList(data: AppData) {
   return useMemo(() => {
     const priceOf = makePriceOf(data.groceries, [...data.prices.values()]);
-    const lines = buildList(data.pantry, data.shoplist, data.receipts, data.today, priceOf);
+    const lines = buildList(data.pantry, data.shoplist, data.receipts, data.today, priceOf, data.staples);
     const taxRate = data.groceries?.taxRate ?? 0.0407;
     const trip = estimateTrip(lines.filter((l) => l.why !== 'due'), taxRate);
     return { lines, trip, taxRate };
@@ -39,7 +41,9 @@ export function ShoppingListView({ data, openPantry, openTrips }: { data: AppDat
     setAdding('');
   };
 
+  const [gotStaple, setGotStaple] = useState<ListLine | null>(null);
   const tick = async (l: ListLine) => {
+    if (l.staple) return setGotStaple(l);
     const undo = await boughtLine(l);
     toast(`Got ${l.name}`, { label: 'Undo', run: undo });
   };
@@ -142,6 +146,7 @@ export function ShoppingListView({ data, openPantry, openTrips }: { data: AppDat
         </button>
       )}
       {scanning && <ReceiptSheet data={data} onClose={() => setScanning(false)} />}
+      {gotStaple?.staple && <StapleGotSheet data={data} staple={gotStaple.staple.staple} options={gotStaple.staple.options} onClose={() => setGotStaple(null)} />}
     </div>
   );
 }
@@ -157,7 +162,11 @@ function ListRow({ line, onTick, onRemove }: { line: ListLine; onTick: () => voi
           {line.name}
           {line.qty > 1 ? ` ×${line.qty}` : ''}
         </div>
+        {line.staple && line.staple.options.length > 0 && (
+          <div className="tiny ink2">Any of: {line.staple.options.slice(0, 4).join(', ')}{line.staple.options.length > 4 ? '…' : ''}, or something new</div>
+        )}
         <div className="tiny muted">
+          {line.staple ? 'Staple · ' : ''}
           {line.why === 'out' ? <span className="bad">Out</span> : line.why === 'low' ? <span className="warn">Low</span> : 'Added'}
           {line.price != null ? ` · ${usd(line.price)} ${line.priceFrom ? `· ${line.priceFrom}` : ''}` : ''}
         </div>
@@ -183,6 +192,8 @@ export function PantryView({ data }: { data: AppData }) {
   for (const p of items) groups.set(p.dept, [...(groups.get(p.dept) ?? []), p]);
   const lowCount = data.pantry.filter((p) => stockOf(p) !== 'ok').length;
   const usual = (data.groceries?.usual ?? []).filter((u) => !data.pantry.some((p) => p.key === u.key));
+  const [stapleEdit, setStapleEdit] = useState<Staple | 'new' | null>(null);
+  const staples = stapleStatus(data.staples, data.pantry);
 
   const step = (p: PantryItem, dir: 1 | -1) => {
     if (p.mode === 'level') return void savePantryItem({ ...p, level: nextLevel(p.level, dir === 1 ? -1 : 1) });
@@ -247,6 +258,36 @@ export function PantryView({ data }: { data: AppData }) {
           </button>
         </div>
       </div>
+      <div className="card" style={{ padding: '10px 14px' }}>
+        <div className="row between">
+          <div>
+            <div className="eyebrow" style={{ margin: '4px 0' }}>
+              Staples
+            </div>
+            <div className="tiny muted">Kinds of food you always want, whatever the exact product.</div>
+          </div>
+          <button className="btn small" onClick={() => setStapleEdit('new')}>
+            <Plus /> Staple
+          </button>
+        </div>
+        {staples.length ? (
+          <div className="list mt-s">
+            {staples.map(({ staple, items, stock }) => (
+              <button key={staple.id} className="list-item" style={{ width: '100%', textAlign: 'left' }} onClick={() => setStapleEdit(staple)}>
+                <div className="grow">
+                  <div className="strong small">{staple.name}</div>
+                  <div className="tiny muted ellipsis">{items.length ? items.map((p) => `${p.name} (${p.mode === 'level' ? LEVEL_LABEL[p.level] : `${num(p.qty)} ${p.unit}`})`).join(' · ') : 'Nothing in it yet'}</div>
+                </div>
+                <span className={`tiny strong ${stock === 'out' ? 'bad' : stock === 'low' ? 'warn' : 'good'}`}>{stock === 'out' ? 'Out' : stock === 'low' ? 'Low' : 'Stocked'}</span>
+              </button>
+            ))}
+          </div>
+        ) : (
+          <p className="tiny muted" style={{ margin: '6px 0 0' }}>
+            Like “Air Fryer Frozen Food”: pizza rolls this week, popcorn chicken the next. When it runs out, your list asks for that kind of food, not one exact product.
+          </p>
+        )}
+      </div>
       {[...groups.entries()]
         .sort((a, b) => DEPT_LABEL[a[0]].localeCompare(DEPT_LABEL[b[0]]))
         .map(([dept, list]) => (
@@ -263,7 +304,7 @@ export function PantryView({ data }: { data: AppData }) {
                       <div className="strong small">{p.name}</div>
                       <div className={`tiny ${st === 'out' ? 'bad' : st === 'low' ? 'warn' : 'muted'}`}>
                         {p.mode === 'level' ? LEVEL_LABEL[p.level] : `${num(p.qty)} ${p.unit}`}
-                        {st !== 'ok' ? ' · on your list' : ''}
+                        {p.stapleId ? ` · ${data.staples.find((x) => x.id === p.stapleId)?.name ?? 'staple'}` : st !== 'ok' ? ' · on your list' : ''}
                       </div>
                     </button>
                     {p.mode === 'level' ? (
@@ -291,9 +332,10 @@ export function PantryView({ data }: { data: AppData }) {
             </div>
           </div>
         ))}
-      <p className="tiny muted">Receipts restock what they match. Tap an item to change how it’s tracked.</p>
+      <p className="tiny muted">Receipts ask what’s still in your kitchen before anything goes here. Tap an item to change how it’s tracked or which staple it counts toward.</p>
       {bulk && <BulkAdd data={data} onClose={() => setBulk(false)} />}
-      {editing && <PantryEditor item={editing} onClose={() => setEditing(null)} />}
+      {editing && <PantryEditor data={data} item={editing} onClose={() => setEditing(null)} />}
+      {stapleEdit && <StapleSheet data={data} staple={stapleEdit === 'new' ? null : stapleEdit} onClose={() => setStapleEdit(null)} />}
     </div>
   );
 }
@@ -345,7 +387,7 @@ function BulkAdd({ data, onClose }: { data: AppData; onClose: () => void }) {
   );
 }
 
-function PantryEditor({ item, onClose }: { item: PantryItem; onClose: () => void }) {
+function PantryEditor({ data, item, onClose }: { data: AppData; item: PantryItem; onClose: () => void }) {
   const ask = useConfirm();
   const [p, setP] = useState(item);
   return (
@@ -420,6 +462,9 @@ function PantryEditor({ item, onClose }: { item: PantryItem; onClose: () => void
             </div>
           </>
         )}
+        <Field label="Staple" hint="Counts toward a kind of food you always want">
+          <StaplePicker data={data} value={p.stapleId ?? null} onChange={(id) => setP({ ...p, stapleId: id })} />
+        </Field>
         <Field label="Aisle">
           <select className="input" value={p.dept} onChange={(e) => setP({ ...p, dept: e.target.value as GroceryDept })}>
             {Object.entries(DEPT_LABEL)

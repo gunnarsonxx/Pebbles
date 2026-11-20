@@ -279,6 +279,45 @@ export interface PantryItem {
   level: 'full' | 'half' | 'low' | 'out'; // level mode
   lastBought: ISODate | null;
   archived?: boolean;
+  stapleId?: string | null; // counts toward a staple, e.g. pizza rolls → "Air Fryer Frozen Food"
+}
+
+/** Something you always want on hand, without caring which exact product: "Air Fryer Frozen Food". */
+export interface Staple {
+  id: string;
+  name: string;
+  keywords: string[]; // items whose names include one of these count (lowercase)
+  examples: string[]; // what you've bought for it, e.g. "Pizza Rolls", "Popcorn Chicken"
+  createdAt: number;
+}
+
+export interface RecipeIngredient {
+  name: string; // "Rice"
+  match: string[]; // pantry names that count: ["rice"]
+  not?: string[]; // ...unless they also say one of these: ["krispies"]
+  optional?: boolean;
+  qty?: string; // "2 cups"
+}
+
+/** A recipe (built in, or your own). */
+export interface Recipe {
+  id: string;
+  name: string;
+  minutes: number;
+  servings: number;
+  tags: string[]; // 'air fryer', 'meal prep', 'quick', 'breakfast', 'freezer', 'no cook'
+  ingredients: RecipeIngredient[];
+  steps: string[];
+  custom?: boolean;
+  hidden?: boolean; // a built-in recipe you don't want to see
+}
+
+/** This week's meal prep: recipes and how many batches. */
+export interface MealPlanEntry {
+  id: string; // recipe id
+  batches: number;
+  addedAt: number;
+  cookedAt?: number | null;
 }
 
 /** A shopping-list line you added yourself (low pantry items are added automatically). */
@@ -489,6 +528,9 @@ export interface CollectionMap {
   pantry: PantryItem;
   shoplist: ShopItem;
   gasprices: GasPrice;
+  staples: Staple;
+  recipes: Recipe;
+  mealplan: MealPlanEntry;
 }
 
 export type CollectionName = keyof CollectionMap;
@@ -518,6 +560,9 @@ export const COLLECTIONS: CollectionName[] = [
   'pantry',
   'shoplist',
   'gasprices',
+  'staples',
+  'recipes',
+  'mealplan',
 ];
 
 /** A record as stored and synced. */

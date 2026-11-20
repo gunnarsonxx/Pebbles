@@ -8,7 +8,7 @@
 import { cleanItemName, deptFor, NON_GROCERY_DEPTS, type GroceryStats } from './groceries';
 import { diffDays } from './dates';
 import { round2, uid } from './money';
-import type { ISODate, ItemRule, PantryItem, Receipt, ShopItem, StorePrice } from './types';
+import type { ISODate, ItemRule, PantryItem, Receipt, ShopItem, Staple, StorePrice } from './types';
 
 export type Level = PantryItem['level'];
 export const LEVELS: Level[] = ['full', 'half', 'low', 'out'];
@@ -207,14 +207,45 @@ export interface ListLine {
   shop: ShopItem | null;
   price: number | null; // best known price for one
   priceFrom: string | null;
+  staple?: { staple: Staple; options: string[] } | null; // any of these will do
 }
 
 /** Your shopping list: out and low pantry items, ones you usually rebuy by now, and anything you added. */
-export function buildList(pantry: PantryItem[], shop: ShopItem[], receipts: Receipt[], asOf: ISODate, priceOf: (key: string, name: string) => { price: number; from: string } | null): ListLine[] {
+export function buildList(
+  pantry: PantryItem[],
+  shop: ShopItem[],
+  receipts: Receipt[],
+  asOf: ISODate,
+  priceOf: (key: string, name: string) => { price: number; from: string } | null,
+  staples: Staple[] = [],
+): ListLine[] {
   const out: ListLine[] = [];
   const onList = new Set(shop.filter((s) => !s.done && s.pantryId).map((s) => s.pantryId));
+  // staples: one line for the kind of food ("Air Fryer Frozen Food"), not each product in it
+  const inStaple = new Set<string>();
+  for (const st of staples) {
+    const items = pantry.filter((p) => !p.archived && p.stapleId === st.id);
+    items.forEach((p) => inStaple.add(p.id));
+    const ok = items.some((p) => stockOf(p) === 'ok');
+    const low = items.some((p) => stockOf(p) === 'low');
+    if (ok || shop.some((x) => !x.done && x.key === `staple:${st.id}`)) continue;
+    const options = [...new Set([...st.examples, ...items.map((p) => p.name)])];
+    const prices = options.map((n) => priceOf('', n)?.price).filter((x): x is number => x != null);
+    out.push({
+      id: `staple:${st.id}`,
+      name: st.name,
+      key: `staple:${st.id}`,
+      why: low ? 'low' : 'out',
+      qty: 1,
+      pantry: null,
+      shop: null,
+      price: prices.length ? Math.round((prices.reduce((a, b) => a + b, 0) / prices.length) * 100) / 100 : null,
+      priceFrom: prices.length ? 'about what you usually pay' : null,
+      staple: { staple: st, options },
+    });
+  }
   for (const p of pantry) {
-    if (p.archived || onList.has(p.id)) continue;
+    if (p.archived || onList.has(p.id) || inStaple.has(p.id)) continue;
     const st = stockOf(p);
     const due = st === 'ok' ? dueSoon(p, receipts, asOf) : null;
     if (st === 'ok' && due == null) continue;
