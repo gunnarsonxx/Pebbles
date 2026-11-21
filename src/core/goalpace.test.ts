@@ -37,3 +37,17 @@ describe('must be ready by the date', () => {
     expect(tight.notes.join(' ')).toMatch(/must-be-ready/);
   });
 });
+
+describe('pace after each goal is spent', () => {
+  it('asks only for what the later goals still need, so each finishes near its own date', () => {
+    const goals = [goal('t1', 1000, '2027-02-11'), goal('t2', 1000, '2027-05-13'), goal('t3', 1000, '2027-08-19'), goal('mv', 1000, '2027-11-27'), goal('ring', 2100, '2028-12-15')];
+    const p = mustHitPlan(goals, () => 0, '2026-12-04');
+    for (const l of p.lines) {
+      expect(l.ready! <= l.date).toBe(true);
+      // not months early: ready within a month of the date
+      expect((Date.parse(l.date) - Date.parse(l.ready!)) / 86_400_000).toBeLessThan(31);
+    }
+    // the ring, due much later, gets a smaller amount each check than the first trip
+    expect(p.lines.find((l) => l.goalId === 'ring')!.perCheck).toBeLessThan(p.lines[0].perCheck);
+  });
+});

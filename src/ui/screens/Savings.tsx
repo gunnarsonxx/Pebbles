@@ -4,7 +4,7 @@ import type { AppData } from '../../data/useData';
 import { PebblePile } from '../PebblePile';
 import { compressImage, Empty, Field, GemIcon, NumberInput, Progress, Segmented, Sheet, TextInput, ToggleRow, useConfirm, useToast } from '../components';
 import { GEMS, GEM_BY_ID, gemBar } from '../../core/categories';
-import { addDays, fmtLong, fmtShort, diffDays, today } from '../../core/dates';
+import { addDays, fmtLong, diffDays, today } from '../../core/dates';
 import { pebbles, usd, uid } from '../../core/money';
 import { averagePerCheck, projectGoalDate } from '../../core/budget';
 import { addContribution, deleteContribution, deleteGoal, newGoal, saveGoal, saveSettings } from '../../data/actions';
@@ -168,6 +168,18 @@ function GoalCard({ g, data, open }: { g: Goal; data: AppData; open: (id: string
   const gem = GEM_BY_ID[g.gem];
   const mh = data.plan.mustHit?.lines.find((l) => l.goalId === g.id);
   const mustShort = !!data.plan.mustHit && data.plan.mustHit.short > 0.5;
+  // the must-be-ready goal being filled before this one
+  const before = mh
+    ? (() => {
+        const lines = data.plan.mustHit!.lines;
+        const i = lines.findIndex((l) => l.goalId === g.id);
+        const prev = lines
+          .slice(0, i)
+          .reverse()
+          .find((l) => (l.ready ?? l.date) >= data.today);
+        return prev ? (data.goals.find((x) => x.id === prev.goalId)?.name ?? null) : null;
+      })()
+    : null;
   return (
     <button key={g.id} className="card" style={{ textAlign: 'left', border: 0, cursor: 'pointer', color: 'inherit', width: '100%' }} onClick={() => open(g.id)}>
       <div
@@ -199,21 +211,29 @@ function GoalCard({ g, data, open }: { g: Goal; data: AppData; open: (id: string
       <div style={{ margin: '8px 0' }}>
         <Progress value={pct} color={gemBar(g.gem)} />
       </div>
-      <div className="row between tiny muted">
-        <span>{g.completedAt ? 'Reached! 🎉' : next > 0 ? `+${pebbles(next)} next payday` : 'Not in this paycheck’s plan'}</span>
-        <span title={`At your average of ${usd(avg.avg)} a paycheck (last ${avg.periods} paychecks, including the next one)`}>
-          {!g.completedAt && eta ? `on track for ${fmtShort(eta)}${eta.slice(0, 4) !== today().slice(0, 4) ? ` ${eta.slice(0, 4)}` : ''}` : ''}
-        </span>
-      </div>
-      <div className="tiny muted" style={{ textAlign: 'right' }}>
-        {!g.completedAt && eta && avg.avg > 0 ? `at your average ${usd(avg.avg)} a paycheck` : ''}
-      </div>
-      {mh && !g.completedAt && (
-        <div className={`tiny strong mt-s ${mustShort ? 'warn' : 'good'}`}>
-          {mustShort
-            ? `Must be ready by ${fmtShort(mh.date)} · this check can’t cover it all`
-            : `Must be ready by ${fmtShort(mh.date)} · fully saved by ${mh.ready ? fmtShort(mh.ready) : fmtShort(mh.date)}`}
-        </div>
+      {mh && !g.completedAt ? (
+        <>
+          {/* a must-be-ready goal: one plan, one date */}
+          <div className="tiny muted">
+            {next > 0 ? `+${pebbles(next)} next payday` : 'Nothing this payday'}
+            {mh.thisCheck < 0.5 && before ? ` · its turn comes after ${before}` : ''}
+          </div>
+          <div className={`tiny strong mt-s ${mustShort ? 'warn' : 'good'}`}>
+            {mustShort
+              ? `Must be ready by ${fmtLong(mh.date)} · your checks can’t cover every must-be-ready goal yet (see above)`
+              : `Must be ready by ${fmtLong(mh.date)} · fully saved by ${fmtLong(mh.ready ?? mh.date)}${mh.perCheck > 0 ? ` at about ${usd(mh.perCheck)} a paycheck` : ''}`}
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="row between tiny muted">
+            <span>{g.completedAt ? 'Reached! 🎉' : next > 0 ? `+${pebbles(next)} next payday` : 'Not in this paycheck’s plan'}</span>
+            <span title={`At your average of ${usd(avg.avg)} a paycheck (last ${avg.periods} paychecks, including the next one)`}>{!g.completedAt && eta ? `on track for ${fmtLong(eta)}` : ''}</span>
+          </div>
+          <div className="tiny muted" style={{ textAlign: 'right' }}>
+            {!g.completedAt && eta && avg.avg > 0 ? `at your average ${usd(avg.avg)} a paycheck` : ''}
+          </div>
+        </>
       )}
       <div className="row mt" style={{ gap: 4 }}>
         {MILESTONES.map((m) => (
@@ -575,7 +595,10 @@ function TotalGoalBanner({ data, onEdit }: { data: AppData; onEdit: () => void }
   const avg = deposits.length ? deposits.reduce((x, c) => x + c.amount, 0) / 6 : (data.plan.net * data.settings.budget.savingsTargetPct) / 100;
   // goals that must be ready before the date get saved for regardless
   const mustBy = (data.plan.mustHit?.lines ?? []).filter((l) => l.date <= t.date).reduce((x, l) => x + l.remaining, 0);
-  const projected = data.saved + Math.max(avg * checks, mustBy);
+  // goals for things that happen before then get spent on the day, so that money won't still be there
+  const spentGoals = data.goals.filter((g) => !g.archived && !g.isEmergency && g.targetDate && g.targetDate >= data.today && g.targetDate <= t.date);
+  const spent = spentGoals.reduce((x, g) => x + g.target, 0);
+  const projected = Math.max(0, data.saved + Math.max(avg * checks, mustBy) - spent);
   const left = Math.max(0, t.amount - data.saved);
   const need = checks > 0 ? left / checks : left;
   const done = data.saved >= t.amount;
@@ -605,6 +628,7 @@ function TotalGoalBanner({ data, onEdit }: { data: AppData; onEdit: () => void }
       </p>
       <p className="tiny muted" style={{ margin: '4px 0 0' }}>
         {usd(data.saved)} saved so far, across all your goals.
+        {spent > 0 ? ` Counts the ${usd(spent)} you’ll spend before then on ${spentGoals.map((g) => g.name).join(', ')} as gone.` : ''}
       </p>
     </div>
   );
