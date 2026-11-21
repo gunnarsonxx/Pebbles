@@ -1,17 +1,14 @@
-// Recipes from three places, searched together: TheMealDB (free), Spoonacular (365k+ recipes, "find by what I have")
-// and Edamam (2.3M+ recipes from food sites). Spoonacular and Edamam need your own free keys. Results are ranked by
-// how many of their ingredients you already have.
+// Recipes from two places, searched together: TheMealDB (free) and Spoonacular (365k+ recipes, "find by what I have",
+// with your own free key). Results are ranked by how many of their ingredients you already have.
 import type { HttpFn } from './market';
 import { MEALDB, loadMeal, toIngredient, toSteps, type MealDetail } from './mealdb';
 import type { Recipe } from './types';
 
-export type RecipeSource = 'mealdb' | 'spoonacular' | 'edamam';
-export const SOURCE_NAME: Record<RecipeSource, string> = { mealdb: 'TheMealDB', spoonacular: 'Spoonacular', edamam: 'Edamam' };
+export type RecipeSource = 'mealdb' | 'spoonacular';
+export const SOURCE_NAME: Record<RecipeSource, string> = { mealdb: 'TheMealDB', spoonacular: 'Spoonacular' };
 
 export interface RecipeKeys {
   spoonacularKey?: string;
-  edamamAppId?: string;
-  edamamKey?: string;
 }
 
 export interface RecipeHit {
@@ -21,22 +18,6 @@ export interface RecipeHit {
   thumb: string | null;
   have: string[]; // your pantry things it uses
   missing: number | null; // ingredients you don't have (when known up front)
-  url?: string; // Edamam: the original recipe page
-  edamam?: EdamamRecipe; // Edamam sends the whole recipe in the search
-}
-
-interface EdamamRecipe {
-  uri: string;
-  label: string;
-  image?: string;
-  url?: string;
-  source?: string;
-  yield?: number;
-  totalTime?: number;
-  ingredientLines?: string[];
-  ingredients?: { food: string; text: string; quantity?: number; measure?: string | null }[];
-  dishType?: string[];
-  cuisineType?: string[];
 }
 
 const norm = (s: string) =>
@@ -134,38 +115,6 @@ async function spoonSearch(http: HttpFn, key: string, pantry: string[], query: s
   }));
 }
 
-// ---------------- Edamam ----------------
-async function edamamSearch(http: HttpFn, id: string, key: string, terms: string[], query: string | null, pantry: string[]): Promise<RecipeHit[] | { error: string }> {
-  const qs = query ? [query] : terms.slice(0, 3);
-  const out: RecipeHit[] = [];
-  let answered = false;
-  for (const q of qs) {
-    const r = await getJson<{ hits: { recipe: EdamamRecipe }[] }>(
-      http,
-      `https://api.edamam.com/api/recipes/v2?type=public&q=${encodeURIComponent(q)}&app_id=${encodeURIComponent(id)}&app_key=${encodeURIComponent(key)}`,
-      { 'Edamam-Account-User': 'pebbles' },
-    );
-    if (!r) continue;
-    answered = true;
-    for (const h of r.hits) {
-      const rec = h.recipe;
-      const names = (rec.ingredients ?? []).map((i) => i.food);
-      const have = pantryOverlap(names, pantry);
-      out.push({
-        id: `edamam:${rec.uri.split('#recipe_')[1] ?? rec.uri}`,
-        source: 'edamam',
-        name: rec.label,
-        thumb: rec.image ?? null,
-        have,
-        missing: Math.max(0, new Set(names.map(norm)).size - have.length),
-        url: rec.url,
-        edamam: rec,
-      });
-    }
-  }
-  return answered ? out : { error: 'Edamam didn’t answer (check the app ID and key in Settings → Connections).' };
-}
-
 /**
  * Search every source you have set up. With no words, it searches by what's in your pantry. Best matches first: the
  * most of your things used, then the fewest missing.
@@ -178,10 +127,6 @@ export async function findRecipes(http: HttpFn, keys: RecipeKeys, pantry: string
   if (keys.spoonacularKey?.trim()) {
     sources.push('spoonacular');
     jobs.push(spoonSearch(http, keys.spoonacularKey.trim(), pantry, query).then((r) => ('error' in r ? (errors.push(r.error), []) : r)));
-  }
-  if (keys.edamamAppId?.trim() && keys.edamamKey?.trim()) {
-    sources.push('edamam');
-    jobs.push(edamamSearch(http, keys.edamamAppId.trim(), keys.edamamKey.trim(), terms, query, pantry).then((r) => ('error' in r ? (errors.push(r.error), []) : r)));
   }
   const all = (await Promise.all(jobs)).flat();
   // the same dish from two places: keep the one that knows more
@@ -247,24 +192,5 @@ export async function loadRecipe(http: HttpFn, keys: RecipeKeys, hit: RecipeHit)
       ),
     };
   }
-  const e = hit.edamam;
-  if (!e) return null;
-  const ings = (e.ingredients ?? []).filter((i) => !BASICS.test(i.food)).map((i) => toIngredient(i.food, i.text.replace(new RegExp(i.food, 'i'), '').trim()));
-  return {
-    id: raw,
-    name: e.label,
-    thumb: e.image ?? null,
-    category: e.dishType?.[0] ?? null,
-    area: e.cuisineType?.[0] ?? null,
-    source: e.url ?? null,
-    recipe: recipeOf(
-      `edamam_${raw.slice(0, 24)}`,
-      e.label,
-      e.totalTime && e.totalTime > 0 ? e.totalTime : 30,
-      e.yield && e.yield > 0 ? Math.round(e.yield) : 4,
-      [...(e.dishType ?? []), ...(e.cuisineType ?? [])],
-      ings,
-      [`Edamam shares the ingredients; the steps are on ${e.source ?? 'the original site'}${e.url ? `: ${e.url}` : ''}.`],
-    ),
-  };
+  return null;
 }

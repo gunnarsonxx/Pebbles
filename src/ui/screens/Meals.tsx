@@ -548,7 +548,7 @@ function CookedSheet({ m, batches, onClose, onBack, toast }: { m: RecipeMatch; b
 }
 
 /**
- * More recipes from the web: TheMealDB always, plus Spoonacular and Edamam with your own free keys. "Use What I Have"
+ * More recipes from the web: TheMealDB always, plus Spoonacular with your own free key. "Use What I Have"
  * searches with everything in your pantry at once, best matches first.
  */
 function OnlineRecipes({ data }: { data: AppData }) {
@@ -578,14 +578,12 @@ function OnlineRecipes({ data }: { data: AppData }) {
     setErr([...r.errors, ...(r.hits.length ? [] : [query ? `Nothing found for “${query}”.` : 'Nothing found for what’s in your kitchen yet.'])].join(' '));
     setBusy(false);
   };
-  const more = !keys.spoonacularKey && !(keys.edamamAppId && keys.edamamKey);
+  const more = !keys.spoonacularKey;
   return (
     <div className="card">
       <div className="eyebrow">Find More Recipes Online</div>
       <div className="small muted">
-        {more
-          ? 'From TheMealDB. Add a free Spoonacular or Edamam key (Settings → Connections → Recipes) to search hundreds of thousands more.'
-          : 'From TheMealDB, ' + [keys.spoonacularKey ? 'Spoonacular' : '', keys.edamamAppId && keys.edamamKey ? 'Edamam' : ''].filter(Boolean).join(' and ') + '. Save any you like to your recipes.'}
+        {more ? 'From TheMealDB. Add a free Spoonacular key (Settings → Connections → Recipes) to search 365,000+ more.' : 'From TheMealDB and Spoonacular. Save any you like to your recipes.'}
       </div>
       <button className="btn primary mt-s" style={{ width: '100%' }} disabled={busy || !pantry.length} onClick={() => void run(null)}>
         <Sparkles /> {busy ? 'Searching…' : `Use What I Have (${pantry.length} thing${pantry.length === 1 ? '' : 's'})`}

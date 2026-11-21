@@ -25,27 +25,11 @@ describe('recipes from everywhere, by what you have', () => {
         ],
       },
       findByIngredients: [{ id: 77, title: 'Spicy Gochujang Tofu Rice Bowl', usedIngredients: [{ name: 'gochujang' }, { name: 'tofu' }, { name: 'rice' }], missedIngredientCount: 1 }],
-      'api.edamam.com': {
-        hits: [
-          {
-            recipe: {
-              uri: 'x#recipe_abc',
-              label: 'Roast Chicken',
-              ingredients: [
-                { food: 'chicken', text: '1 whole chicken' },
-                { food: 'lemon', text: '1 lemon' },
-              ],
-            },
-          },
-        ],
-      },
     });
-    const r = await findRecipes(http, { spoonacularKey: 'k', edamamAppId: 'a', edamamKey: 'b' }, ['Gochujang', 'Chicken', 'Tofu', 'Rice'], null);
-    expect(r.sources).toEqual(['mealdb', 'spoonacular', 'edamam']);
+    const r = await findRecipes(http, { spoonacularKey: 'k' }, ['Gochujang', 'Chicken', 'Tofu', 'Rice'], null);
+    expect(r.sources).toEqual(['mealdb', 'spoonacular']);
     expect(r.hits[0].name).toBe('Spicy Gochujang Tofu Rice Bowl'); // uses 3 of yours
     expect(r.hits.map((h) => h.name)).toContain('Gochujang Chicken');
-    // the same dish from two places shows once
-    expect(r.hits.filter((h) => h.name === 'Roast Chicken')).toHaveLength(1);
   });
 
   it('opens a Spoonacular recipe with its steps, ready to save', async () => {

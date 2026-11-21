@@ -112,8 +112,6 @@ export interface IntegrationSettings {
   googlePlacesKey: string; // optional: live station prices from Google Maps
   hiddenStations?: { id: string; name: string }[]; // closed, or not really a gas station
   spoonacularKey?: string; // optional: 365k+ recipes, search by what you have
-  edamamAppId?: string; // optional: 2.3M+ recipes
-  edamamKey?: string;
 }
 
 export interface FireSettings {

@@ -217,8 +217,8 @@ export function SetupGuide({ s }: { s: Settings }) {
       cost: 'Free',
     },
     {
-      name: 'More Recipes (Spoonacular, Edamam)',
-      done: !!(i.spoonacularKey || (i.edamamAppId && i.edamamKey)),
+      name: 'More Recipes (Spoonacular)',
+      done: !!i.spoonacularKey,
       what: 'Hundreds of thousands more recipes, found from what’s in your kitchen. Optional.',
       how: 'Steps are in Recipes below.',
       cost: 'Free',
@@ -271,7 +271,7 @@ export function RecipeSettings({ s, set }: { s: Settings; set: SetFn }) {
       </div>
       <div className="col gap-l">
         <p className="small ink2" style={{ margin: 0 }}>
-          Pebbles always searches TheMealDB. Add one or both of these free keys and it also searches far bigger libraries, all at once, ranked by how much of each recipe you already have.
+          Pebbles always searches TheMealDB. Add a free Spoonacular key and it also searches 365,000+ more recipes, all at once, ranked by how much of each recipe you already have.
         </p>
         <div>
           <div className="strong small">Spoonacular · 365,000+ recipes</div>
@@ -286,28 +286,6 @@ export function RecipeSettings({ s, set }: { s: Settings; set: SetFn }) {
           <Field label="Spoonacular API Key">
             <TextInput type="password" value={i.spoonacularKey ?? ''} onChange={(v) => up({ spoonacularKey: v.trim() })} />
           </Field>
-        </div>
-        <div>
-          <div className="strong small">Edamam · 2.3 million recipes from food sites</div>
-          <ol className="small ink2" style={{ margin: '4px 0 8px', paddingLeft: 18 }}>
-            <li>
-              Go to <strong>developer.edamam.com</strong>, sign up, and pick the free <strong>Recipe Search API</strong> plan.
-            </li>
-            <li>
-              Under <strong>Dashboard → Applications</strong>, create an app and copy its <strong>Application ID</strong> and <strong>Application Key</strong> here.
-            </li>
-          </ol>
-          <div className="form-grid two">
-            <Field label="Edamam App ID">
-              <TextInput value={i.edamamAppId ?? ''} onChange={(v) => up({ edamamAppId: v.trim() })} />
-            </Field>
-            <Field label="Edamam App Key">
-              <TextInput type="password" value={i.edamamKey ?? ''} onChange={(v) => up({ edamamKey: v.trim() })} />
-            </Field>
-          </div>
-          <p className="tiny muted" style={{ margin: '4px 0 0' }}>
-            Edamam shares each recipe’s ingredients; the cooking steps are on the site it came from, linked in the recipe.
-          </p>
         </div>
       </div>
     </div>
