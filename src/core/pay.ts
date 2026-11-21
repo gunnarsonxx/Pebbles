@@ -46,6 +46,15 @@ export function upcomingPayPeriod(pay: PaySettings, date: ISODate): Period {
   return p;
 }
 
+/**
+ * The next paycheck you haven't been paid yet. On (or a few days before) payday it's that day's check until
+ * the deposit shows up; once it has, or once payday is over at midnight, it's the following one.
+ */
+export function nextUnpaidPeriod(pay: PaySettings, date: ISODate, received: (periodStart: ISODate) => boolean): Period {
+  const p = upcomingPayPeriod(pay, date);
+  return received(p.start) && diffDays(p.payday, date) <= 4 ? periodByIndex(pay, p.index + 1) : p;
+}
+
 export function paydaysBetween(pay: PaySettings, from: ISODate, to: ISODate): Period[] {
   const out: Period[] = [];
   let p = upcomingPayPeriod(pay, from);
@@ -96,18 +105,12 @@ function resolveSegments(segments: WorkSegment[], rates: PayRate[], baseRate: nu
     });
 }
 
-export function resolveDay(
-  date: ISODate,
-  pay: PaySettings,
-  rates: PayRate[],
-  override: WorkDay | undefined,
-): ResolvedDay {
+export function resolveDay(date: ISODate, pay: PaySettings, rates: PayRate[], override: WorkDay | undefined): ResolvedDay {
   const scheduled = pay.workDays.includes(dayOfWeek(date));
   const defaultPay = scheduled ? pay.hoursPerDay * pay.baseRate : 0;
   const base = { date, scheduled, defaultPay, holidayPremium: 0, note: override?.note ?? '' };
   if (!override) {
-    if (!scheduled)
-      return { ...base, edited: false, status: 'off', segments: [], workedHours: 0, paidLeaveHours: 0, straightPay: 0, leavePay: 0 };
+    if (!scheduled) return { ...base, edited: false, status: 'off', segments: [], workedHours: 0, paidLeaveHours: 0, straightPay: 0, leavePay: 0 };
     const segs = [{ hours: pay.hoursPerDay, rate: pay.baseRate, rateName: 'Base', rateId: BASE_RATE_ID }];
     return {
       ...base,
@@ -237,12 +240,7 @@ export function preMidnightShare(hours: number, pay: PaySettings): number {
   return Math.min(hours, sp.pre) / hours;
 }
 
-export function computeGross(
-  period: Period,
-  pay: PaySettings,
-  rateList: PayRate[],
-  overrides: Map<ISODate, WorkDay> | Record<string, WorkDay>,
-): GrossResult {
+export function computeGross(period: Period, pay: PaySettings, rateList: PayRate[], overrides: Map<ISODate, WorkDay> | Record<string, WorkDay>): GrossResult {
   const rates = allRates(pay.baseRate, rateList);
   const get = (d: ISODate) => (overrides instanceof Map ? overrides.get(d) : overrides[d]);
   const sp = shiftSplit(pay);
@@ -301,7 +299,11 @@ export function computeGross(
     const next = addDays(d.date, 1);
     const fa = fracOf(d);
     const actual = actualPay(d);
-    const diffIn = round2(actual * fa * (inPeriod(d.date) ? 1 : 0) + actual * (1 - fa) * (inPeriod(next) ? 1 : 0) - (d.defaultPay * normalPre * (inPeriod(d.date) ? 1 : 0) + d.defaultPay * (1 - normalPre) * (inPeriod(next) ? 1 : 0)));
+    const diffIn = round2(
+      actual * fa * (inPeriod(d.date) ? 1 : 0) +
+        actual * (1 - fa) * (inPeriod(next) ? 1 : 0) -
+        (d.defaultPay * normalPre * (inPeriod(d.date) ? 1 : 0) + d.defaultPay * (1 - normalPre) * (inPeriod(next) ? 1 : 0)),
+    );
     if (!inPeriod(d.date) && !inPeriod(next)) continue;
     const partial = sp.overnight && (!inPeriod(d.date) || !inPeriod(next));
     const when = sp.overnight ? `${fmtDay(d.date)} night` : fmtDay(d.date);
@@ -345,7 +347,13 @@ export function computeGross(
         const share = (inPeriod(x.date) ? f : 0) + (inPeriod(addDays(x.date, 1)) ? 1 - f : 0);
         const amount = round2(x.straightPay * holidayMult * share);
         if (amount > 0)
-          adjustments.push({ date: x.date, label: `Holiday Pay · ${h.name}`, detail: `${round2(x.workedHours * share)} h × ${pay.holidayMultiplier} for the shift starting ${fmtDay(x.date)}`, amount, kind: 'holiday' });
+          adjustments.push({
+            date: x.date,
+            label: `Holiday Pay · ${h.name}`,
+            detail: `${round2(x.workedHours * share)} h × ${pay.holidayMultiplier} for the shift starting ${fmtDay(x.date)}`,
+            amount,
+            kind: 'holiday',
+          });
       }
     } else {
       for (const d of periodDates) {

@@ -1,15 +1,34 @@
-import { useMemo, useSyncExternalStore } from 'react';
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { store } from './store';
 import { syncClient } from './syncClient';
 import { normalizeSettings } from '../core/defaults';
 import { today as todayISO, parts, diffDays, addDays } from '../core/dates';
-import { computeGross, resolveDay, periodByIndex, periodContaining, upcomingPayPeriod, type Period } from '../core/pay';
+import { computeGross, resolveDay, periodByIndex, periodContaining, nextUnpaidPeriod, type Period } from '../core/pay';
 import { calibrationFrom, estimatePaycheck, type PaycheckEstimate } from '../core/paycheck';
 import { BUNDLED_RULES, isValidRulesFile, newerVersion, rulesForYear, type TaxRulesFile } from '../core/taxrules';
 import { monthlyBillsTotal, buildPlan, estimateEssentials, goalBalance, totalSaved, type EssentialsEstimate, type PaycheckPlan } from '../core/budget';
 import { generateInsights, type Insight } from '../core/insights';
 import { overtimeDeductionEstimate } from '../core/tax';
-import type { Bill, Contribution, Goal, ISODate, MarketData, PaycheckRecord, PayRate, Settings, Transaction, WorkDay, Account, CategoryRule, ImportBatch, BankLink, Receipt, ItemRule, Paystub, StorePrice } from '../core/types';
+import type {
+  Bill,
+  Contribution,
+  Goal,
+  ISODate,
+  MarketData,
+  PaycheckRecord,
+  PayRate,
+  Settings,
+  Transaction,
+  WorkDay,
+  Account,
+  CategoryRule,
+  ImportBatch,
+  BankLink,
+  Receipt,
+  ItemRule,
+  Paystub,
+  StorePrice,
+} from '../core/types';
 import { analyzeGroceries, monthlyGroceryNeed, type GroceryStats } from '../core/groceries';
 import { BUNDLED_GUIDELINES, checkGuidelines, isValidGuidelines, type GuidelineCheck, type GuidelinesFile } from '../core/guidelines';
 import { goalsAccount, interestNextMonth, reconcile, type Reconcile } from '../core/savingsAccount';
@@ -99,7 +118,6 @@ export function effectiveRules(): TaxRulesFile {
   return BUNDLED_RULES;
 }
 
-
 export function effectiveGuidelines(): GuidelinesFile {
   const rec = store.get('guidelines', 'current');
   if (rec) {
@@ -113,9 +131,32 @@ export function effectiveGuidelines(): GuidelinesFile {
   return BUNDLED_GUIDELINES;
 }
 
+/** Today's date that changes on its own at local midnight, and whenever you come back to the app. */
+function useToday(): ISODate {
+  const [t, setT] = useState(todayISO);
+  useEffect(() => {
+    const check = () => setT((cur) => (todayISO() !== cur ? todayISO() : cur));
+    const now = new Date();
+    const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 1).getTime() - now.getTime();
+    const timer = setTimeout(check, midnight);
+    // phones pause timers in the background: check again on return, and every minute while open
+    const every = setInterval(check, 60_000);
+    const onShow = () => document.visibilityState === 'visible' && check();
+    document.addEventListener('visibilitychange', onShow);
+    window.addEventListener('focus', check);
+    return () => {
+      clearTimeout(timer);
+      clearInterval(every);
+      document.removeEventListener('visibilitychange', onShow);
+      window.removeEventListener('focus', check);
+    };
+  }, [t]);
+  return t;
+}
+
 export function useData(): AppData {
   const version = useVersion();
-  const today = todayISO();
+  const today = useToday();
   return useMemo(() => computeData(version, today), [version, today]);
 }
 
@@ -147,7 +188,9 @@ export function computeData(version: number, today: ISODate): AppData {
   const calibration = calibrationFrom(paycheckList);
   const dismissed = new Set(store.list('dismissed').map((d) => d.id));
 
-  const upPeriod = upcomingPayPeriod(settings.pay, today);
+  // the next check you haven't been paid yet: once this payday's deposit shows up (even a day or two early),
+  // Pebbles moves on to the following one; otherwise it moves on when payday is over (midnight)
+  const upPeriod = nextUnpaidPeriod(settings.pay, today, (start) => !!paychecks.get(start)?.received);
   const upcoming = estimatePaycheck(upPeriod, settings, rates, workdays, rulesFile, calibration);
   const afterUpcoming = periodByIndex(settings.pay, upPeriod.index + 1);
   const current = periodContaining(settings.pay, today);
@@ -159,10 +202,14 @@ export function computeData(version: number, today: ISODate): AppData {
   // what you paid: gas receipts and prices you logged, plus fill-ups in your driving log
   const paid = [
     ...gasPrices.filter((g) => g.source !== 'google' && diffDays(today, g.date) <= 30).map((g) => g.perGallon),
-    ...store.list('drives').filter((d) => d.perGallon && diffDays(today, d.date) <= 30).map((d) => d.perGallon as number),
+    ...store
+      .list('drives')
+      .filter((d) => d.perGallon && diffDays(today, d.date) <= 30)
+      .map((d) => d.perGallon as number),
   ];
   const paidGas = paid.length ? Math.round((paid.reduce((s, v) => s + v, 0) / paid.length) * 1000) / 1000 : null;
-  const marketForBudget = paidGas && !market?.manualGasPrice ? ({ ...(market ?? { id: 'market', gas: null, foodCpi: null, staples: [], fetchedAt: 0, errors: [] }), manualGasPrice: paidGas } as MarketData) : market;
+  const marketForBudget =
+    paidGas && !market?.manualGasPrice ? ({ ...(market ?? { id: 'market', gas: null, foodCpi: null, staples: [], fetchedAt: 0, errors: [] }), manualGasPrice: paidGas } as MarketData) : market;
   // your car: odometer readings and fill-ups
   const drives = store.list('drives');
   // days you worked (your schedule, plus any days you changed), to compare driving on work days vs off
@@ -298,7 +345,7 @@ export function computeData(version: number, today: ISODate): AppData {
   const prevPeriod = periodByIndex(settings.pay, upPeriod.index - 1);
   const daysSincePrev = Math.round((Date.parse(today) - Date.parse(prevPeriod.payday)) / 86_400_000);
   // only revisit a past payday Pebbles actually tracked (recorded by you or seen in your bank)
-  const usePrev = daysSincePrev >= 0 && daysSincePrev <= 10 && paychecks.has(prevPeriod.start) && !movesState.get(`${prevPeriod.start}:save`)?.done;
+  const usePrev = daysSincePrev >= -4 && daysSincePrev <= 10 && paychecks.has(prevPeriod.start) && !movesState.get(`${prevPeriod.start}:save`)?.done;
   const mPeriod = usePrev ? prevPeriod : upPeriod;
   const mEstimate = usePrev ? estimatePaycheck(prevPeriod, settings, rates, workdays, rulesFile, calibration) : upcoming;
   const mRecord = paychecks.get(mPeriod.start);
@@ -386,7 +433,10 @@ export function computeData(version: number, today: ISODate): AppData {
     inFlight,
     paypalFrom,
     emergency: emergencyStatus(emergency, emergency ? (balances.get(emergency.id) ?? 0) : 0, monthlyBillsTotal(bills) + essentials.totalMonthly, settings.budget.emergencyMonths),
-    pantry: store.list('pantry').filter((p) => !p.archived).sort((a, b) => a.name.localeCompare(b.name)),
+    pantry: store
+      .list('pantry')
+      .filter((p) => !p.archived)
+      .sort((a, b) => a.name.localeCompare(b.name)),
     shoplist: store.list('shoplist').sort((a, b) => a.addedAt - b.addedAt),
     staples: store.list('staples').sort((a, b) => a.createdAt - b.createdAt),
     customRecipes: store.list('recipes'),

@@ -128,16 +128,34 @@ export function paydayMoves(opts: {
 }
 
 /** A paycheck deposit near payday, if the bank data shows one. */
+const PAYROLL = /PAYROLL|\bPAYRL\b|DIR(ECT)?\s*DEP|\bDD\b|PAYCHECK|SALARY|\bWAGES?\b|\bADP\b|PAYCHEX|GUSTO|DAYFORCE|CERIDIAN|WORKDAY|PAYLOCITY|PAYCOM|UKG|\bPPD\b/i;
+const NOT_PAY = /TRANSFER|XFER|ZELLE|VENMO|CASH\s*APP|PAYPAL|REFUND|INTEREST|MARCUS|GOLDMAN|DAILYPAY|DAILY\s*PAY|REVERSAL/i;
+const payerKey = (d: string) =>
+  d
+    .toUpperCase()
+    .replace(/[^A-Z ]/g, ' ')
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .join(' ');
+
+/**
+ * The deposit that is this paycheck. Banks often post direct deposit a day or two early, sometimes still
+ * marked pending, and don't always tag it as a paycheck, so this looks for any payroll-looking deposit near
+ * payday, or one from the same payer as an earlier paycheck, close to the expected amount.
+ */
 export function findPaycheckDeposit(txns: Transaction[], payday: ISODate, expected: number): Transaction | null {
-  const candidates = txns.filter(
-    (t) =>
-      t.amount > 0 &&
-      !t.pending &&
-      t.category === 'paycheck' &&
-      Math.abs(diffDays(t.date, payday)) <= 3 &&
-      Math.abs(t.amount - expected) <= Math.max(150, expected * 0.35),
-  );
-  candidates.sort((a, b) => Math.abs(a.amount - expected) - Math.abs(b.amount - expected));
+  const payers = new Set(txns.filter((t) => t.amount > 0 && t.category === 'paycheck' && Math.abs(diffDays(t.date, payday)) > 3).map((t) => payerKey(t.description)));
+  const candidates = txns.filter((t) => {
+    if (t.amount <= 0) return false;
+    const days = diffDays(t.date, payday);
+    if (days < -4 || days > 3) return false;
+    if (Math.abs(t.amount - expected) > Math.max(150, expected * 0.35)) return false;
+    const looksLikePay = t.category === 'paycheck' || PAYROLL.test(t.description) || payers.has(payerKey(t.description));
+    return looksLikePay && (t.category === 'paycheck' || !NOT_PAY.test(t.description));
+  });
+  // posted before pending, then closest to what was expected
+  candidates.sort((a, b) => Number(!!a.pending) - Number(!!b.pending) || Math.abs(a.amount - expected) - Math.abs(b.amount - expected));
   return candidates[0] ?? null;
 }
 

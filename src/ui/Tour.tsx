@@ -37,7 +37,7 @@ const STEPS: Step[] = [
     icon: CalendarDays,
     color: 'var(--income)',
     title: 'Pay: your shifts and stubs',
-    body: 'Tap days you work so Pebbles can estimate each check. Upload pay stubs (several at once is fine) and it learns your real taxes and deductions.',
+    body: 'Paycheck shows what each check will be. Shifts is where you tap the days you work; every estimate updates from it. Upload pay stubs (several at once is fine) and Pebbles learns your real taxes and deductions.',
   },
   {
     tab: 'budget',

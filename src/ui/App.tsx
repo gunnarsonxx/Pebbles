@@ -185,7 +185,7 @@ export function App() {
           <PairListener />
           <main className="content">
             {tab === 'home' && <HomeScreen data={data} go={go} />}
-            {tab === 'paycheck' && <PaycheckScreen data={data} go={go} />}
+            {tab === 'paycheck' && <PaycheckScreen data={data} go={go} view={subs.paycheck} setView={(v) => setSub('paycheck', v)} />}
             {tab === 'budget' && <BudgetScreen data={data} go={go} view={subs.budget} setView={(v) => setSub('budget', v)} />}
             {tab === 'groceries' && <GroceriesScreen data={data} go={go} view={subs.groceries} setView={(v) => setSub('groceries', v)} />}
             {tab === 'savings' && <SavingsScreen data={data} go={go} view={subs.savings} setView={(v) => setSub('savings', v)} />}

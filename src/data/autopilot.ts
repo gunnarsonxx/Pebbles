@@ -28,7 +28,10 @@ export async function setMove(period: Period, plan: PaycheckPlan, key: MoveKey, 
   await store.put('moves', { id: moveId(period, key), done, at: Date.now(), auto, ...(prev?.amount != null ? { amount: prev.amount } : {}) });
   if (key === 'sweep') {
     // the leftover goes to the goals the same way this check's savings do (the bank's deposit takes over when it shows up)
-    const ids = store.list('contributions').filter((c) => c.id.startsWith(`sw|${period.start}|`)).map((c) => c.id);
+    const ids = store
+      .list('contributions')
+      .filter((c) => c.id.startsWith(`sw|${period.start}|`))
+      .map((c) => c.id);
     if (!done || bankTracks) {
       if (ids.length) await store.remove('contributions', ids);
       return;
@@ -39,7 +42,20 @@ export async function setMove(period: Period, plan: PaycheckPlan, key: MoveKey, 
     const goals = store.list('goals').filter((g) => !g.archived && !g.completedAt);
     const split = total > 0 ? weights.map((a) => ({ goalId: a.goalId, amount: Math.round(((amount * a.amount) / total) * 100) / 100 })) : goals.slice(0, 1).map((g) => ({ goalId: g.id, amount }));
     if (amount > 0 && !ids.length)
-      await store.putMany('contributions', split.filter((x) => x.amount > 0).map((x) => ({ id: `sw|${period.start}|${x.goalId}`, goalId: x.goalId, amount: x.amount, date: today(), note: 'Left over from last check', paycheckId: period.start, kind: 'deposit' as const })));
+      await store.putMany(
+        'contributions',
+        split
+          .filter((x) => x.amount > 0)
+          .map((x) => ({
+            id: `sw|${period.start}|${x.goalId}`,
+            goalId: x.goalId,
+            amount: x.amount,
+            date: today(),
+            note: 'Left over from last check',
+            paycheckId: period.start,
+            kind: 'deposit' as const,
+          })),
+      );
     return;
   }
   if (key !== 'save' && key !== 'bonus') return;
@@ -48,16 +64,20 @@ export async function setMove(period: Period, plan: PaycheckPlan, key: MoveKey, 
     const mine = existing.filter((c) => c.id.startsWith('pc|'));
     // when the bank shows the transfer, the real deposit fills the goals instead (see syncGoalsWithAccount)
     const fromBank = store.list('contributions').some((c) => c.paycheckId === period.start && c.id.startsWith('dep|'));
-    if (done && !mine.length && !fromBank && !(auto && bankTracks)) await store.putMany('contributions', paycheckContributions(period, plan.allocations, today() < period.payday ? period.payday : today()));
-    if (!done && mine.length) await store.remove('contributions', mine.map((c) => c.id));
+    if (done && !mine.length && !fromBank && !(auto && bankTracks))
+      await store.putMany('contributions', paycheckContributions(period, plan.allocations, today() < period.payday ? period.payday : today()));
+    if (!done && mine.length)
+      await store.remove(
+        'contributions',
+        mine.map((c) => c.id),
+      );
   }
 }
 
 export async function setBonusMove(period: Period, amount: number, goalId: string | null, done: boolean): Promise<void> {
   await store.put('moves', { id: moveId(period, 'bonus'), done, at: Date.now(), auto: false });
   const id = `bonus|${period.start}`;
-  if (done && goalId && amount > 0)
-    await store.put('contributions', { id, goalId, amount, date: today(), note: 'Bonus paycheck', paycheckId: period.start, kind: 'deposit' });
+  if (done && goalId && amount > 0) await store.put('contributions', { id, goalId, amount, date: today(), note: 'Bonus paycheck', paycheckId: period.start, kind: 'deposit' });
   if (!done && store.get('contributions', id)) await store.remove('contributions', id);
 }
 
@@ -70,6 +90,9 @@ export function startAutopilot() {
     timer = setTimeout(() => void runAutopilot(), 2500);
   });
   setTimeout(() => void runAutopilot(), 3000);
+  // a new day (payday over) or a deposit can arrive while nothing else changes: look again every few minutes and on return
+  setInterval(() => void runAutopilot(), 5 * 60_000);
+  if (typeof document !== 'undefined') document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && void runAutopilot());
 }
 
 export async function runAutopilot(): Promise<void> {
@@ -82,7 +105,11 @@ export async function runAutopilot(): Promise<void> {
     // 0a) utility bills change every month: ask for the amount on the 9th at 10am (once, as a starting point)
     if (!(await store.getMeta<boolean>('billPromptSetup:v1'))) {
       const util = d.bills.filter((b) => b.active && !b.amountReminder && looksVariable(b));
-      if (util.length) await store.putMany('bills', util.map((b) => ({ ...b, amountReminder: { day: 9, time: '10:00' } })));
+      if (util.length)
+        await store.putMany(
+          'bills',
+          util.map((b) => ({ ...b, amountReminder: { day: 9, time: '10:00' } })),
+        );
       await store.setMeta('billPromptSetup:v1', true);
     }
 
@@ -133,7 +160,11 @@ export async function runAutopilot(): Promise<void> {
         const own = baseName(p.name);
         return !!fromDesc && !!own && fromDesc !== own;
       });
-      if (fix.length) await store.putMany('pantry', fix.map((p) => ({ ...p, desc: undefined })));
+      if (fix.length)
+        await store.putMany(
+          'pantry',
+          fix.map((p) => ({ ...p, desc: undefined })),
+        );
       await store.setMeta('pantryDesc:v1', true);
     }
 
@@ -258,9 +289,9 @@ export async function runAutopilot(): Promise<void> {
       if (goal && patch) await store.put('goals', { ...goal, ...patch });
     }
 
-    // 2) the paycheck landed → record it
+    // 2) the paycheck landed → record it (direct deposit often shows up a day or two early)
     const m = d.movesFor;
-    if (m && m.period.payday <= d.today) {
+    if (m && addDays(m.period.payday, -4) <= d.today) {
       const rec = d.paychecks.get(m.period.start);
       if (!rec?.received) {
         const deposit = findPaycheckDeposit(d.txns, m.period.payday, m.estimate.net);
