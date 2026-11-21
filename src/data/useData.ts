@@ -483,7 +483,19 @@ export function computeData(version: number, today: ISODate): AppData {
       .sort((x, y) => y.payday.localeCompare(x.payday))
       .slice(0, 6);
     const avgNet = recent.length ? recent.reduce((t, p) => t + (p.actualNet as number), 0) / recent.length : upcoming.net;
-    const typical = buildPlan({ settings, net: round2(avgNet), payday: upPeriod.payday, nextPayday: afterUpcoming.payday, bills, essentials, goals, contributions });
+    // a typical check pays its average share of the year's bills, whichever way you fund the Bills account
+    // ("just what's due" makes single checks swing up and down, but over a year it's the same money)
+    const typical = buildPlan({
+      settings,
+      net: round2(avgNet),
+      payday: upPeriod.payday,
+      nextPayday: afterUpcoming.payday,
+      bills,
+      essentials,
+      goals,
+      contributions,
+      billsTopUp: round2((monthlyBillsTotal(bills) * 12) / 26),
+    });
     return { perCheck: typical.savingsBase ?? typical.savings, basis: recent.length ? 'paychecks' : 'estimate', count: recent.length, avgNet: round2(avgNet) };
   })();
   // the emergency fund keeps stepping up (starter month, then the full fund) when it raises itself
