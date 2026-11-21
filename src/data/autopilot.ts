@@ -10,7 +10,7 @@ import { today } from '../core/dates';
 import { dedupePaypal } from '../core/paypal';
 import { findPaycheckDeposit, findSavingsTransfer, moveId, type MoveKey } from '../core/moves';
 import { goalsAccount, interestContributions, syncGoalsWithAccount, type Weight } from '../core/savingsAccount';
-import { addDays } from '../core/dates';
+import { addDays, diffDays } from '../core/dates';
 import { periodByIndex, periodContaining } from '../core/pay';
 import type { Allocation, PaycheckPlan } from '../core/budget';
 import type { Period } from '../core/pay';
@@ -289,6 +289,13 @@ export async function runAutopilot(): Promise<void> {
       if (goal && patch) await store.put('goals', { ...goal, ...patch });
     }
 
+    // 2a) a paycheck recorded while its deposit was pending: once it posts, take the posted amount and drop the label
+    for (const rec of d.paychecks.values()) {
+      if (!rec.depositPending || diffDays(d.today, rec.payday) > 14) continue;
+      const dep = findPaycheckDeposit(d.txns, rec.payday, rec.actualNet ?? rec.estimatedNet);
+      if (dep && !dep.pending) await store.put('paychecks', { ...rec, actualNet: dep.amount, depositPending: false });
+    }
+
     // 2) the paycheck landed → record it (direct deposit often shows up a day or two early)
     const m = d.movesFor;
     if (m && addDays(m.period.payday, -4) <= d.today) {
@@ -310,6 +317,7 @@ export async function runAutopilot(): Promise<void> {
             split: { bills: m.plan.bills, essentials: m.plan.essentials, savings: m.plan.savings, personal: m.plan.personal },
             goalAllocations: m.plan.allocations.map((a) => ({ goalId: a.goalId, amount: a.amount })),
             note: 'Recorded automatically from your bank',
+            depositPending: !!deposit.pending,
           };
           await store.put('paychecks', paycheck);
         }

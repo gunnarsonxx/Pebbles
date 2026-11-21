@@ -192,6 +192,7 @@ export interface PaycheckRecord {
   savingsOverride: number | null; // you moved the savings slider for this check
   split: { bills: number; essentials: number; savings: number; personal: number } | null;
   goalAllocations: { goalId: string; amount: number }[];
+  depositPending?: boolean; // the bank still shows the deposit as pending
   note: string;
 }
 

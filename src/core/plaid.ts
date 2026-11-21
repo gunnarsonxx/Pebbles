@@ -57,12 +57,7 @@ export interface HostedLink {
   expiration: string;
 }
 
-export async function createHostedLink(
-  http: HttpFn,
-  creds: PlaidCreds,
-  userId: string,
-  opts: { redirectUri?: string; accessToken?: string } = {},
-): Promise<HostedLink> {
+export async function createHostedLink(http: HttpFn, creds: PlaidCreds, userId: string, opts: { redirectUri?: string; accessToken?: string } = {}): Promise<HostedLink> {
   const hosted: Record<string, unknown> = { url_lifetime_seconds: 1800 };
   if (opts.redirectUri) hosted.completion_redirect_uri = opts.redirectUri;
   const body: Record<string, unknown> = {
@@ -72,7 +67,8 @@ export async function createHostedLink(
     user: { client_user_id: userId },
     hosted_link: hosted,
   };
-  if (opts.accessToken) body.access_token = opts.accessToken; // update mode: re-connect a bank
+  if (opts.accessToken)
+    body.access_token = opts.accessToken; // update mode: re-connect a bank
   else {
     body.products = ['transactions'];
     body.transactions = { days_requested: 730 };
@@ -152,6 +148,7 @@ export interface PlaidTxn {
   name: string;
   merchant_name?: string | null;
   pending: boolean;
+  pending_transaction_id?: string | null; // on a posted item: the pending item it replaces
   personal_finance_category?: { primary: string; detailed: string } | null;
 }
 
@@ -301,7 +298,11 @@ export function transactionFromPlaid(t: PlaidTxn, rules: CategoryRule[]): Transa
 
 /** Is this bank transaction already in Pebbles from an imported statement? */
 export function looksLikeDuplicate(t: Transaction, existing: Transaction[]): boolean {
-  const key = (s: string) => s.toLowerCase().replace(/[^a-z]/g, '').slice(0, 5);
+  const key = (s: string) =>
+    s
+      .toLowerCase()
+      .replace(/[^a-z]/g, '')
+      .slice(0, 5);
   const k = key(t.merchant || t.description);
   const day = Date.parse(t.date);
   return existing.some(

@@ -35,11 +35,7 @@ export function projectSavings(balance: number, apyPct: number, monthlyDeposit: 
 }
 
 export function goalsAccount(accounts: Account[]): Account | null {
-  return (
-    accounts.find((a) => a.holdsGoals) ??
-    accounts.find((a) => a.type === 'savings' && /marcus|goldman/i.test(`${a.name} ${a.institution ?? ''}`)) ??
-    null
-  );
+  return accounts.find((a) => a.holdsGoals) ?? accounts.find((a) => a.type === 'savings' && /marcus|goldman/i.test(`${a.name} ${a.institution ?? ''}`)) ?? null;
 }
 
 /** Split an amount across goals in proportion to what each holds (equally if all empty). */
@@ -64,13 +60,7 @@ export function isInterest(t: Transaction): boolean {
 }
 
 /** Interest paid into the goals account becomes pebbles in your goals (once per payment). */
-export function interestContributions(
-  txns: Transaction[],
-  account: Account | null,
-  goals: Goal[],
-  contributions: Contribution[],
-  balances: Map<string, number>,
-): Contribution[] {
+export function interestContributions(txns: Transaction[], account: Account | null, goals: Goal[], contributions: Contribution[], balances: Map<string, number>): Contribution[] {
   if (!account) return [];
   const done = new Set(contributions.filter((c) => c.kind === 'interest').map((c) => c.id.split('|')[1]));
   const out: Contribution[] = [];
@@ -166,9 +156,7 @@ export function syncGoalsWithAccount(i: GoalSyncInput): GoalSyncResult {
   };
 
   const seen = (prefix: string) => contribs.some((c) => c.id.startsWith(prefix) && !remove.has(c.id));
-  const mine = i.txns
-    .filter((t) => t.accountId === account.id && !t.pending && t.date >= i.since && !isInterest(t))
-    .sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
+  const mine = i.txns.filter((t) => t.accountId === account.id && t.date >= i.since && !isInterest(t)).sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
 
   for (const t of mine) {
     if (t.amount > 0) {

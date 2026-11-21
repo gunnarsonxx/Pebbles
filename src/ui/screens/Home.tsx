@@ -64,16 +64,16 @@ export function HomeScreen({ data, go }: { data: AppData; go: GoTo }) {
       <div className="grid two-wide">
         <div className="card" style={{ overflow: 'hidden', paddingBottom: 26 }}>
           <Ridge />
-          <div className="eyebrow">
-            {isPayday ? 'Payday is today' : `Next payday · ${fmtDay(p.payday)} · ${relativeDays(p.payday, data.today)}`}
-          </div>
+          <div className="eyebrow">{isPayday ? 'Payday is today' : `Next payday · ${fmtDay(p.payday)} · ${relativeDays(p.payday, data.today)}`}</div>
           <div className="hero-number" style={{ margin: '8px 0 4px' }}>
             {usd(actual ?? upcoming.net)}
           </div>
           {actual != null ? (
             <>
               <div className="ink2 small">
-                Take-home from your pay stub{record?.actualGross ? ` · ${usd(record.actualGross)} gross` : ''}
+                {record?.note === 'Recorded automatically from your bank' ? 'Take-home from your bank' : 'Take-home from your pay stub'}
+                {record?.actualGross ? ` · ${usd(record.actualGross)} gross` : ''}
+                {record?.depositPending ? ' · pending' : ''}
               </div>
               {Math.abs(actual - upcoming.net) >= 0.01 && (
                 <div className={`diff-chip ${actual >= upcoming.net ? 'up' : 'down'}`}>
@@ -108,7 +108,10 @@ export function HomeScreen({ data, go }: { data: AppData; go: GoTo }) {
             <div>
               <div className="eyebrow">Savings</div>
               <div className="big-number num" style={{ marginTop: 4 }}>
-                {pebbles(data.saved)} <span className="small muted" style={{ fontWeight: 500 }}>pebbles saved</span>
+                {pebbles(data.saved)}{' '}
+                <span className="small muted" style={{ fontWeight: 500 }}>
+                  pebbles saved
+                </span>
               </div>
             </div>
             <button className="icon-btn" onClick={() => go('savings')} aria-label="Open savings">
@@ -164,8 +167,26 @@ export function HomeScreen({ data, go }: { data: AppData; go: GoTo }) {
         <SplitBar
           total={plan.net}
           parts={[
-            { key: 'bills', label: 'Bills', value: plan.bills, color: 'var(--sapphire)', hint: plan.billsTopUp ? (plan.bills > 0 ? `Into ${data.coverage.bills?.account.name ?? 'your Bills Account'}` : 'Bills Account already covered') : plan.billsDue.length ? `${plan.billsDue.length} due before next payday` : undefined },
-            { key: 'you', label: 'Your Money', value: plan.essentials + Math.max(0, plan.personal), color: 'var(--amethyst)', hint: `${usd(plan.essentials, true)} groceries & gas · ${usd(plan.personalPerDay, true)} a day to enjoy` },
+            {
+              key: 'bills',
+              label: 'Bills',
+              value: plan.bills,
+              color: 'var(--sapphire)',
+              hint: plan.billsTopUp
+                ? plan.bills > 0
+                  ? `Into ${data.coverage.bills?.account.name ?? 'your Bills Account'}`
+                  : 'Bills Account already covered'
+                : plan.billsDue.length
+                  ? `${plan.billsDue.length} due before next payday`
+                  : undefined,
+            },
+            {
+              key: 'you',
+              label: 'Your Money',
+              value: plan.essentials + Math.max(0, plan.personal),
+              color: 'var(--amethyst)',
+              hint: `${usd(plan.essentials, true)} groceries & gas · ${usd(plan.personalPerDay, true)} a day to enjoy`,
+            },
             { key: 'save', label: 'Savings', value: plan.savings, color: 'var(--jade)', hint: `${Math.round(plan.savingsRate * 100)}% of take-home` },
           ]}
         />

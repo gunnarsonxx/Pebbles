@@ -2,9 +2,34 @@ import { describe, expect, it } from 'vitest';
 import { setGoalSplit, splitByWeights, syncGoalsWithAccount, type GoalSyncInput } from './savingsAccount';
 import type { Account, Contribution, Goal, Transaction } from './types';
 
-const goal = (id: string, extra: Partial<Goal> = {}): Goal => ({ id, name: id, target: 3000, targetDate: null, image: null, gem: 'jade', priority: 2, isEmergency: false, createdAt: 0, completedAt: null, archived: false, note: '', ...extra });
+const goal = (id: string, extra: Partial<Goal> = {}): Goal => ({
+  id,
+  name: id,
+  target: 3000,
+  targetDate: null,
+  image: null,
+  gem: 'jade',
+  priority: 2,
+  isEmergency: false,
+  createdAt: 0,
+  completedAt: null,
+  archived: false,
+  note: '',
+  ...extra,
+});
 const marcus: Account = { id: 'm', name: 'Marcus', type: 'savings', balance: 1000, balanceDate: '2026-11-19', source: 'plaid' };
-const tx = (id: string, date: string, amount: number, description = 'TRANSFER FROM CHECKING'): Transaction => ({ id, accountId: 'm', date, description, merchant: '', amount, category: 'savings', importId: null, excluded: true, note: '' });
+const tx = (id: string, date: string, amount: number, description = 'TRANSFER FROM CHECKING'): Transaction => ({
+  id,
+  accountId: 'm',
+  date,
+  description,
+  merchant: '',
+  amount,
+  category: 'savings',
+  importId: null,
+  excluded: true,
+  note: '',
+});
 
 function apply(contribs: Contribution[], r: { put: Contribution[]; remove: string[] }): Contribution[] {
   const map = new Map(contribs.map((c) => [c.id, c]));
@@ -30,11 +55,22 @@ describe('goals follow the savings account', () => {
   };
 
   it('splits to the cent', () => {
-    expect(splitByWeights(265, [{ goalId: 'a', w: 53 }, { goalId: 'b', w: 212 }])).toEqual([
+    expect(
+      splitByWeights(265, [
+        { goalId: 'a', w: 53 },
+        { goalId: 'b', w: 212 },
+      ]),
+    ).toEqual([
       { goalId: 'a', amount: 53 },
       { goalId: 'b', amount: 212 },
     ]);
-    expect(splitByWeights(100, [{ goalId: 'a', w: 1 }, { goalId: 'b', w: 1 }, { goalId: 'c', w: 1 }]).reduce((s, x) => s + x.amount, 0)).toBe(100);
+    expect(
+      splitByWeights(100, [
+        { goalId: 'a', w: 1 },
+        { goalId: 'b', w: 1 },
+        { goalId: 'c', w: 1 },
+      ]).reduce((s, x) => s + x.amount, 0),
+    ).toBe(100);
   });
 
   it('spreads money already in Marcus so goals equal the balance', () => {
@@ -46,8 +82,28 @@ describe('goals follow the savings account', () => {
   it('splits a $265 transfer $53 / $212 by that paycheck’s plan', () => {
     let cs = apply([], syncGoalsWithAccount(base));
     const acct = { ...marcus, balance: 1265 };
-    cs = apply(cs, syncGoalsWithAccount({ ...base, account: acct, contributions: cs, txns: [tx('t1', '2026-11-20', 265)], paycheckFor: () => ({ periodStart: 'p1', weights: [{ goalId: 'ring', w: 53 }, { goalId: 'em', w: 212 }] }) }));
-    expect(cs.filter((c) => c.id.startsWith('dep|t1|')).map((c) => c.amount).sort((a, b) => a - b)).toEqual([53, 212]);
+    cs = apply(
+      cs,
+      syncGoalsWithAccount({
+        ...base,
+        account: acct,
+        contributions: cs,
+        txns: [tx('t1', '2026-11-20', 265)],
+        paycheckFor: () => ({
+          periodStart: 'p1',
+          weights: [
+            { goalId: 'ring', w: 53 },
+            { goalId: 'em', w: 212 },
+          ],
+        }),
+      }),
+    );
+    expect(
+      cs
+        .filter((c) => c.id.startsWith('dep|t1|'))
+        .map((c) => c.amount)
+        .sort((a, b) => a - b),
+    ).toEqual([53, 212]);
     expect(bal(cs, 'ring') + bal(cs, 'em')).toBe(1265);
     // running again changes nothing
     const again = syncGoalsWithAccount({ ...base, account: acct, contributions: cs, txns: [tx('t1', '2026-11-20', 265)] });
@@ -60,7 +116,13 @@ describe('goals follow the savings account', () => {
       { id: 'pc|p1|ring', goalId: 'ring', amount: 50, date: '2026-11-20', note: '', paycheckId: 'p1', kind: 'deposit' },
       { id: 'pc|p1|em', goalId: 'em', amount: 200, date: '2026-11-20', note: '', paycheckId: 'p1', kind: 'deposit' },
     ];
-    const r = syncGoalsWithAccount({ ...base, account: { ...marcus, balance: 265 }, contributions: manual, txns: [tx('t1', '2026-11-20', 265)], paycheckFor: () => ({ periodStart: 'p1', weights: [] }) });
+    const r = syncGoalsWithAccount({
+      ...base,
+      account: { ...marcus, balance: 265 },
+      contributions: manual,
+      txns: [tx('t1', '2026-11-20', 265)],
+      paycheckFor: () => ({ periodStart: 'p1', weights: [] }),
+    });
     const cs = apply(manual, r);
     expect(r.remove.sort()).toEqual(['pc|p1|em', 'pc|p1|ring']);
     expect(bal(cs, 'ring') + bal(cs, 'em')).toBe(265);
@@ -69,7 +131,18 @@ describe('goals follow the savings account', () => {
 
   it('keeps a split you set by hand', () => {
     let cs = apply([], syncGoalsWithAccount(base));
-    cs = apply(cs, { put: setGoalSplit(marcus, new Map([['ring', 900], ['em', 100]]), cs, '2026-11-19'), remove: [] });
+    cs = apply(cs, {
+      put: setGoalSplit(
+        marcus,
+        new Map([
+          ['ring', 900],
+          ['em', 100],
+        ]),
+        cs,
+        '2026-11-19',
+      ),
+      remove: [],
+    });
     const r = syncGoalsWithAccount({ ...base, contributions: cs });
     expect(r.put).toEqual([]);
     expect(bal(apply(cs, r), 'ring')).toBe(900);
@@ -78,7 +151,18 @@ describe('goals follow the savings account', () => {
   it('a withdrawal for a finished goal comes out of that goal', () => {
     const g2 = [goal('ring', { completedAt: 1, target: 500 }), goal('em', { isEmergency: true })];
     let cs = apply([], syncGoalsWithAccount({ ...base, goals: g2, account: { ...marcus, balance: 1000 } }));
-    cs = apply(cs, { put: setGoalSplit(marcus, new Map([['ring', 500], ['em', 500]]), cs, '2026-11-19'), remove: [] });
+    cs = apply(cs, {
+      put: setGoalSplit(
+        marcus,
+        new Map([
+          ['ring', 500],
+          ['em', 500],
+        ]),
+        cs,
+        '2026-11-19',
+      ),
+      remove: [],
+    });
     cs = apply(cs, syncGoalsWithAccount({ ...base, goals: g2, contributions: cs, account: { ...marcus, balance: 510 }, txns: [tx('w1', '2026-11-21', -490, 'TRANSFER TO CHECKING')] }));
     expect(bal(cs, 'ring')).toBeLessThan(15);
     expect(bal(cs, 'ring') + bal(cs, 'em')).toBe(510);
@@ -89,17 +173,45 @@ describe('bills: roommate split, wider suggestions, calendar', async () => {
   const { roommateTransfer, monthlyEquivalent } = await import('./budget');
   const { detectRecurring } = await import('./analytics');
   const { billsCalendar } = await import('./ics');
-  const bill = (p: Partial<import('./types').Bill>) => ({ id: p.name ?? 'b', name: 'Bill', amount: 0, dueDay: 1, dueMonth: null, anchorDate: null, frequency: 'monthly' as const, category: 'utilities', autopay: false, active: true, matchPattern: '', ...p });
+  const bill = (p: Partial<import('./types').Bill>) => ({
+    id: p.name ?? 'b',
+    name: 'Bill',
+    amount: 0,
+    dueDay: 1,
+    dueMonth: null,
+    anchorDate: null,
+    frequency: 'monthly' as const,
+    category: 'utilities',
+    autopay: false,
+    active: true,
+    matchPattern: '',
+    ...p,
+  });
 
   it('rent to a roommate minus their half of the bills in your name', () => {
-    const bills = [bill({ name: 'Rent', amount: 1000, toRoommate: true, category: 'housing' }), bill({ name: 'Internet', amount: 70, yourSharePct: 50, fromRent: true }), bill({ name: 'Electric', amount: 120, yourSharePct: 50, fromRent: true })];
+    const bills = [
+      bill({ name: 'Rent', amount: 1000, toRoommate: true, category: 'housing' }),
+      bill({ name: 'Internet', amount: 70, yourSharePct: 50, fromRent: true }),
+      bill({ name: 'Electric', amount: 120, yourSharePct: 50, fromRent: true }),
+    ];
     expect(roommateTransfer(bills)).toMatchObject({ send: 905, rent: 1000 });
     // your real monthly cost: full rent plus your halves
     expect(bills.reduce((s, b) => s + monthlyEquivalent(b), 0)).toBe(1095);
   });
 
   it('a thorough look finds varying utilities, Venmo rent and one-off subscriptions', () => {
-    const t = (id: string, date: string, amount: number, description: string, category: string) => ({ id, accountId: 'c', date, description, merchant: '', amount, category, importId: null, excluded: false, note: '' });
+    const t = (id: string, date: string, amount: number, description: string, category: string) => ({
+      id,
+      accountId: 'c',
+      date,
+      description,
+      merchant: '',
+      amount,
+      category,
+      importId: null,
+      excluded: false,
+      note: '',
+    });
     const txns = [
       t('1', '2026-09-03', -82.1, 'XCEL ENERGY PAYMENT', 'utilities'),
       t('2', '2026-10-04', -118.4, 'XCEL ENERGY PAYMENT', 'utilities'),
@@ -129,7 +241,18 @@ describe('bills: roommate split, wider suggestions, calendar', async () => {
 describe('PayPal purchases count once', async () => {
   const { dedupePaypal } = await import('./paypal');
   const acct = (id: string, name: string, institution: string) => ({ id, name, institution, type: 'checking' as const });
-  const t = (id: string, accountId: string, date: string, amount: number, description: string, merchant = '') => ({ id, accountId, date, description, merchant, amount, category: 'shopping', importId: null, excluded: false, note: '' });
+  const t = (id: string, accountId: string, date: string, amount: number, description: string, merchant = '') => ({
+    id,
+    accountId,
+    date,
+    description,
+    merchant,
+    amount,
+    category: 'shopping',
+    importId: null,
+    excluded: false,
+    note: '',
+  });
   it('hides the USAA line for a PayPal purchase and keeps the PayPal one', () => {
     const accounts = [acct('usaa', 'Checking', 'USAA'), acct('pp', 'PayPal Balance', 'PayPal')];
     const txns = [
@@ -154,7 +277,18 @@ describe('one subscription, two accounts', async () => {
   const { cleanMerchant } = await import('./statements');
   it('PayPal’s “Payment To” and the bank’s “PAYPAL *” are the same merchant, counted once', () => {
     expect(cleanMerchant('Payment To Crunchyroll')).toBe(cleanMerchant('PAYPAL *CRUNCHYROLL'));
-    const t = (id: string, accountId: string, date: string, description: string) => ({ id, accountId, date, description, merchant: '', amount: -10.8, category: 'subscriptions', importId: null, excluded: false, note: '' });
+    const t = (id: string, accountId: string, date: string, description: string) => ({
+      id,
+      accountId,
+      date,
+      description,
+      merchant: '',
+      amount: -10.8,
+      category: 'subscriptions',
+      importId: null,
+      excluded: false,
+      note: '',
+    });
     const txns = [
       t('a', 'usaa', '2026-09-09', 'PAYPAL *CRUNCHYROLL'),
       t('b', 'pp', '2026-09-08', 'Payment To Crunchyroll'),
@@ -171,7 +305,20 @@ describe('one subscription, two accounts', async () => {
 
 describe('bills account covers bills through the check after next', async () => {
   const { coverage } = await import('./coverage');
-  const bill = (p: Partial<import('./types').Bill>) => ({ id: p.name ?? 'b', name: 'Bill', amount: 0, dueDay: 1, dueMonth: null, anchorDate: null, frequency: 'monthly' as const, category: 'utilities', autopay: false, active: true, matchPattern: '', ...p });
+  const bill = (p: Partial<import('./types').Bill>) => ({
+    id: p.name ?? 'b',
+    name: 'Bill',
+    amount: 0,
+    dueDay: 1,
+    dueMonth: null,
+    anchorDate: null,
+    frequency: 'monthly' as const,
+    category: 'utilities',
+    autopay: false,
+    active: true,
+    matchPattern: '',
+    ...p,
+  });
   const billsAcct = { id: 'bills', name: 'Bills Account', institution: 'USAA', type: 'checking' as const, balance: 360, available: 344.08, balanceDate: '2026-11-19' };
   const spend = { id: 'spend', name: 'Spending Account', institution: 'USAA', type: 'checking' as const, balance: 250, available: 240, balanceDate: '2026-11-19' };
   const bills = [
@@ -215,7 +362,20 @@ describe('bills account covers bills through the check after next', async () => 
 describe('the same bills amount every check', async () => {
   const { steadyBillsPlan, cashAmount } = await import('./coverage');
   const { billDueDates } = await import('./budget');
-  const bill = (p: Partial<import('./types').Bill>) => ({ id: p.name ?? 'b', name: 'Bill', amount: 0, dueDay: 1, dueMonth: null, anchorDate: null, frequency: 'monthly' as const, category: 'utilities', autopay: false, active: true, matchPattern: '', ...p });
+  const bill = (p: Partial<import('./types').Bill>) => ({
+    id: p.name ?? 'b',
+    name: 'Bill',
+    amount: 0,
+    dueDay: 1,
+    dueMonth: null,
+    anchorDate: null,
+    frequency: 'monthly' as const,
+    category: 'utilities',
+    autopay: false,
+    active: true,
+    matchPattern: '',
+    ...p,
+  });
   const bills = [
     bill({ name: 'Rent', amount: 1000, dueDay: 1 }),
     bill({ name: 'Utilities', amount: 175, dueDay: 28 }),
@@ -245,7 +405,32 @@ describe('the same bills amount every check', async () => {
     expect(less.perCheck).toBe(p.perCheck);
   });
   it('a bill due before the first payday that the account can’t cover is flagged to move now', () => {
-    const p = steadyBillsPlan({ balance: 50, bills: [bill({ name: 'Phone', amount: 45, dueDay: 15 }), bill({ name: 'Gym', amount: 30, dueDay: 17 })], txns: [], today: '2026-12-14', paydays: ['2026-12-18', '2027-01-01'] });
+    const p = steadyBillsPlan({
+      balance: 50,
+      bills: [bill({ name: 'Phone', amount: 45, dueDay: 15 }), bill({ name: 'Gym', amount: 30, dueDay: 17 })],
+      txns: [],
+      today: '2026-12-14',
+      paydays: ['2026-12-18', '2027-01-01'],
+    });
     expect(p.shortNow).toBe(25);
+  });
+});
+
+describe('pending items count', () => {
+  it('splits a pending deposit into goals like a posted one', () => {
+    const goals = [goal('ring'), goal('em', { isEmergency: true })];
+    const r = syncGoalsWithAccount({
+      account: { ...marcus, balance: null },
+      txns: [{ ...tx('p_pend1', '2026-11-20', 200), pending: true }],
+      goals,
+      contributions: [],
+      since: '2026-11-01',
+      planWeights: [
+        { goalId: 'ring', w: 1 },
+        { goalId: 'em', w: 1 },
+      ],
+      paycheckFor: () => null,
+    });
+    expect(r.put.filter((c) => c.id.startsWith('dep|p_pend1|')).reduce((s, c) => s + c.amount, 0)).toBe(200);
   });
 });

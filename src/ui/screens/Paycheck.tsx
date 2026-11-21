@@ -113,7 +113,14 @@ function PaycheckView({ data, idx, setIdx, openShifts }: { data: AppData; go: Go
           <div className="card">
             <div className="row between" style={{ alignItems: 'flex-end' }}>
               <div>
-                <div className="eyebrow">{record?.received && record.actualNet != null ? 'Take-Home' : 'Estimated Take-Home'}</div>
+                <div className="eyebrow">
+                  {record?.received && record.actualNet != null ? 'Take-Home' : 'Estimated Take-Home'}
+                  {record?.depositPending && (
+                    <span className="badge warn" style={{ marginLeft: 8, padding: '1px 6px', fontSize: 10, verticalAlign: 'middle' }}>
+                      Pending
+                    </span>
+                  )}
+                </div>
                 <div className="hero-number">{usd(record?.received && record.actualNet != null ? record.actualNet : est.net)}</div>
               </div>
               <div style={{ textAlign: 'right' }}>
@@ -384,6 +391,11 @@ function ShiftsView({ data, idx, nowIdx, setIdx, openPaycheck }: { data: AppData
           <div className="grow">
             <div className="strong">
               {paid ? `Paid ${usd(record!.actualNet!)}` : `About ${usd(est.net)} take-home`} on {fmtDay(period.payday)}
+              {record?.depositPending && (
+                <span className="badge warn" style={{ marginLeft: 8, padding: '1px 6px', fontSize: 10, verticalAlign: 'middle' }}>
+                  Pending
+                </span>
+              )}
             </div>
             <div className="small muted">
               {num(g.workedHours)} h worked{g.otHours ? ` · ${num(g.otHours)} h overtime` : ''} · {usd(g.gross)} gross. See the paycheck.
@@ -441,7 +453,10 @@ function History({ data }: { data: AppData }) {
               <tr key={p.id}>
                 <td>{fmtDay(p.payday)}</td>
                 <td className="r num">{usd(p.estimatedNet)}</td>
-                <td className="r num">{p.actualNet != null ? usd(p.actualNet) : '–'}</td>
+                <td className="r num">
+                  {p.actualNet != null ? usd(p.actualNet) : '–'}
+                  {p.depositPending && <div className="tiny warn">pending</div>}
+                </td>
                 <td className="r num">{p.split ? usd(p.split.savings, true) : '–'}</td>
               </tr>
             ))}

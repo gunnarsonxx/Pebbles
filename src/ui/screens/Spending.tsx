@@ -33,7 +33,11 @@ function ReceiptBreakdown({ data, month }: { data: AppData; month: string }) {
           <div key={r.dept} className="row between small" style={{ padding: '6px 0' }}>
             <span>
               {DEPT_LABEL[r.dept]}
-              {WANT_DEPTS.includes(r.dept) && <span className="badge warn" style={{ marginLeft: 6 }}>want</span>}
+              {WANT_DEPTS.includes(r.dept) && (
+                <span className="badge warn" style={{ marginLeft: 6 }}>
+                  want
+                </span>
+              )}
               <span className="tiny muted"> · {r.stores.slice(0, 3).join(', ')}</span>
             </span>
             <span className="num strong">{usd(r.total)}</span>
@@ -217,7 +221,11 @@ export function TransactionsView({ data }: { data: AppData }) {
               <div className="grow">
                 <div className="strong ellipsis">{t.merchant || t.description}</div>
                 <div className="tiny muted ellipsis">
-                  {t.pending && <span className="badge warn" style={{ marginRight: 6, padding: '1px 6px', fontSize: 10 }}>Pending</span>}
+                  {t.pending && (
+                    <span className="badge warn" style={{ marginRight: 6, padding: '1px 6px', fontSize: 10 }}>
+                      Pending
+                    </span>
+                  )}
                   {fmtShort(t.date)} · {categoryOf(t.category).name}
                   {t.dupOf ? ' · paid via PayPal (counted there)' : t.excluded ? ' · not counted' : ''}
                 </div>
@@ -228,7 +236,11 @@ export function TransactionsView({ data }: { data: AppData }) {
               </div>
             </button>
           ))}
-          {!filtered.length && <p className="small muted" style={{ padding: 12 }}>No transactions match.</p>}
+          {!filtered.length && (
+            <p className="small muted" style={{ padding: 12 }}>
+              No transactions match.
+            </p>
+          )}
         </div>
         {filtered.length > visible.length && (
           <button className="btn block mt" onClick={() => setShowAll(true)}>
@@ -317,6 +329,11 @@ function TxnSheet({ txn, onClose }: { txn: Transaction; onClose: () => void }) {
           <div className="small ink2" style={{ wordBreak: 'break-word' }}>
             {txn.description}
           </div>
+          {txn.pending && (
+            <div className="small warn" style={{ marginTop: 4 }}>
+              Pending: your bank hasn’t finished posting this yet. Pebbles already counts it; the amount or date can still change when it posts.
+            </div>
+          )}
           {txn.amount < 0 && (
             <button className="btn small mt" onClick={() => setAsBill(billFromTransaction(txn))}>
               <CalendarPlus /> Make This a Bill
@@ -341,9 +358,7 @@ function TxnSheet({ txn, onClose }: { txn: Transaction; onClose: () => void }) {
             ))}
           </div>
         </Field>
-        {category !== txn.category && (
-          <ToggleRow title={`Always use this for “${txn.merchant}”`} hint="Applies to past and future imports" on={remember} onChange={setRemember} />
-        )}
+        {category !== txn.category && <ToggleRow title={`Always use this for “${txn.merchant}”`} hint="Applies to past and future imports" on={remember} onChange={setRemember} />}
         <ToggleRow title="Don’t Count This" hint="For moving money between your own accounts" on={excluded} onChange={setExcluded} />
         <Field label="Note">
           <TextInput value={note} onChange={setNote} placeholder="Optional" />

@@ -209,10 +209,27 @@ export async function syncBank(link: BankLink): Promise<{ added: number }> {
     const fresh = [...r.added, ...r.modified].map((t) => transactionFromPlaid(t, rules));
     const keep = fresh.filter((t) => store.get('transactions', t.id) || !looksLikeDuplicate(t, existing));
     // preserve your edits (category, notes, excluded) on transactions Pebbles already has
+    // a pending item that just posted comes back with a new id: carry over what you set on the pending one
+    const pendingOf = new Map([...r.added, ...r.modified].filter((p) => p.pending_transaction_id).map((p) => ['p_' + p.transaction_id, 'p_' + p.pending_transaction_id]));
     const merged = keep.map((t) => {
-      const cur = store.get('transactions', t.id);
+      const cur = store.get('transactions', t.id) ?? (pendingOf.has(t.id) ? store.get('transactions', pendingOf.get(t.id)!) : undefined);
       return cur ? { ...t, category: cur.category, note: cur.note, excluded: cur.excluded, dupOf: cur.dupOf, seenBank: cur.seenBank, bankHas: cur.bankHas } : t;
     });
+    // goal money split from the pending deposit moves to the posted one (so it isn't counted twice)
+    const moved = [];
+    const drop: string[] = [];
+    for (const [posted, pend] of pendingOf) {
+      for (const c of store.list('contributions')) {
+        for (const kind of ['dep', 'wd']) {
+          if (c.id.startsWith(`${kind}|${pend}|`)) {
+            moved.push({ ...c, id: c.id.replace(`${kind}|${pend}|`, `${kind}|${posted}|`) });
+            drop.push(c.id);
+          }
+        }
+      }
+    }
+    if (drop.length) await store.remove('contributions', drop);
+    if (moved.length) await store.putMany('contributions', moved);
     if (merged.length) await store.putMany('transactions', merged);
     const removed = r.removed.map((id) => 'p_' + id).filter((id) => store.get('transactions', id));
     if (removed.length) await store.remove('transactions', removed);
