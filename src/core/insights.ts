@@ -235,7 +235,10 @@ export function generateInsights(i: InsightInput): Insight[] {
       id: `triple-${triple[0]}`,
       kind: 'save',
       title: `${fmtMonth(triple[0])} Has Three Paydays`,
-      body: `Bills are usually covered by two checks, so the third one (about ${usd(i.netPerPaycheck)}) can go mostly to savings. That's a big pile of pebbles in one go.`,
+      body:
+        i.settings.budget.billsMode === 'even' && i.settings.budget.billsAccountId
+          ? `With the same amount to bills every check, the third one still sends its usual share to bills (that steady amount was worked out for all 26 checks a year). What's extra is its fun money: Pebbles suggests moving about half of it to savings that payday.`
+          : `Your bills come from what's due, and the third check usually has little due before the next one, so most of it (about ${usd(i.netPerPaycheck)}) can go to savings. That's a big pile of pebbles in one go.`,
       monthlyImpact: 0,
       priority: 62,
     });
