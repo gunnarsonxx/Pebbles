@@ -2084,3 +2084,42 @@ svg.spin {
   text-align: right;
   white-space: nowrap;
 }
+
+/* bills look-ahead */
+.ahead-check {
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+}
+.ahead-check:first-of-type {
+  border-top: 0;
+}
+.ahead-table {
+  font-size: 13px;
+}
+.ahead-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  padding: 3px 0;
+  align-items: baseline;
+}
+.ahead-row > span:not(:first-child) {
+  text-align: right;
+  white-space: nowrap;
+}
+.ahead-row.head {
+  font-size: 11px;
+  color: var(--ink-3);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.link-row {
+  width: 100%;
+  background: none;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}

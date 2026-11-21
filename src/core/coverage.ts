@@ -224,3 +224,81 @@ export function coverage(opts: {
   }
   return out;
 }
+
+// ---------------- the Bills account, paycheck by paycheck ----------------
+
+export interface LedgerCycle {
+  payday: ISODate;
+  nextPayday: ISODate;
+  before: number; // in the account just before this payday's deposit
+  deposit: number; // put in from this check
+  bills: { name: string; date: ISODate; amount: number }[]; // what leaves the account until the next payday
+  paid: number;
+  after: number; // left the day before the next payday
+  lowest: number; // the lowest it gets during the cycle
+  movedNow?: number; // first cycle only: what the Bills card says to move in now, already counted
+}
+
+/**
+ * Plays the Bills account forward: on each payday the deposit goes in first, then every bill leaves on its due
+ * date (what actually leaves your account, e.g. rent minus your roommate's share of split bills).
+ * "Same every check" deposits the steady amount; "just what's due" deposits only what the bills before the
+ * next payday need beyond what's already there (rounded up to $5).
+ */
+export function billsLedger(opts: {
+  balance: number;
+  bills: Bill[];
+  txns: Transaction[];
+  today: ISODate;
+  paydays: ISODate[];
+  mode: 'even' | 'due_dates';
+  perCheck: number;
+  cushion?: number;
+  moveNow?: number;
+}): LedgerCycle[] {
+  const { bills, txns, today } = opts;
+  const paydays = opts.paydays.filter((p) => p >= today).sort();
+  if (!paydays.length) return [];
+  const end = paydays[paydays.length - 1];
+  const events: { name: string; date: ISODate; amount: number }[] = [];
+  for (const b of bills.filter((x) => x.active)) {
+    for (const d of billDueDates(b, today, end)) {
+      const paid = d <= addDays(today, 10) && txns.some((t) => t.date >= addDays(d, -10) && t.date <= today && matchesBill(t, b));
+      if (!paid) events.push({ name: b.name, date: d, amount: cashAmount(b, bills) });
+    }
+  }
+  events.sort((a, b) => a.date.localeCompare(b.date));
+  // what the Bills card says to move in right away for bills before the first payday
+  let bal = opts.balance + (opts.moveNow ?? 0);
+  // bills before the first payday come out of what's there now
+  for (const e of events.filter((x) => x.date < paydays[0])) bal -= e.amount;
+  const out: LedgerCycle[] = [];
+  for (let i = 0; i < paydays.length - 1; i++) {
+    const p = paydays[i];
+    const next = paydays[i + 1];
+    const cycle = events.filter((e) => e.date >= p && e.date < next);
+    const due = cycle.reduce((s, e) => s + e.amount, 0);
+    const deposit = opts.mode === 'even' ? opts.perCheck : Math.max(0, Math.ceil((due + (opts.cushion ?? 0) - bal) / 5) * 5);
+    const before = bal;
+    bal += deposit;
+    let lowest = bal;
+    for (const e of cycle) {
+      bal -= e.amount;
+      lowest = Math.min(lowest, bal);
+    }
+    out.push({
+      payday: p,
+      nextPayday: next,
+      before: r2(before),
+      deposit,
+      bills: cycle,
+      paid: r2(due),
+      after: r2(bal),
+      lowest: r2(lowest),
+      ...(i === 0 && opts.moveNow ? { movedNow: r2(opts.moveNow) } : {}),
+    });
+  }
+  return out;
+}
+
+const r2 = (v: number) => Math.round(v * 100) / 100;

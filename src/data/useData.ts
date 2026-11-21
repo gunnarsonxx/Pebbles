@@ -8,7 +8,7 @@ import { calibrationFrom, estimatePaycheck, type PaycheckEstimate } from '../cor
 import { BUNDLED_RULES, isValidRulesFile, newerVersion, rulesForYear, type TaxRulesFile } from '../core/taxrules';
 import { monthlyBillsTotal, buildPlan, estimateEssentials, goalBalance, totalSaved, forecastGoals, type Forecast, type GoalForecast, type EssentialsEstimate, type PaycheckPlan } from '../core/budget';
 import { generateInsights, type Insight } from '../core/insights';
-import { overtimeDeductionEstimate } from '../core/tax';
+import { computeWithholding, overtimeDeductionEstimate } from '../core/tax';
 import type {
   Bill,
   Contribution,
@@ -41,7 +41,7 @@ import { drivingStats, trustworthy, type DrivingStats } from '../core/driving';
 import { round2 } from '../core/money';
 import { dailyPayAdvances, type Advances } from '../core/dailypay';
 import { emergencyStatus, type EmergencyStatus } from '../core/emergency';
-import { billsAccount, coverage, spendingAccount, steadyBillsPlan, type Coverage } from '../core/coverage';
+import { billsAccount, billsLedger, coverage, spendingAccount, steadyBillsPlan, type Coverage, type LedgerCycle } from '../core/coverage';
 
 export function useVersion(): number {
   return useSyncExternalStore(store.subscribe, store.getVersion);
@@ -49,6 +49,22 @@ export function useVersion(): number {
 
 export function useSync() {
   return useSyncExternalStore(syncClient.subscribe, syncClient.getState);
+}
+
+export interface LookAheadPlan {
+  net: number;
+  bills: number;
+  essentials: number;
+  savings: number;
+  personal: number;
+}
+export interface LookAheadCheck {
+  period: Period;
+  ledger: LedgerCycle | null; // the Bills account this cycle (when you have one picked)
+  average: LookAheadPlan; // your average take-home
+  base: LookAheadPlan; // 80 hours at your base rate
+  projected: LookAheadPlan; // this period's estimate (or what came in)
+  received: boolean;
 }
 
 export interface AppData {
@@ -94,6 +110,8 @@ export interface AppData {
   /** Look back at an earlier paycheck: the plan as it was when that check came in (or rebuilt, if Pebbles didn't save one), with its moves. */
   /** every goal's saved-by date, from walking your savings forward check by check */
   goalForecast: Map<string, GoalForecast>;
+  /** look ahead: every payday in a month, with the Bills account played forward and the plan at three pay levels */
+  lookAhead: (month: string) => LookAheadCheck[];
   /** your savings walked forward: balance each paycheck, with goals' money coming out on their dates */
   forecast: Forecast;
   /** your usual savings per paycheck, and where the number comes from */
@@ -527,7 +545,55 @@ export function computeData(version: number, today: ISODate): AppData {
       cap: Math.max(plan.savingsCap ?? plan.savings, plan.savings, savingsAvg.perCheck) + extra,
     }).byGoal;
 
+  // the Bills account played forward for about 14 months, worked out once
+  let ledgerCache: LedgerCycle[] | null = null;
+  const ledger = () => {
+    if (ledgerCache) return ledgerCache;
+    if (!settings.budget.billsAccountId || !cov.bills) return (ledgerCache = []);
+    const pds = Array.from({ length: 32 }, (_, k) => periodByIndex(settings.pay, nextIdx + k).payday);
+    ledgerCache = billsLedger({
+      balance: cov.bills.balance,
+      bills,
+      txns,
+      today,
+      paydays: pds,
+      mode: settings.budget.billsMode === 'even' ? 'even' : 'due_dates',
+      perCheck: steady?.perCheck ?? round2((monthlyBillsTotal(bills) * 12) / 26),
+      moveNow: Math.ceil(cov.bills.shortNow / 5) * 5,
+    });
+    return ledgerCache;
+  };
+  const avgNetAll =
+    savingsAvg.avgNet ??
+    (() => {
+      const recent = paycheckList.filter((p) => p.received && p.actualNet != null);
+      return recent.length ? round2(recent.reduce((t, p) => t + (p.actualNet as number), 0) / recent.length) : upcoming.net;
+    })();
+  const lookAhead: AppData['lookAhead'] = (month) => {
+    const [yy, mm] = month.split('-').map(Number);
+    const first = `${month}-01`;
+    const lastDay = addDays(`${yy + (mm === 12 ? 1 : 0)}-${String(mm === 12 ? 1 : mm + 1).padStart(2, '0')}-01`, -1);
+    let p = periodContaining(settings.pay, addDays(first, -14));
+    const out: LookAheadCheck[] = [];
+    for (let k = 0; k < 6; k++, p = periodByIndex(settings.pay, p.index + 1)) {
+      if (p.payday < first) continue;
+      if (p.payday > lastDay) break;
+      const next = periodByIndex(settings.pay, p.index + 1).payday;
+      const l = ledger().find((c) => c.payday === p.payday) ?? null;
+      const rec = paychecks.get(p.start);
+      const est = estimatePaycheck(p, settings, rates, workdays, rulesFile, calibration);
+      const base80 = round2(computeWithholding(settings.pay.baseRate * 80, settings, rulesForYear(rulesFile, Number(p.payday.slice(0, 4))).rules).net + calibration);
+      const planAt = (net: number): LookAheadPlan => {
+        const pl = buildPlan({ settings, net, payday: p.payday, nextPayday: next, bills, essentials, goals, contributions, ...(l ? { billsTopUp: l.deposit } : {}) });
+        return { net: round2(net), bills: pl.bills, essentials: pl.essentials, savings: pl.savings, personal: pl.personal };
+      };
+      out.push({ period: p, ledger: l, average: planAt(avgNetAll), base: planAt(base80), projected: planAt(rec?.actualNet ?? est.net), received: !!rec?.received });
+    }
+    return out;
+  };
+
   return {
+    lookAhead,
     goalForecast,
     forecast,
     savingsAvg,

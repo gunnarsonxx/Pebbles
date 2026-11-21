@@ -1,15 +1,14 @@
 import { useMemo, useState } from 'react';
 import { COMMUNITY } from '../../core/edition';
 import { CalendarPlus, ChevronLeft, ChevronRight, Plus, Search, Users, X } from 'lucide-react';
-import type { AppData } from '../../data/useData';
+import type { AppData, LookAheadCheck, LookAheadPlan } from '../../data/useData';
 import { CategoryIcon, Field, NumberInput, Segmented, Sheet, TextInput, ToggleRow, useToast } from '../components';
 import { billDueDates, billsDueBetween, monthlyBillsTotal, monthlyEquivalent, roommateTransfer, yourAmount } from '../../core/budget';
 import { detectRecurring, type RecurringCandidate } from '../../core/analytics';
 import { CATEGORIES, categoryOf } from '../../core/categories';
-import { addDays, addMonths, dayOfWeek, dowName, fmtDay, fmtMonth, makeDate, daysInMonth, relativeDays } from '../../core/dates';
+import { addDays, addMonths, dayOfWeek, dowName, fmtDay, fmtMonth, fmtShort, makeDate, daysInMonth, relativeDays } from '../../core/dates';
 import { usd } from '../../core/money';
 import { billsCalendar } from '../../core/ics';
-import { periodByIndex } from '../../core/pay';
 import { deleteBill, dismissInsight, newBill, saveBill } from '../../data/actions';
 import { looksVariable, ym } from '../../core/billPrompt';
 import { openTextFile } from '../../platform/files';
@@ -35,11 +34,9 @@ export function BillsView({ data }: { data: AppData }) {
   const last = makeDate(y, m, daysInMonth(y, m));
   const due = new Map<ISODate, { bill: Bill; amount: number }[]>();
   for (const b of data.bills.filter((x) => x.active)) for (const d of billDueDates(b, first, addDays(last, 1))) due.set(d, [...(due.get(d) ?? []), { bill: b, amount: yourAmount(b) }]);
-  const paydays = new Set<ISODate>();
-  for (let k = -3; k <= 4; k++) {
-    const p = periodByIndex(data.settings.pay, data.upcoming.period.index + k);
-    if (p.payday >= first && p.payday <= last) paydays.add(p.payday);
-  }
+  // every payday in the month you're looking at, however far ahead
+  const ahead = useMemo(() => data.lookAhead(month), [data, month]);
+  const paydays = new Set<ISODate>(ahead.map((c) => c.period.payday));
   const lead = dayOfWeek(first);
   const cells: (ISODate | null)[] = [...Array(lead).fill(null), ...Array.from({ length: daysInMonth(y, m) }, (_, i) => makeDate(y, m, i + 1))];
   const monthTotal = [...due.values()].flat().reduce((s, x) => s + x.amount, 0);
@@ -137,6 +134,8 @@ export function BillsView({ data }: { data: AppData }) {
           Opens your calendar app (Samsung Calendar works) with every bill as a repeating event and a reminder the day before, plus your paydays. If you change bills later, add it again.
         </p>
       </div>
+
+      <MonthAhead data={data} month={month} checks={ahead} />
 
       <SoonCard data={data} />
 
@@ -453,6 +452,102 @@ function SoonCard({ data }: { data: AppData }) {
           Nothing due in the next two weeks.
         </p>
       )}
+    </div>
+  );
+}
+
+/** Look ahead: each paycheck in the month, with the Bills account played forward and the plan at three pay levels. */
+function MonthAhead({ data, month, checks }: { data: AppData; month: string; checks: LookAheadCheck[] }) {
+  const [openBills, setOpenBills] = useState<string | null>(null);
+  if (!checks.length) return null;
+  const even = data.settings.budget.billsMode === 'even';
+  const acct = data.coverage.bills?.account.name ?? 'Bills account';
+  return (
+    <div className="card">
+      <div className="eyebrow">Paychecks in {fmtMonth(month)}</div>
+      <div className="tiny muted" style={{ marginBottom: 6 }}>
+        {checks[0].ledger
+          ? `${acct}, played forward check by check (${even ? 'the same amount every check' : 'just what’s due'}), and how each check splits up.`
+          : 'How each check splits up. Pick your Bills account in Settings → Budget to see it played forward too.'}
+      </div>
+      {checks.map((c) => {
+        const l = c.ledger;
+        const rows: { k: string; f: (x: LookAheadPlan) => number; tone?: boolean }[] = [
+          { k: 'Take-home', f: (x) => x.net },
+          { k: 'Bills', f: (x) => x.bills },
+          { k: 'Groceries, gas & basics', f: (x) => x.essentials },
+          { k: 'Savings', f: (x) => x.savings },
+          { k: 'Guilt-free', f: (x) => x.personal, tone: true },
+        ];
+        return (
+          <div key={c.period.payday} className="ahead-check">
+            <div className="row between">
+              <div className="strong">Paid {fmtDay(c.period.payday)}</div>
+              <span className="tiny muted">
+                work {fmtShort(c.period.start)}–{fmtShort(c.period.end)}
+              </span>
+            </div>
+            {l && (
+              <div className="coverage-math mt-s">
+                {l.movedNow ? <div className="tiny muted">Counts the {usd(l.movedNow, true)} the Bills card says to move in now for bills before this payday.</div> : null}
+                <div className="row between small">
+                  <span>In the account before payday</span>
+                  <span className={`num ${l.before < 0 ? 'bad' : ''}`}>{usd(l.before)}</span>
+                </div>
+                <div className="row between small">
+                  <span>+ From this check</span>
+                  <span className="num">+{usd(l.deposit)}</span>
+                </div>
+                <button className="row between small link-row" onClick={() => setOpenBills(openBills === c.period.payday ? null : c.period.payday)} aria-expanded={openBills === c.period.payday}>
+                  <span>
+                    − Bills until {fmtShort(l.nextPayday)} ({l.bills.length}) <span className="tiny muted">{openBills === c.period.payday ? '▴' : '▾'}</span>
+                  </span>
+                  <span className="num">−{usd(l.paid)}</span>
+                </button>
+                {openBills === c.period.payday &&
+                  l.bills.map((b) => (
+                    <div key={b.name + b.date} className="row between tiny muted" style={{ paddingLeft: 12 }}>
+                      <span>
+                        {b.name} · {fmtShort(b.date)}
+                      </span>
+                      <span className="num">−{usd(b.amount)}</span>
+                    </div>
+                  ))}
+                <div className="divider" style={{ margin: '6px 0' }} />
+                <div className="row between small">
+                  <span className="strong">Left before the next payday</span>
+                  <span className={`num strong ${l.after < 0 ? 'bad' : 'good'}`}>{usd(l.after)}</span>
+                </div>
+                {l.lowest < 0 && <div className="tiny bad">Dips to {usd(l.lowest)} during this stretch: a bill would bounce.</div>}
+              </div>
+            )}
+            <div className="ahead-table mt-s">
+              <div className="ahead-row head">
+                <span />
+                <span>Average</span>
+                <span>80 h base</span>
+                <span>{c.received ? 'Came in' : 'Projected'}</span>
+              </div>
+              {rows.map((r) => (
+                <div key={r.k} className="ahead-row">
+                  <span>{r.k}</span>
+                  {[c.average, c.base, c.projected].map((x, i) => {
+                    const v = r.f(x);
+                    return (
+                      <span key={i} className={`num${r.tone ? (v < 0 ? ' bad' : ' good') : ''}`}>
+                        {usd(v, true)}
+                      </span>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })}
+      <p className="tiny muted" style={{ margin: '8px 0 0' }}>
+        Average is your usual take-home from your recent paychecks; 80 h base is two weeks at {usd(data.settings.pay.baseRate)}/h with no extras; Projected follows the days on your Shifts.
+      </p>
     </div>
   );
 }
