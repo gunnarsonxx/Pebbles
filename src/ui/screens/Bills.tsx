@@ -479,9 +479,13 @@ function MonthAhead({ data, month, checks }: { data: AppData; month: string; che
     <div className="card">
       <div className="eyebrow">Paychecks in {fmtMonth(month)}</div>
       <div className="tiny muted" style={{ marginBottom: 6 }}>
-        {checks[0].ledger
-          ? `${acct}, played forward check by check (${even ? 'the same amount every check' : 'just what’s due'}), and how each check splits up.`
-          : 'How each check splits up. Pick your Bills account in Settings → Budget to see it played forward too.'}
+        {checks.every((c) => c.received)
+          ? 'What each check planned, and what really came in and went where.'
+          : checks.some((c) => c.ledger)
+            ? `${acct}, played forward check by check (${even ? 'the same amount every check' : 'just what’s due'}), and how each check splits up.`
+            : data.settings.budget.billsAccountId
+              ? 'How each check splits up.'
+              : 'How each check splits up. Pick your Bills account in Settings → Budget to see it played forward too.'}
       </div>
       {checks.map((c) => {
         const l = c.ledger;
@@ -532,6 +536,15 @@ function MonthAhead({ data, month, checks }: { data: AppData; month: string; che
                   <span className={`num strong ${l.after < 0 ? 'bad' : 'good'}`}>{usd(l.after)}</span>
                 </div>
                 {l.lowest < 0 && <div className="tiny bad">Dips to {usd(l.lowest)} during this stretch: a bill would bounce.</div>}
+              </div>
+            )}
+            {c.received && (
+              <div className="tiny muted mt-s">
+                {c.actualFrom === 'bank'
+                  ? 'Came in: what your bank shows reached your Bills account and savings after this payday.'
+                  : c.actualFrom === 'you'
+                    ? 'Came in: as you entered it (Home → Last Paycheck’s Plan → Edit).'
+                    : 'Came in: the take-home that arrived; Pebbles has no record yet of where it went, so the rest is the plan. Fix it from Home → Last Paycheck’s Plan → Edit.'}
               </div>
             )}
             <div className="ahead-table mt-s">

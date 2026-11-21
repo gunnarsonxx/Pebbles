@@ -66,6 +66,7 @@ export interface LookAheadCheck {
   base: LookAheadPlan; // 80 hours at your base rate
   projected: LookAheadPlan; // this period's estimate (or what came in)
   received: boolean;
+  actualFrom?: 'bank' | 'you' | null; // a past check: where "came in" numbers come from (null = no record, so the plan)
 }
 
 export interface AppData {
@@ -581,7 +582,34 @@ export function computeData(version: number, today: ISODate): AppData {
       const recent = yearChecks;
       return recent.length ? round2(recent.reduce((t, p) => t + (p.actualNet as number), 0) / recent.length) : upcoming.net;
     })();
-  // one paycheck's plan at three pay levels (cached by payday)
+  const base80For = (p: Period) => round2(computeWithholding(settings.pay.baseRate * 80, settings, rulesForYear(rulesFile, Number(p.payday.slice(0, 4))).rules).net + calibration);
+  const estFor = (p: Period) => (p.start === upPeriod.start ? upcoming : estimatePaycheck(p, settings, rates, workdays, rulesFile, calibration));
+  // future checks, played forward one after another: each check's savings land in the goals before the next check is
+  // planned, and a goal for a thing is spent (and stops asking) once its date has passed
+  type Level = 'average' | 'base' | 'projected';
+  const simCache = new Map<Level, Map<string, LookAheadPlan>>();
+  const simulate = (level: Level) => {
+    const hit = simCache.get(level);
+    if (hit) return hit;
+    const out = new Map<string, LookAheadPlan>();
+    const bal = new Map(goals.map((g) => [g.id, goalBalance(g.id, contributions)]));
+    for (let k = 0; k < 34; k++) {
+      const p = periodByIndex(settings.pay, upPeriod.index + k);
+      const next = periodByIndex(settings.pay, p.index + 1).payday;
+      const live = goals.filter((g) => g.isEmergency || !g.targetDate || g.targetDate >= p.payday);
+      const contribs: Contribution[] = live.map((g) => ({ id: `sim|${g.id}`, goalId: g.id, amount: bal.get(g.id) ?? 0, date: p.payday, note: '', paycheckId: null }));
+      const l = ledger().find((c) => c.payday === p.payday) ?? null;
+      const rec = paychecks.get(p.start);
+      const net = level === 'average' ? avgNetAll : level === 'base' ? base80For(p) : (rec?.actualNet ?? estFor(p).net);
+      const pl = buildPlan({ settings, net, payday: p.payday, nextPayday: next, bills, essentials, goals: live, contributions: contribs, ...(l ? { billsTopUp: l.deposit } : {}) });
+      out.set(p.payday, { net: round2(net), bills: pl.bills, essentials: pl.essentials, savings: pl.savings, personal: pl.personal });
+      for (const al of pl.allocations) bal.set(al.goalId, round2((bal.get(al.goalId) ?? 0) + al.amount));
+    }
+    simCache.set(level, out);
+    return out;
+  };
+  // one paycheck's plan at three pay levels (cached by payday). A check that already came in shows what really
+  // happened in its last column: what your bank shows moved to bills and savings (or what you entered).
   const checkCache = new Map<string, LookAheadCheck>();
   const checkPlans = (p: Period): LookAheadCheck => {
     const hit = checkCache.get(p.payday);
@@ -589,13 +617,26 @@ export function computeData(version: number, today: ISODate): AppData {
     const next = periodByIndex(settings.pay, p.index + 1).payday;
     const l = ledger().find((c) => c.payday === p.payday) ?? null;
     const rec = paychecks.get(p.start);
-    const est = p.start === upPeriod.start ? upcoming : estimatePaycheck(p, settings, rates, workdays, rulesFile, calibration);
-    const base80 = round2(computeWithholding(settings.pay.baseRate * 80, settings, rulesForYear(rulesFile, Number(p.payday.slice(0, 4))).rules).net + calibration);
+    const future = p.payday >= upPeriod.payday;
     const planAt = (net: number): LookAheadPlan => {
       const pl = buildPlan({ settings, net, payday: p.payday, nextPayday: next, bills, essentials, goals, contributions, ...(l ? { billsTopUp: l.deposit } : {}) });
       return { net: round2(net), bills: pl.bills, essentials: pl.essentials, savings: pl.savings, personal: pl.personal };
     };
-    const out = { period: p, ledger: l, average: planAt(avgNetAll), base: planAt(base80), projected: planAt(rec?.actualNet ?? est.net), received: !!rec?.received };
+    let out: LookAheadCheck;
+    if (future) {
+      out = { period: p, ledger: l, average: simulate('average').get(p.payday)!, base: simulate('base').get(p.payday)!, projected: simulate('projected').get(p.payday)!, received: !!rec?.received };
+    } else {
+      const net = rec?.actualNet ?? estFor(p).net;
+      const planned = planAt(net);
+      const a = actualFor(p, net);
+      const projected = a
+        ? (() => {
+            const billsPaid = a.bills > 0 || a.source === 'you' ? a.bills : planned.bills;
+            return { net: round2(a.net), bills: round2(billsPaid), essentials: planned.essentials, savings: round2(a.savings), personal: round2(a.net - billsPaid - planned.essentials - a.savings) };
+          })()
+        : planned;
+      out = { period: p, ledger: l, average: planAt(avgNetAll), base: planAt(base80For(p)), projected, received: !!rec?.received, actualFrom: a?.source ?? null };
+    }
     checkCache.set(p.payday, out);
     return out;
   };
