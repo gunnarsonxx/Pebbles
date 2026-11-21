@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Camera, Check, ListPlus, Minus, Plus, ScanBarcode, ShoppingCart, Trash2, Sparkles } from 'lucide-react';
+import { fmtShort } from '../../core/dates';
 import type { AppData } from '../../data/useData';
 import { Empty, Field, NumberInput, Segmented, Sheet, TextInput, ToggleRow, useConfirm, useToast, Fold, ShowMore } from '../components';
 import { ReceiptSheet } from '../sheets/ReceiptSheet';
@@ -9,7 +10,7 @@ import { stapleStatus } from '../../core/kitchen';
 import { DEPT_LABEL, NON_GROCERY_DEPTS } from '../../core/groceries';
 import { buildList, estimateTrip, LEVEL_LABEL, LEVELS, makePriceOf, newPantryItem, nextLevel, parseQuickAdd, stockOf, type ListLine } from '../../core/pantry';
 import { num, round2, usd } from '../../core/money';
-import { addToList, boughtLine, clearBought, deletePantryItem, removeShopItem, savePantryItem, savePantryItems } from '../../data/pantryActions';
+import { addToList, boughtLine, bringBack, clearBought, deletePantryItem, markGone, removeShopItem, savePantryItem, savePantryItems } from '../../data/pantryActions';
 import type { GroceryDept, PantryItem, Staple } from '../../core/types';
 
 function useList(data: AppData) {
@@ -114,7 +115,7 @@ export function ShoppingListView({ data, openPantry, openTrips }: { data: AppDat
         <div className="card">
           <div className="eyebrow">Maybe Running Low</div>
           <div className="small muted" style={{ marginBottom: 6 }}>
-            You usually rebuy these about now.
+            Low, or about when you usually rebuy them. Only staples go on the list by themselves; add these if you want them.
           </div>
           <div className="list">
             {maybe.map((l) => (
@@ -131,6 +132,8 @@ export function ShoppingListView({ data, openPantry, openTrips }: { data: AppDat
           </div>
         </div>
       )}
+
+      {data.pantryGone.length > 0 && <BuyAgain data={data} />}
 
       {bought.length > 0 && (
         <button className="btn ghost small" style={{ alignSelf: 'flex-start' }} onClick={() => void clearBought()}>
@@ -217,6 +220,13 @@ export function PantryView({ data }: { data: AppData }) {
     toast(`${existing?.name ?? clean} is a staple`);
   };
 
+  // a staple stays (it goes on your list); anything else that runs out leaves the pantry for Buy Again
+  const isStaple = (p: PantryItem) => !!p.always || !!p.stapleId;
+  const gone = async (p: PantryItem) => {
+    const undo = await markGone(p);
+    toast(`${p.name} is out · moved to Buy Again`, { label: 'Undo', run: undo });
+  };
+
   const row = (p: PantryItem) => {
     const st = stockOf(p);
     return (
@@ -232,7 +242,12 @@ export function PantryView({ data }: { data: AppData }) {
         {p.mode === 'level' ? (
           <div className="level-pills" role="group" aria-label={`${p.name} level`}>
             {LEVELS.map((l) => (
-              <button key={l} className={`level-pill ${l}${p.level === l ? ' on' : ''}`} onClick={() => void savePantryItem({ ...p, level: l })} aria-pressed={p.level === l}>
+              <button
+                key={l}
+                className={`level-pill ${l}${p.level === l ? ' on' : ''}`}
+                onClick={() => (l === 'out' && !isStaple(p) ? void gone(p) : void savePantryItem({ ...p, level: l }))}
+                aria-pressed={p.level === l}
+              >
                 {LEVEL_LABEL[l]}
               </button>
             ))}
@@ -255,7 +270,9 @@ export function PantryView({ data }: { data: AppData }) {
   const step = (p: PantryItem, dir: 1 | -1) => {
     if (p.mode === 'level') return void savePantryItem({ ...p, level: nextLevel(p.level, dir === 1 ? -1 : 1) });
     const by = p.mode === 'count' ? 1 : p.unit === 'lb' || p.unit === 'gal' ? 0.25 : p.unit === 'oz' ? 2 : 1;
-    void savePantryItem({ ...p, qty: Math.max(0, round2(p.qty + dir * by)) });
+    const qty = Math.max(0, round2(p.qty + dir * by));
+    if (qty <= 0 && !isStaple(p)) return void gone(p);
+    void savePantryItem({ ...p, qty });
   };
 
   if (!data.pantry.length) {
@@ -532,5 +549,51 @@ function PantryEditor({ data, item, onClose }: { data: AppData; item: PantryItem
         </Field>
       </div>
     </Sheet>
+  );
+}
+
+/** Things that aren't staples that you used up: grouped by aisle, newest first, to add again when you want them. */
+function BuyAgain({ data }: { data: AppData }) {
+  const toast = useToast();
+  const groups = new Map<GroceryDept, PantryItem[]>();
+  for (const p of data.pantryGone) groups.set(p.dept, [...(groups.get(p.dept) ?? []), p]);
+  const onList = new Set(data.shoplist.filter((s) => !s.done).map((s) => s.name.toLowerCase()));
+  return (
+    <Fold title="Buy Again" count={data.pantryGone.length} note="not staples, used up">
+      <div className="tiny muted" style={{ marginBottom: 6 }}>
+        Things you’ve had that aren’t staples. Add one to your list when you want it again, or mark it back in your kitchen.
+      </div>
+      {[...groups.entries()]
+        .sort((a, b) => DEPT_LABEL[a[0]].localeCompare(DEPT_LABEL[b[0]]))
+        .map(([dept, list]) => (
+          <div key={dept} className="mt-s">
+            <div className="tiny strong muted">{DEPT_LABEL[dept]}</div>
+            <div className="list">
+              {list.map((p) => (
+                <div key={p.id} className="list-item">
+                  <div className="grow" style={{ minWidth: 0 }}>
+                    <div className="strong small">{p.name}</div>
+                    <div className="tiny muted ellipsis">
+                      {p.desc && p.desc.toLowerCase() !== p.name.toLowerCase() ? `${p.desc} · ` : ''}out since {p.goneAt ? fmtShort(p.goneAt) : 'a while'}
+                    </div>
+                  </div>
+                  <button className="btn ghost small" onClick={() => void bringBack(p).then(() => toast(`${p.name} is back in your pantry`))} aria-label={`I have ${p.name} again`}>
+                    Have It
+                  </button>
+                  <button className="btn small" disabled={onList.has(p.name.toLowerCase())} onClick={() => void addToList(p.name, null, p.key).then(() => toast(`${p.name} added to your list`))}>
+                    {onList.has(p.name.toLowerCase()) ? (
+                      'On List'
+                    ) : (
+                      <>
+                        <Plus /> List
+                      </>
+                    )}
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+    </Fold>
   );
 }

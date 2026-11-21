@@ -149,6 +149,7 @@ export interface AppData {
   paypalFrom: Account | null;
   emergency: EmergencyStatus | null;
   pantry: PantryItem[];
+  pantryGone: PantryItem[];
   shoplist: ShopItem[];
   staples: Staple[];
   customRecipes: Recipe[];
@@ -778,6 +779,14 @@ export function computeData(version: number, today: ISODate): AppData {
       .list('pantry')
       .filter((p) => !p.archived)
       .sort((a, b) => a.name.localeCompare(b.name)),
+    // non-staples you used up: the Buy Again list (not ones you've since bought again)
+    pantryGone: (() => {
+      const live = store.list('pantry').filter((p) => !p.archived);
+      return store
+        .list('pantry')
+        .filter((p) => p.archived && p.goneAt && !live.some((x) => (x.key && x.key === p.key) || x.name.toLowerCase() === p.name.toLowerCase()))
+        .sort((a, b) => (b.goneAt ?? '').localeCompare(a.goneAt ?? ''));
+    })(),
     shoplist: store.list('shoplist').sort((a, b) => a.addedAt - b.addedAt),
     staples: store.list('staples').sort((a, b) => a.createdAt - b.createdAt),
     customRecipes: store.list('recipes'),

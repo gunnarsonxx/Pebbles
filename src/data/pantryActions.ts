@@ -14,6 +14,19 @@ export const savePantryItem = (p: PantryItem) => store.put('pantry', p);
 export const savePantryItems = (ps: PantryItem[]) => store.putMany('pantry', ps);
 export const deletePantryItem = (id: string) => store.remove('pantry', id);
 
+/** A non-staple marked out leaves the pantry for the Buy Again list. Returns an undo that puts it back as it was. */
+export async function markGone(p: PantryItem): Promise<() => Promise<void>> {
+  await store.put('pantry', { ...p, archived: true, goneAt: today(), ...(p.mode === 'level' ? { level: 'out' as const } : { qty: 0 }) });
+  return async () => {
+    await store.put('pantry', { ...p, archived: false, goneAt: null });
+  };
+}
+
+/** Back from Buy Again: in the pantry again, full / at one purchase. */
+export async function bringBack(p: PantryItem): Promise<void> {
+  await store.put('pantry', { ...p, archived: false, goneAt: null, ...(p.mode === 'level' ? { level: 'full' as const } : { qty: p.perBuy || 1 }), lastBought: today() });
+}
+
 export async function addToList(name: string, pantryId: string | null = null, key = ''): Promise<void> {
   const clean = name.trim();
   if (!clean) return;

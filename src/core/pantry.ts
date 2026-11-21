@@ -267,7 +267,9 @@ export function buildList(
     const due = st === 'ok' ? dueSoon(p, receipts, asOf) : null;
     if (st === 'ok' && due == null) continue;
     const pr = priceOf(p.key, p.name, p.desc);
-    out.push({ id: p.id, name: p.name, key: p.key, why: st === 'ok' ? 'due' : st, qty: 1, pantry: p, shop: null, price: pr?.price ?? null, priceFrom: pr?.from ?? null, always: !!p.always });
+    // only staples go on the list by themselves; anything else running low is just a suggestion ("Maybe Running Low")
+    const why: ListLine['why'] = !p.always || st === 'ok' ? 'due' : st;
+    out.push({ id: p.id, name: p.name, key: p.key, why, qty: 1, pantry: p, shop: null, price: pr?.price ?? null, priceFrom: pr?.from ?? null, always: !!p.always });
   }
   for (const s of shop) {
     if (s.done) continue;

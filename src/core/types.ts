@@ -304,6 +304,7 @@ export interface PantryItem {
   desc?: string; // the full product name, from the receipt or barcode ("Folgers Classic Roast Ground Coffee")
   always?: boolean; // a staple: something you always get (milk, bread, coffee)
   stapleId?: string | null; // swaps with similar things in a group, e.g. pizza rolls → "Air Fryer Frozen Food"
+  goneAt?: ISODate | null; // not a staple and you marked it out: it left the pantry, onto the Buy Again list
 }
 
 /** A group of similar things that swap for each other, whichever you grab: "Air Fryer Frozen Food". */
