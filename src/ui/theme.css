@@ -2135,3 +2135,17 @@ svg.spin {
   width: 16px;
   background: var(--jade);
 }
+
+/* paycheck averages and totals: label, then two money columns that never run into each other */
+.totals-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  column-gap: 18px;
+  row-gap: 6px;
+  align-items: baseline;
+}
+.totals-grid > :nth-child(3n + 2),
+.totals-grid > :nth-child(3n) {
+  text-align: right;
+  white-space: nowrap;
+}

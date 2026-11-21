@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import { CalendarDays, ChevronLeft, ChevronRight, FileText, Plus, RotateCcw, Sprout, Info, Moon, Clock, Sparkles } from 'lucide-react';
 import type { AppData } from '../../data/useData';
 import { DayEditor } from '../sheets/DayEditor';
@@ -512,23 +512,26 @@ function History({ data }: { data: AppData }) {
             {table(all)}
             {st.count > 0 && (
               <div className="coverage-math mt-s">
-                <div className="ahead-row head">
-                  <span>{st.year}</span>
-                  <span>Estimated</span>
-                  <span>Paid</span>
-                  <span>Saved</span>
+                <div className="small strong">
+                  {st.year} · {st.count} check{st.count === 1 ? '' : 's'}
                 </div>
-                <div className="ahead-row">
-                  <span>Average ({st.count} checks)</span>
-                  <span className="num">{usd(st.average.estimated)}</span>
-                  <span className="num strong">{usd(st.average.paid)}</span>
-                  <span className="num">{usd(st.average.saved)}</span>
-                </div>
-                <div className="ahead-row">
-                  <span>Total</span>
-                  <span className="num">{usd(st.totals.estimated)}</span>
-                  <span className="num strong">{usd(st.totals.paid)}</span>
-                  <span className="num">{usd(st.totals.saved)}</span>
+                <div className="totals-grid mt-s">
+                  <span />
+                  <span className="tiny muted">Average</span>
+                  <span className="tiny muted">Total</span>
+                  {(
+                    [
+                      ['Estimated', st.average.estimated, st.totals.estimated, false],
+                      ['Paid', st.average.paid, st.totals.paid, true],
+                      ['Saved', st.average.saved, st.totals.saved, false],
+                    ] as const
+                  ).map(([k, avg, tot, strong]) => (
+                    <Fragment key={k}>
+                      <span className="small">{k}</span>
+                      <span className={`num small${strong ? ' strong' : ''}`}>{usd(avg)}</span>
+                      <span className={`num small${strong ? ' strong' : ''}`}>{usd(tot)}</span>
+                    </Fragment>
+                  ))}
                 </div>
                 <p className="tiny muted" style={{ margin: '6px 0 0' }}>
                   Only {st.year} checks count. The average paid ({usd(st.average.paid)}) is the same “average take-home” Pebbles uses everywhere else (the Bills look-ahead, savings forecasts and goal
@@ -558,20 +561,17 @@ function History({ data }: { data: AppData }) {
                   </div>
                 )}
                 <div className="divider" style={{ margin: '6px 0' }} />
-                <div className="row between small">
-                  <span>
-                    Federal: withheld {usd(tr.federal.withheld, true)}, owed {usd(tr.federal.owed, true)}
-                  </span>
-                  <span className={`num strong ${tr.federal.refund >= 0 ? 'good' : 'bad'}`}>{money(tr.federal.refund)}</span>
-                </div>
-                {tr.state && (
-                  <div className="row between small">
-                    <span>
-                      {data.settings.stateTax.state}: withheld {usd(tr.state.withheld, true)}, owed {usd(tr.state.owed, true)}
-                    </span>
-                    <span className={`num strong ${tr.state.refund >= 0 ? 'good' : 'bad'}`}>{money(tr.state.refund)}</span>
+                {[{ k: 'Federal', v: tr.federal }, ...(tr.state ? [{ k: data.settings.stateTax.state === 'CO' ? 'Colorado' : data.settings.stateTax.state, v: tr.state }] : [])].map(({ k, v }) => (
+                  <div key={k} style={{ padding: '3px 0' }}>
+                    <div className="row between small">
+                      <span className="strong">{k}</span>
+                      <span className={`num strong ${v.refund >= 0 ? 'good' : 'bad'}`}>{money(v.refund)}</span>
+                    </div>
+                    <div className="tiny muted">
+                      withheld {usd(v.withheld, true)} · owed {usd(v.owed, true)}
+                    </div>
                   </div>
-                )}
+                ))}
                 <p className="tiny muted" style={{ margin: '6px 0 0' }}>
                   A rough guide with the standard deduction, not tax advice: credits, other income and your actual W-2 can change it.
                 </p>
