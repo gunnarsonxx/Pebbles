@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { CalendarCheck, Check, ChefHat, Clock, EyeOff, ListPlus, Minus, Plus, Trash2, Users, X } from 'lucide-react';
+import { CalendarCheck, Check, ChefHat, Clock, EyeOff, ListPlus, Minus, Plus, Sparkles, Trash2, Users, X } from 'lucide-react';
 import type { AppData } from '../../data/useData';
 import { Empty, Field, NumberInput, Sheet, TextInput, useConfirm, useToast, ShowMore } from '../components';
 import { allRecipes, BASICS_NOTE, matchRecipe, parseIngredients, prepShopping, usedUp, whatCanIMake, type RecipeMatch } from '../../core/recipes';
@@ -7,7 +7,9 @@ import { addToList, addToPlan, clearCookedPlan, cooked, deleteRecipe, removeFrom
 import { uid } from '../../core/money';
 import { titleCase } from '../../core/text';
 import type { PantryItem, Recipe } from '../../core/types';
-import { loadMeal, searchMeals, type MealDetail, type MealHit } from '../../core/mealdb';
+import { type MealDetail } from '../../core/mealdb';
+import { findRecipes, loadRecipe, SOURCE_NAME, type RecipeHit, type RecipeKeys, type RecipeSource } from '../../core/recipeSearch';
+import { stockOf } from '../../core/pantry';
 import { http } from '../../platform';
 
 const FILTERS = ['All', 'Quick', 'Air Fryer', 'Breakfast', 'Lunch', 'Dinner', 'Meal Prep', 'Slow Cooker', 'Soup', 'Pasta', 'Freezer', 'Takes a While'] as const;
@@ -545,68 +547,99 @@ function CookedSheet({ m, batches, onClose, onBack, toast }: { m: RecipeMatch; b
   );
 }
 
-/** More ideas from TheMealDB (free): search a dish or an ingredient you have, preview it against your pantry, save it. */
+/**
+ * More recipes from the web: TheMealDB always, plus Spoonacular and Edamam with your own free keys. "Use What I Have"
+ * searches with everything in your pantry at once, best matches first.
+ */
 function OnlineRecipes({ data }: { data: AppData }) {
   const [q, setQ] = useState('');
   const [busy, setBusy] = useState(false);
-  const [hits, setHits] = useState<MealHit[] | null>(null);
+  const [hits, setHits] = useState<RecipeHit[] | null>(null);
   const [err, setErr] = useState('');
   const [open, setOpen] = useState<MealDetail | null>(null);
   const [loadingId, setLoadingId] = useState<string | null>(null);
-  // a few things you have, to search by
-  const ideas = [...new Set(data.pantry.filter((p) => !p.archived && ['meat', 'pantry', 'produce', 'dairy', 'frozen'].includes(p.dept)).map((p) => p.name))].slice(0, 8);
-  const search = async (term: string) => {
-    setQ(term);
+  const [srcs, setSrcs] = useState<RecipeSource[]>([]);
+  const keys: RecipeKeys = data.settings.integrations;
+  // everything food in your kitchen, most interesting first (staples like salt and oil don't help a search)
+  const pantry = [
+    ...new Set(
+      data.pantry
+        .filter((p) => !p.archived && stockOf(p) !== 'out' && ['meat', 'pantry', 'produce', 'dairy', 'frozen', 'bakery'].includes(p.dept))
+        .map((p) => p.name)
+        .filter((n) => !/^(salt|pepper|water|oil|olive oil|vegetable oil|sugar|flour)$/i.test(n)),
+    ),
+  ];
+  const run = async (query: string | null) => {
     setBusy(true);
     setErr('');
-    const r = await searchMeals(http, term);
+    const r = await findRecipes(http, keys, pantry, query);
     setHits(r.hits);
-    setErr(r.error ?? (r.hits.length ? '' : `Nothing found for “${term}”. Try one main ingredient, like chicken or rice.`));
+    setSrcs(r.sources);
+    setErr([...r.errors, ...(r.hits.length ? [] : [query ? `Nothing found for “${query}”.` : 'Nothing found for what’s in your kitchen yet.'])].join(' '));
     setBusy(false);
   };
+  const more = !keys.spoonacularKey && !(keys.edamamAppId && keys.edamamKey);
   return (
     <div className="card">
       <div className="eyebrow">Find More Recipes Online</div>
-      <div className="small muted">Search a dish or an ingredient. From TheMealDB (free). Save any you like to your recipes.</div>
+      <div className="small muted">
+        {more
+          ? 'From TheMealDB. Add a free Spoonacular or Edamam key (Settings → Connections → Recipes) to search hundreds of thousands more.'
+          : 'From TheMealDB, ' + [keys.spoonacularKey ? 'Spoonacular' : '', keys.edamamAppId && keys.edamamKey ? 'Edamam' : ''].filter(Boolean).join(' and ') + '. Save any you like to your recipes.'}
+      </div>
+      <button className="btn primary mt-s" style={{ width: '100%' }} disabled={busy || !pantry.length} onClick={() => void run(null)}>
+        <Sparkles /> {busy ? 'Searching…' : `Use What I Have (${pantry.length} thing${pantry.length === 1 ? '' : 's'})`}
+      </button>
       <div className="row mt-s" style={{ gap: 8 }}>
         <div className="grow">
-          <TextInput value={q} onChange={setQ} placeholder="Chicken, pasta, tacos…" onEnter={() => q.trim() && void search(q)} ariaLabel="Search recipes" />
+          <TextInput value={q} onChange={setQ} placeholder="Or search: curry, gochujang, tacos…" onEnter={() => q.trim() && void run(q.trim())} ariaLabel="Search recipes" />
         </div>
-        <button className="btn primary" disabled={!q.trim() || busy} onClick={() => void search(q)}>
-          {busy ? '…' : 'Search'}
+        <button className="btn" disabled={!q.trim() || busy} onClick={() => void run(q.trim())}>
+          Search
         </button>
       </div>
-      {ideas.length > 0 && (
-        <div className="row wrap mt-s" style={{ gap: 6 }}>
-          {ideas.map((n) => (
-            <button key={n} className="chip" onClick={() => void search(n)}>
-              {n}
-            </button>
-          ))}
-        </div>
-      )}
       {err && <p className="small warn mt-s">{err}</p>}
       {hits && hits.length > 0 && (
-        <div className="list mt-s">
-          {hits.slice(0, 25).map((h) => (
-            <button
-              key={h.id}
-              className="list-item"
-              style={{ width: '100%', textAlign: 'left' }}
-              onClick={async () => {
-                setLoadingId(h.id);
-                const d = await loadMeal(http, h.id);
-                setLoadingId(null);
-                if (d) setOpen(d);
-                else setErr('Couldn’t open that recipe. Try again.');
-              }}
-            >
-              {h.thumb ? <img src={`${h.thumb}/preview`} alt="" width={44} height={44} style={{ borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} loading="lazy" /> : <ChefHat />}
-              <div className="grow strong small">{h.name}</div>
-              <span className="tiny muted">{loadingId === h.id ? 'Opening…' : 'View ›'}</span>
-            </button>
-          ))}
-        </div>
+        <>
+          <div className="tiny muted mt-s">
+            {hits.length} recipe{hits.length === 1 ? '' : 's'} from {srcs.map((x) => SOURCE_NAME[x]).join(', ')}, the ones that use the most of yours first.
+          </div>
+          <div className="list mt-s">
+            <ShowMore
+              items={hits.slice(0, 60)}
+              first={10}
+              more="more recipes"
+              render={(h) => (
+                <button
+                  key={h.id}
+                  className="list-item"
+                  style={{ width: '100%', textAlign: 'left' }}
+                  onClick={async () => {
+                    setLoadingId(h.id);
+                    const d = await loadRecipe(http, keys, h);
+                    setLoadingId(null);
+                    if (d) setOpen(d);
+                    else setErr('Couldn’t open that recipe. Try again.');
+                  }}
+                >
+                  {h.thumb ? (
+                    <img src={h.source === 'mealdb' ? `${h.thumb}/preview` : h.thumb} alt="" width={44} height={44} style={{ borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} loading="lazy" />
+                  ) : (
+                    <ChefHat />
+                  )}
+                  <div className="grow" style={{ minWidth: 0 }}>
+                    <div className="strong small">{h.name}</div>
+                    <div className="tiny muted ellipsis">
+                      {h.have.length ? `Uses your ${h.have.slice(0, 4).join(', ')}${h.have.length > 4 ? ` +${h.have.length - 4}` : ''}` : 'Matches your search'}
+                      {h.missing != null ? ` · ${h.missing} to get` : ''} · {SOURCE_NAME[h.source]}
+                    </div>
+                  </div>
+                  <span className="tiny muted">{loadingId === h.id ? 'Opening…' : '›'}</span>
+                </button>
+              )}
+            />
+          </div>
+        </>
       )}
       {open && <OnlineRecipeSheet data={data} meal={open} onClose={() => setOpen(null)} />}
     </div>

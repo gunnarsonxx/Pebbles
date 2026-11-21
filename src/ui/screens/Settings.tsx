@@ -47,7 +47,7 @@ import { UpdateCard } from '../UpdateCard';
 import { ShiftSchedule } from '../ShiftSchedule';
 import { ACCENTS, PALETTES } from '../themes';
 import { ChecksCard } from '../ChecksCard';
-import { BankSettings, GasStationSettings, GroceryPriceSettings, SetupGuide } from './ConnectionsSettings';
+import { BankSettings, GasStationSettings, GroceryPriceSettings, RecipeSettings, SetupGuide } from './ConnectionsSettings';
 import { AccountPicks } from '../AutopilotCards';
 import { COMMUNITY, PRICE_STORE_SHORT } from '../../core/edition';
 
@@ -116,6 +116,7 @@ export function SettingsScreen({ data, section, open }: { data: AppData; section
           <BankSettings s={s} set={set} />
           <GroceryPriceSettings s={s} set={set} />
           <GasStationSettings s={s} set={set} />
+          <RecipeSettings s={s} set={set} />
           <PricesSection s={s} set={set} />
         </>
       )}
