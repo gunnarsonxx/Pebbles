@@ -3,6 +3,7 @@ import { addDays, diffDays, makeDate, parts } from './dates';
 import { averageCategory, recentFullMonths } from './analytics';
 import { foodPlanMonthly, gasMonthly, inflationSinceReference, currentGasPrice, FOOD_PLAN_LABEL, FALLBACK_GAS_PRICE } from './food';
 import { floorTo, round2 } from './money';
+import { isMustHit, mustHitPlan, type MustHitLine } from './goalpace';
 import type { Bill, Contribution, Goal, ISODate, MarketData, Settings, Transaction } from './types';
 
 // ---------------- bills ----------------
@@ -190,7 +191,7 @@ export interface Allocation {
 }
 
 /** Split a savings amount across goals: emergency fund first, then deadlines, then priority. */
-export function allocateSavings(amount: number, goals: Goal[], contributions: Contribution[], monthlyNeeds: number, nextPayday: ISODate): Allocation[] {
+export function allocateSavings(amount: number, goals: Goal[], contributions: Contribution[], monthlyNeeds: number, nextPayday: ISODate, mustHit?: Map<string, number>): Allocation[] {
   const active = goals.filter((g) => !g.archived && !g.completedAt);
   const open = active.map((g) => ({ g, remaining: Math.max(0, g.target - goalBalance(g.id, contributions)) })).filter((x) => x.remaining > 0.5);
   if (amount <= 0 || !open.length) return [];
@@ -201,7 +202,17 @@ export function allocateSavings(amount: number, goals: Goal[], contributions: Co
   };
   let left = amount;
 
-  // 0) "Reach It Sooner": the extra you chose for a goal goes to it first
+  // 0) goals that must be ready by their date: their share for this check comes first (soonest first)
+  if (mustHit)
+    for (const x of open) {
+      const m = Math.min(mustHit.get(x.g.id) ?? 0, x.remaining, left);
+      if (m > 0) {
+        give(x.g.id, m, 'Must be ready by its date');
+        left -= m;
+      }
+    }
+
+  // 0b) "Reach It Sooner": the extra you chose for a goal goes to it first
   for (const x of open) {
     const b = Math.min(x.g.boost ?? 0, x.remaining, left);
     if (b > 0) {
@@ -228,7 +239,7 @@ export function allocateSavings(amount: number, goals: Goal[], contributions: Co
 
   // 2) deadline goals: what's needed per paycheck to arrive on time
   const deadlines = open
-    .filter((x) => x.g.targetDate && x.g.targetDate > nextPayday)
+    .filter((x) => x.g.targetDate && x.g.targetDate > nextPayday && !(mustHit && isMustHit(x.g)))
     .map((x) => {
       const checks = Math.max(1, Math.floor(diffDays(x.g.targetDate as ISODate, nextPayday) / 14) + 1);
       const rem = x.remaining - (alloc.get(x.g.id)?.amount ?? 0);
@@ -316,6 +327,8 @@ export interface PaycheckPlan {
   allocations: Allocation[];
   notes: string[];
   savingsRate: number;
+  /** goals that must be ready by their date: what each check needs, and how far short this one is */
+  mustHit?: { perCheck: number; short: number; lines: MustHitLine[] };
 }
 
 export function buildPlan(opts: {
@@ -355,7 +368,7 @@ export function buildPlan(opts: {
     // deadline needs can pull savings above the ideal, but never below your comfort floor
     const nextDay = nextPayday;
     const deadlineNeed = goals
-      .filter((g) => !g.archived && !g.completedAt && g.targetDate && g.targetDate > payday)
+      .filter((g) => !g.archived && !g.completedAt && g.targetDate && g.targetDate > payday && !isMustHit(g))
       .reduce((s, g) => {
         const rem = Math.max(0, g.target - goalBalance(g.id, contributions));
         const checks = Math.max(1, Math.floor(diffDays(g.targetDate as ISODate, nextDay) / 14) + 1);
@@ -375,6 +388,17 @@ export function buildPlan(opts: {
     if (suggested < ideal * 0.9 - 1) notes.push(`Saving ${Math.round((suggested / net) * 100)}% this check keeps everyday money comfortable. Your aim is ${b.savingsTargetPct}%.`);
     if (deadlineNeed > room && deadlineNeed > 0) notes.push('Your goal dates need more than this check can spare. Consider moving a date out.');
   }
+  // goals that must be ready by their date: save at least the amount that gets every one there on time,
+  // even if it means less spending money, as long as bills and basics are covered
+  const mh = mustHitPlan(goals, (id) => goalBalance(id, contributions), payday);
+  const cushion = Math.max(25, net * 0.03);
+  const mustRoom = Math.max(0, floorTo(available - cushion, 1));
+  if (mh.perCheck > 0 && available > 0) {
+    const want = Math.min(Math.ceil(mh.perCheck), mustRoom);
+    if (want > suggested) suggested = want;
+    if (mh.perCheck > mustRoom + 0.5)
+      notes.push(`Your must-be-ready goals need ${'$' + mh.perCheck.toFixed(2)} a check, ${'$' + (mh.perCheck - mustRoom).toFixed(2)} more than this check can spare. Savings shows what to trim.`);
+  }
   // "Reach It Sooner" boosts come out of spending money, on top of the usual savings
   const boosts = round2(
     goals.filter((g) => !g.archived && !g.completedAt && (g.boost ?? 0) > 0).reduce((s, g) => s + Math.min(g.boost ?? 0, Math.max(0, g.target - goalBalance(g.id, contributions))), 0),
@@ -389,7 +413,7 @@ export function buildPlan(opts: {
   const personal = round2(available - savings);
   const days = Math.max(1, diffDays(nextPayday, payday));
   const monthlyNeeds = monthlyBillsTotal(bills) + essentials.totalMonthly;
-  const allocations = allocateSavings(savings, goals, contributions, monthlyNeeds, payday);
+  const allocations = allocateSavings(savings, goals, contributions, monthlyNeeds, payday, mh.thisCheck);
   return {
     net,
     bills: billsAmt,
@@ -405,6 +429,7 @@ export function buildPlan(opts: {
     allocations,
     notes,
     savingsRate: net > 0 ? savings / net : 0,
+    mustHit: { perCheck: mh.perCheck, short: round2(Math.max(0, mh.perCheck - savings)), lines: mh.lines },
   };
 }
 

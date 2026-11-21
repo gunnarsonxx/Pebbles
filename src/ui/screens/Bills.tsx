@@ -316,12 +316,12 @@ export function BillSheet({ bill, onClose }: { bill: Bill; onClose: () => void }
           </Field>
           <Field label="How Often">
             <select className="input" value={b.frequency} onChange={(e) => setB({ ...b, frequency: e.target.value as BillFrequency })}>
-              <option value="monthly">Monthly</option>
-              <option value="yearly">Yearly</option>
-              <option value="semiannual">Every 6 Months</option>
+              <option value="monthly">Every Month</option>
               <option value="quarterly">Every 3 Months</option>
+              <option value="semiannual">Every 6 Months</option>
+              <option value="yearly">Every Year</option>
               <option value="biweekly">Every 2 Weeks</option>
-              <option value="weekly">Weekly</option>
+              <option value="weekly">Every Week</option>
             </select>
           </Field>
           {(b.frequency === 'monthly' || b.frequency === 'quarterly' || b.frequency === 'semiannual' || b.frequency === 'yearly') && (

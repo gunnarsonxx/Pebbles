@@ -90,6 +90,8 @@ export interface AppData {
   interestMonthly: number;
   reconcile: Reconcile | null;
   movesFor: { period: Period; estimate: PaycheckEstimate; plan: PaycheckPlan; moves: Move[]; isPast: boolean } | null;
+  /** Look back at an earlier paycheck: the plan as it was when that check came in (or rebuilt, if Pebbles didn't save one), with its moves. */
+  planFor: (index: number) => { period: Period; estimate: PaycheckEstimate; plan: PaycheckPlan; moves: Move[]; isPast: boolean; saved: boolean; received: boolean };
   coverage: Coverage;
   advances: Advances | null; // DailyPay taken since the last payday
   drives: DriveEntry[];
@@ -386,7 +388,56 @@ export function computeData(version: number, today: ISODate): AppData {
     }),
   };
 
+  const savingsName = gAcct ? (gAcct.institution && /marcus|goldman/i.test(gAcct.institution + gAcct.name) ? 'Marcus' : gAcct.name) : 'savings';
+  const planFor: AppData['planFor'] = (index) => {
+    const period = periodByIndex(settings.pay, index);
+    if (movesFor && period.start === movesFor.period.start) return { ...movesFor, isPast: true, saved: !!paychecks.get(period.start)?.split, received: !!paychecks.get(period.start)?.received };
+    const rec = paychecks.get(period.start);
+    const estimate = estimatePaycheck(period, settings, rates, workdays, rulesFile, calibration);
+    const net = rec?.actualNet ?? estimate.net;
+    const rebuilt = buildPlan({
+      settings,
+      net,
+      payday: period.payday,
+      nextPayday: periodByIndex(settings.pay, index + 1).payday,
+      bills,
+      essentials,
+      goals,
+      contributions: contributions.filter((c) => c.paycheckId !== period.start && c.date < period.payday),
+      savingsOverride: rec?.savingsOverride ?? null,
+    });
+    // what Pebbles saved when the check came in beats a rebuild with today's numbers
+    const s = rec?.split;
+    const p: PaycheckPlan = s
+      ? {
+          ...rebuilt,
+          net,
+          bills: s.bills,
+          essentials: s.essentials,
+          savings: s.savings,
+          personal: s.personal,
+          available: round2(net - s.bills - s.essentials),
+          personalPerDay: round2(Math.max(0, s.personal) / 14),
+          savingsRate: net > 0 ? s.savings / net : 0,
+          allocations: rec!.goalAllocations.length ? rec!.goalAllocations.map((a) => ({ goalId: a.goalId, amount: a.amount, reason: 'Planned then' })) : rebuilt.allocations,
+          notes: [],
+        }
+      : rebuilt;
+    const moves = paydayMoves({
+      period,
+      plan: p,
+      goals,
+      savingsName,
+      states: movesState,
+      bonusMonth: false,
+      billsAccountName: settings.budget.billsAccountId && cov.bills ? cov.bills.account.name : null,
+      billsSteady: !!steady,
+    });
+    return { period, estimate, plan: p, moves, isPast: true, saved: !!s, received: !!rec?.received };
+  };
+
   return {
+    planFor,
     version,
     today,
     settings,

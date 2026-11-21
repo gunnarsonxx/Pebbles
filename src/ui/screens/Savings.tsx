@@ -4,10 +4,11 @@ import type { AppData } from '../../data/useData';
 import { PebblePile } from '../PebblePile';
 import { compressImage, Empty, Field, GemIcon, NumberInput, Progress, Segmented, Sheet, TextInput, ToggleRow, useConfirm, useToast } from '../components';
 import { GEMS, GEM_BY_ID, gemBar } from '../../core/categories';
-import { fmtLong, fmtShort, diffDays, today } from '../../core/dates';
+import { addDays, fmtLong, fmtShort, diffDays, today } from '../../core/dates';
 import { pebbles, usd, uid } from '../../core/money';
 import { averagePerCheck, projectGoalDate } from '../../core/budget';
-import { addContribution, deleteContribution, deleteGoal, newGoal, saveGoal } from '../../data/actions';
+import { addContribution, deleteContribution, deleteGoal, newGoal, saveGoal, saveSettings } from '../../data/actions';
+import { cutsToCover, whereToCut } from '../../core/cuts';
 import { SavingsAccountCard } from '../AutopilotCards';
 import type { Goal, GemName } from '../../core/types';
 import type { GoTo } from '../App';
@@ -48,13 +49,21 @@ function GoalsView({ data }: { data: AppData }) {
   const [editing, setEditing] = useState<Goal | null>(null);
   const [viewing, setViewing] = useState<string | null>(null);
   const goals = data.goals.filter((g) => !g.archived);
-  const perCheck = new Map(data.plan.allocations.map((a) => [a.goalId, a.amount]));
   const completed = goals.filter((g) => g.completedAt);
   const gems = completed.map((g) => g.gem);
   const viewingGoal = viewing ? data.goals.find((g) => g.id === viewing) : null;
+  const [totalOpen, setTotalOpen] = useState(false);
+  const emergency = goals.filter((g) => g.isEmergency);
+  // goals for things: still going first (soonest date first), finished ones last
+  const things = goals.filter((g) => !g.isEmergency);
 
   return (
     <div>
+      {data.settings.budget.totalGoal?.show && (
+        <div style={{ marginBottom: 14 }}>
+          <TotalGoalBanner data={data} onEdit={() => setTotalOpen(true)} />
+        </div>
+      )}
       <div className="card center" style={{ paddingTop: 22 }}>
         <div className="eyebrow">All Your Savings</div>
         <div className="hero-number" style={{ marginTop: 6 }}>
@@ -68,16 +77,14 @@ function GoalsView({ data }: { data: AppData }) {
           1 pebble = $1 · {goals.length} goal{goals.length === 1 ? '' : 's'}
           {data.plan.savings > 0 && ` · about ${pebbles(data.plan.savings)} more planned next payday`}
         </div>
+        {!data.settings.budget.totalGoal?.show && (
+          <button className="tour-skip mt-s" onClick={() => setTotalOpen(true)}>
+            Set a total to have saved by a date
+          </button>
+        )}
       </div>
 
       <SavingsAccountCard data={data} />
-
-      <div className="section-title">
-        <h2>Goals</h2>
-        <button className="btn primary small" onClick={() => setEditing(newGoal({ gem: GEMS[(goals.length + 3) % GEMS.length].id }))}>
-          <Plus /> New Goal
-        </button>
-      </div>
 
       {!goals.length && (
         <div className="card">
@@ -95,68 +102,46 @@ function GoalsView({ data }: { data: AppData }) {
         </div>
       )}
 
-      <div className="grid two">
-        {goals.map((g) => {
-          const bal = data.balances.get(g.id) ?? 0;
-          const pct = g.target > 0 ? bal / g.target : 0;
-          const next = perCheck.get(g.id) ?? 0;
-          // finish date from your average per paycheck, not just this one check
-          const avg = averagePerCheck(g.id, data.contributions, next, data.today);
-          const eta = projectGoalDate(g, bal, avg.avg, data.upcoming.period.payday);
-          const gem = GEM_BY_ID[g.gem];
-          return (
-            <button key={g.id} className="card" style={{ textAlign: 'left', border: 0, cursor: 'pointer', color: 'inherit', width: '100%' }} onClick={() => setViewing(g.id)}>
-              <div
-                className="goal-cover"
-                style={!g.image ? { background: `linear-gradient(135deg, color-mix(in srgb, ${gem.color} 45%, var(--card)), color-mix(in srgb, ${gem.color} 15%, var(--bg-deep)))` } : undefined}
-              >
-                {g.image && <img src={g.image} alt="" />}
-                <div className="over row between">
-                  <div>
-                    <div className="strong" style={{ fontSize: 18, fontFamily: 'var(--font-serif)' }}>
-                      {g.name}
-                    </div>
-                    <div className="tiny" style={{ opacity: 0.9 }}>
-                      {g.isEmergency ? emergencyLabel(data, g) : g.targetDate ? `by ${fmtLong(g.targetDate)}` : 'No deadline'}
-                    </div>
-                  </div>
-                  <GemIcon gem={g.gem} size={26} />
-                </div>
-              </div>
-              <div className="row between mt">
-                <div>
-                  <span className="strong num" style={{ fontSize: 18 }}>
-                    {pebbles(bal)}
-                  </span>{' '}
-                  <span className="small muted">of {pebbles(g.target)} pebbles</span>
-                </div>
-                <span className="small strong">{Math.min(100, Math.round(pct * 100))}%</span>
-              </div>
-              <div style={{ margin: '8px 0' }}>
-                <Progress value={pct} color={gemBar(g.gem)} />
-              </div>
-              <div className="row between tiny muted">
-                <span>{g.completedAt ? 'Reached! 🎉' : next > 0 ? `+${pebbles(next)} next payday` : 'Not in this paycheck’s plan'}</span>
-                <span title={`At your average of ${usd(avg.avg)} a paycheck (last ${avg.periods} paychecks, including the next one)`}>
-                  {!g.completedAt && eta ? `on track for ${fmtShort(eta)}${eta.slice(0, 4) !== today().slice(0, 4) ? ` ${eta.slice(0, 4)}` : ''}` : ''}
-                </span>
-              </div>
-              <div className="tiny muted" style={{ textAlign: 'right' }}>
-                {!g.completedAt && eta && avg.avg > 0 ? `at your average ${usd(avg.avg)} a paycheck` : ''}
-              </div>
-              <div className="row mt" style={{ gap: 4 }}>
-                {MILESTONES.map((m) => (
-                  <span key={m.gem} style={{ opacity: bal >= g.target * m.pct ? 1 : 0.2 }} title={m.label}>
-                    <GemIcon gem={m.gem} size={16} title={m.label} />
-                  </span>
-                ))}
-              </div>
-            </button>
-          );
-        })}
-      </div>
+      {data.plan.mustHit && data.plan.mustHit.short > 0.5 && <ShortfallCard data={data} />}
 
+      <div className="section-title">
+        <h2>Emergency Fund</h2>
+      </div>
+      {emergency.length ? (
+        <div className="grid two">
+          {emergency.map((g) => (
+            <GoalCard key={g.id} g={g} data={data} open={setViewing} />
+          ))}
+        </div>
+      ) : (
+        goals.length > 0 && (
+          <div className="card">
+            <p className="small ink2" style={{ marginTop: 0 }}>
+              A Bedrock fund covers surprises (a car repair, a slow month) so they don’t eat your other goals. Pebbles fills it first, step by step.
+            </p>
+            <button className="btn" onClick={() => setEditing(newGoal({ name: 'Bedrock Fund', isEmergency: true, gem: 'obsidian', priority: 3, target: 3000 }))}>
+              <ShieldCheck /> Start a Bedrock Fund
+            </button>
+          </div>
+        )
+      )}
+
+      <div className="section-title">
+        <h2>Saving For</h2>
+        <button className="btn primary small" onClick={() => setEditing(newGoal({ gem: GEMS[(goals.length + 3) % GEMS.length].id }))}>
+          <Plus /> New Goal
+        </button>
+      </div>
+      {things.length === 0 && goals.length > 0 && (
+        <p className="small muted">A trip, a visit, a move, a car: add what you’re saving for. Turn on “Must Be Ready by This Date” for the ones that can’t be late.</p>
+      )}
+      <div className="grid two">
+        {things.map((g) => (
+          <GoalCard key={g.id} g={g} data={data} open={setViewing} />
+        ))}
+      </div>
       {editing && <GoalEditor goal={editing} onClose={() => setEditing(null)} />}
+      {totalOpen && <TotalGoalSheet data={data} onClose={() => setTotalOpen(false)} />}
       {viewingGoal && (
         <GoalDetail
           goal={viewingGoal}
@@ -169,6 +154,75 @@ function GoalsView({ data }: { data: AppData }) {
         />
       )}
     </div>
+  );
+}
+
+function GoalCard({ g, data, open }: { g: Goal; data: AppData; open: (id: string) => void }) {
+  const perCheck = new Map(data.plan.allocations.map((a) => [a.goalId, a.amount]));
+  const bal = data.balances.get(g.id) ?? 0;
+  const pct = g.target > 0 ? bal / g.target : 0;
+  const next = perCheck.get(g.id) ?? 0;
+  // finish date from your average per paycheck, not just this one check
+  const avg = averagePerCheck(g.id, data.contributions, next, data.today);
+  const eta = projectGoalDate(g, bal, avg.avg, data.upcoming.period.payday);
+  const gem = GEM_BY_ID[g.gem];
+  const mh = data.plan.mustHit?.lines.find((l) => l.goalId === g.id);
+  const mustShort = !!data.plan.mustHit && data.plan.mustHit.short > 0.5;
+  return (
+    <button key={g.id} className="card" style={{ textAlign: 'left', border: 0, cursor: 'pointer', color: 'inherit', width: '100%' }} onClick={() => open(g.id)}>
+      <div
+        className="goal-cover"
+        style={!g.image ? { background: `linear-gradient(135deg, color-mix(in srgb, ${gem.color} 45%, var(--card)), color-mix(in srgb, ${gem.color} 15%, var(--bg-deep)))` } : undefined}
+      >
+        {g.image && <img src={g.image} alt="" />}
+        <div className="over row between">
+          <div>
+            <div className="strong" style={{ fontSize: 18, fontFamily: 'var(--font-serif)' }}>
+              {g.name}
+            </div>
+            <div className="tiny" style={{ opacity: 0.9 }}>
+              {g.isEmergency ? emergencyLabel(data, g) : g.targetDate ? `by ${fmtLong(g.targetDate)}` : 'No deadline'}
+            </div>
+          </div>
+          <GemIcon gem={g.gem} size={26} />
+        </div>
+      </div>
+      <div className="row between mt">
+        <div>
+          <span className="strong num" style={{ fontSize: 18 }}>
+            {pebbles(bal)}
+          </span>{' '}
+          <span className="small muted">of {pebbles(g.target)} pebbles</span>
+        </div>
+        <span className="small strong">{Math.min(100, Math.round(pct * 100))}%</span>
+      </div>
+      <div style={{ margin: '8px 0' }}>
+        <Progress value={pct} color={gemBar(g.gem)} />
+      </div>
+      <div className="row between tiny muted">
+        <span>{g.completedAt ? 'Reached! 🎉' : next > 0 ? `+${pebbles(next)} next payday` : 'Not in this paycheck’s plan'}</span>
+        <span title={`At your average of ${usd(avg.avg)} a paycheck (last ${avg.periods} paychecks, including the next one)`}>
+          {!g.completedAt && eta ? `on track for ${fmtShort(eta)}${eta.slice(0, 4) !== today().slice(0, 4) ? ` ${eta.slice(0, 4)}` : ''}` : ''}
+        </span>
+      </div>
+      <div className="tiny muted" style={{ textAlign: 'right' }}>
+        {!g.completedAt && eta && avg.avg > 0 ? `at your average ${usd(avg.avg)} a paycheck` : ''}
+      </div>
+      {mh && !g.completedAt && (
+        <div className={`tiny strong mt-s ${mustShort ? 'warn' : 'good'}`}>
+          {mustShort
+            ? `Must be ready by ${fmtShort(mh.date)} · this check can’t cover it all`
+            : `Must be ready by ${fmtShort(mh.date)} · fully saved by ${mh.ready ? fmtShort(mh.ready) : fmtShort(mh.date)}`}
+        </div>
+      )}
+      <div className="row mt" style={{ gap: 4 }}>
+        {MILESTONES.map((m) => (
+          <span key={m.gem} style={{ opacity: bal >= g.target * m.pct ? 1 : 0.2 }} title={m.label}>
+            <GemIcon gem={m.gem} size={16} title={m.label} />
+          </span>
+        ))}
+      </div>
+    </button>
   );
 }
 
@@ -258,6 +312,14 @@ function GoalEditor({ goal, onClose }: { goal: Goal; onClose: () => void }) {
             ))}
           </div>
         </Field>
+        {g.targetDate && !g.isEmergency && (
+          <ToggleRow
+            title="Must Be Ready by This Date"
+            hint="For things that can’t be late (a trip, a visit, a move). Pebbles saves at least enough every paycheck to have it all by the date, soonest goal first, and trims spending money if it has to. Leave it off for “nice if I can” goals."
+            on={!!g.mustHit}
+            onChange={(v) => setG({ ...g, mustHit: v })}
+          />
+        )}
         <ToggleRow title="This Is My Emergency Fund" hint="Filled first until it covers a month of expenses" on={g.isEmergency} onChange={(v) => setG({ ...g, isEmergency: v })} />
         {g.isEmergency && (
           <ToggleRow
@@ -497,6 +559,137 @@ function EmergencySteps({ data, goal }: { data: AppData; goal: Goal }) {
             ? 'All steps reached. New savings now go to your other goals; if you dip into it, Pebbles builds it back first.'
             : 'When a step is reached, Pebbles raises the goal to the next one. Once the full fund is there, savings go to your other goals.'}
       </p>
+    </div>
+  );
+}
+
+/** "Have $X saved in total by this date": are you on track? */
+function TotalGoalBanner({ data, onEdit }: { data: AppData; onEdit: () => void }) {
+  const t = data.settings.budget.totalGoal!;
+  const payday = data.upcoming.period.payday;
+  const checks = t.date < payday ? 0 : Math.floor(diffDays(t.date, payday) / 14) + 1;
+  // your usual savings per paycheck: what you've really put away over the last few months (deposits, not interest),
+  // or your savings aim if there's no history yet. One unusually big or small check doesn't swing it.
+  const since = addDays(data.today, -84);
+  const deposits = data.contributions.filter((c) => c.amount > 0 && c.kind !== 'interest' && c.date > since && c.date <= data.today);
+  const avg = deposits.length ? deposits.reduce((x, c) => x + c.amount, 0) / 6 : (data.plan.net * data.settings.budget.savingsTargetPct) / 100;
+  // goals that must be ready before the date get saved for regardless
+  const mustBy = (data.plan.mustHit?.lines ?? []).filter((l) => l.date <= t.date).reduce((x, l) => x + l.remaining, 0);
+  const projected = data.saved + Math.max(avg * checks, mustBy);
+  const left = Math.max(0, t.amount - data.saved);
+  const need = checks > 0 ? left / checks : left;
+  const done = data.saved >= t.amount;
+  const onTrack = done || projected >= t.amount - 0.5;
+  return (
+    <div className="card" style={{ borderLeft: `4px solid var(${onTrack ? '--good' : '--warn'})` }}>
+      <div className="row between" style={{ alignItems: 'flex-start' }}>
+        <div>
+          <div className="eyebrow">Total Savings Target</div>
+          <div className="strong" style={{ fontFamily: 'var(--font-serif)', fontSize: 19 }}>
+            {usd(t.amount)} by {fmtLong(t.date)}
+          </div>
+        </div>
+        <button className="btn ghost small" onClick={onEdit}>
+          <Pencil /> Edit
+        </button>
+      </div>
+      <div className="mt-s">
+        <Progress value={t.amount > 0 ? data.saved / t.amount : 0} color="var(--jade)" />
+      </div>
+      <p className={`small ${onTrack ? 'good' : 'warn'}`} style={{ margin: '8px 0 0' }}>
+        {done
+          ? `Done: ${usd(data.saved)} saved.`
+          : onTrack
+            ? `On track: at your average ${usd(avg)} a paycheck you’ll have about ${usd(projected)} by then.`
+            : `Behind: at your average ${usd(avg)} a paycheck you’d have about ${usd(projected)}. It takes about ${usd(need)} a paycheck from here (${checks} paycheck${checks === 1 ? '' : 's'} left).`}
+      </p>
+      <p className="tiny muted" style={{ margin: '4px 0 0' }}>
+        {usd(data.saved)} saved so far, across all your goals.
+      </p>
+    </div>
+  );
+}
+
+function TotalGoalSheet({ data, onClose }: { data: AppData; onClose: () => void }) {
+  const cur = data.settings.budget.totalGoal;
+  const [amount, setAmount] = useState<number | null>(cur?.amount ?? null);
+  const [date, setDate] = useState(cur?.date ?? '');
+  const save = async (show: boolean) => {
+    await saveSettings((s) => ({ ...s, budget: { ...s.budget, totalGoal: amount && date ? { amount, date, show } : null } }));
+    onClose();
+  };
+  return (
+    <Sheet
+      title="Total Savings Target"
+      onClose={onClose}
+      footer={
+        <>
+          {cur?.show && (
+            <button className="btn" onClick={() => void save(false)}>
+              Hide It
+            </button>
+          )}
+          <button className="btn primary" disabled={!amount || !date} onClick={() => void save(true)}>
+            Show at the Top
+          </button>
+        </>
+      }
+    >
+      <div className="col gap-l">
+        <p className="small ink2" style={{ margin: 0 }}>
+          A total to have saved by a date, whatever it ends up being for. Pebbles tracks it across all your goals and tells you if you’re on target.
+        </p>
+        <div className="form-grid two">
+          <Field label="Total Amount">
+            <NumberInput value={amount} onChange={setAmount} prefix="$" allowEmpty money />
+          </Field>
+          <Field label="By">
+            <input className="input" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+          </Field>
+        </div>
+      </div>
+    </Sheet>
+  );
+}
+
+/** Must-be-ready goals don't fit: what's short, and where it could come from. */
+function ShortfallCard({ data }: { data: AppData }) {
+  const short = data.plan.mustHit!.short;
+  const ideas = whereToCut(data.txns, data.bills, data.today);
+  const { picks, covered } = cutsToCover(ideas, short);
+  const [all, setAll] = useState(false);
+  const shown = all ? ideas : picks;
+  return (
+    <div className="card mt" style={{ borderLeft: '4px solid var(--warn)' }}>
+      <div className="eyebrow">Your Must-Be-Ready Goals Don’t Fit Yet</div>
+      <p className="small ink2" style={{ margin: '4px 0 8px' }}>
+        To have every one ready on time takes <strong>{usd(data.plan.mustHit!.perCheck)}</strong> a paycheck. After bills and basics this check can put in {usd(data.plan.savings)}, so it’s about{' '}
+        <strong>{usd(short)}</strong> short each check.
+      </p>
+      {ideas.length ? (
+        <>
+          <div className="small strong">{covered >= short ? 'These would cover it:' : 'Where you could trim:'}</div>
+          <div className="list">
+            {shown.map((i) => (
+              <div key={i.id} className="list-item" style={{ alignItems: 'flex-start' }}>
+                <div className="grow">
+                  <div className="small strong">{i.title}</div>
+                  <div className="tiny muted">{i.detail}</div>
+                </div>
+                <div className="amount small in">+{usd(i.perCheck)}/check</div>
+              </div>
+            ))}
+          </div>
+          {ideas.length > picks.length && (
+            <button className="tour-skip" onClick={() => setAll(!all)}>
+              {all ? 'Show fewer' : `Show all ${ideas.length} ideas`}
+            </button>
+          )}
+          {covered < short && <p className="tiny muted">Even all of these together don’t quite cover it. Moving a goal’s date out, lowering its amount, or extra shifts would close the rest.</p>}
+        </>
+      ) : (
+        <p className="small muted">Connect your bank or import a statement and Pebbles will show where your money goes and what to trim. Moving a goal’s date out or lowering its amount helps too.</p>
+      )}
     </div>
   );
 }

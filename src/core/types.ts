@@ -80,6 +80,7 @@ export interface HouseholdSettings {
 }
 
 export interface BudgetSettings {
+  totalGoal?: { amount: number; date: ISODate; show: boolean } | null; // "have $X saved in total by this date"
   savingsTargetPct: number; // aim, e.g. 20
   wantsMaxPct: number; // keep spending money near this share once bills are known, e.g. 30
   minSavingsPct: number; // keep making progress, e.g. 5
@@ -510,6 +511,7 @@ export interface Goal {
   priority: 1 | 2 | 3; // 3 = high
   isEmergency: boolean;
   autoTarget?: boolean; // emergency fund: Pebbles raises the target step by step (default on)
+  mustHit?: boolean; // "Must Be Ready by This Date": Pebbles saves at least enough every check to finish it in time
   boost?: number; // "Reach It Sooner": extra per paycheck, taken from spending money, straight to this goal
   createdAt: number;
   completedAt: number | null;

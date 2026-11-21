@@ -310,7 +310,7 @@ export function Toggle({ on, onChange, label }: { on: boolean; onChange: (v: boo
 export function ToggleRow({ title, hint, on, onChange }: { title: ReactNode; hint?: ReactNode; on: boolean; onChange: (v: boolean) => void }) {
   return (
     <div className="row" style={{ padding: '6px 0' }}>
-      <div className="grow">
+      <div className="grow" style={{ cursor: 'pointer' }} onClick={() => onChange(!on)}>
         <div className="strong">{title}</div>
         {hint && <div className="small muted">{hint}</div>}
       </div>

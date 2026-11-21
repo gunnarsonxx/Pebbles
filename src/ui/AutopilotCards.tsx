@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Check, Circle, Compass, PiggyBank, TriangleAlert, CircleCheck, CircleDot, SlidersHorizontal } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, Circle, Compass, PiggyBank, TriangleAlert, CircleCheck, CircleDot, SlidersHorizontal } from 'lucide-react';
+import { SplitBar } from './charts';
 import { GemIcon, NumberInput, Segmented, Sheet, useToast } from './components';
 import { store } from '../data/store';
 import { saveSettings } from '../data/actions';
@@ -9,7 +10,7 @@ import type { Account, Goal } from '../core/types';
 import type { AppData } from '../data/useData';
 import { setBonusMove, setMove } from '../data/autopilot';
 import { fmtDay, fmtDayOrd, fmtShort } from '../core/dates';
-import { usd } from '../core/money';
+import { pebbles, usd } from '../core/money';
 import { monthlyRate, projectSavings } from '../core/savingsAccount';
 import { minimumAdvance } from '../core/dailypay';
 import { MARCUS_REFERRAL } from '../core/edition';
@@ -18,8 +19,7 @@ import { Browser } from '@capacitor/browser';
 import type { Standing } from '../core/guidelines';
 
 /** Home: what to do with this paycheck. The only part of money you have to think about. */
-export function MovesCard({ data }: { data: AppData }) {
-  const m = data.movesFor;
+export function MovesCard({ data, m = data.movesFor }: { data: AppData; m?: AppData['movesFor'] }) {
   if (!m) return null;
   const { period, plan, moves, isPast } = m;
   const daysTo = Math.round((Date.parse(period.payday) - Date.parse(data.today)) / 86_400_000);
@@ -641,5 +641,76 @@ function MarcusSignUp() {
         </p>
       )}
     </div>
+  );
+}
+
+/** An earlier paycheck's plan: what it was split into, where savings went, and the moves (you can still check them off). */
+export function PastPlanCard({ data, back, setBack }: { data: AppData; back: number; setBack: (n: number) => void }) {
+  const p = data.planFor(data.upcoming.period.index - back);
+  const { plan, period } = p;
+  return (
+    <>
+      <div className="card">
+        <div className="row between" style={{ marginBottom: 8 }}>
+          <button className="icon-btn" onClick={() => setBack(back + 1)} aria-label="Earlier paycheck">
+            <ChevronLeft />
+          </button>
+          <div className="center">
+            <div className="eyebrow">{back === 1 ? 'Last Paycheck' : `${back} Paychecks Ago`}</div>
+            <div className="strong">Paid {fmtDay(period.payday)}</div>
+          </div>
+          <button className="icon-btn" onClick={() => setBack(back - 1)} aria-label="Later paycheck">
+            <ChevronRight />
+          </button>
+        </div>
+        <div className="hero-number" style={{ margin: '4px 0' }}>
+          {usd(plan.net)}
+        </div>
+        <div className="small ink2">
+          {p.received ? 'Take-home that came in' : 'Expected take-home (no deposit recorded)'}
+          {data.paychecks.get(period.start)?.depositPending ? ' · pending' : ''}
+        </div>
+        <div className="mt">
+          <SplitBar
+            total={plan.net}
+            parts={[
+              { key: 'bills', label: 'Bills', value: plan.bills, color: 'var(--sapphire)', hint: plan.billsTopUp ? 'Into your Bills account' : 'Bills' },
+              {
+                key: 'you',
+                label: 'Your Money',
+                value: plan.essentials + Math.max(0, plan.personal),
+                color: 'var(--amethyst)',
+                hint: `${usd(plan.essentials, true)} groceries, gas & basics · ${usd(Math.max(0, plan.personal), true)} to enjoy`,
+              },
+              { key: 'save', label: 'Savings', value: plan.savings, color: 'var(--jade)', hint: `${pebbles(plan.savings)} pebbles` },
+            ]}
+          />
+        </div>
+        {plan.allocations.length > 0 && (
+          <div className="mt">
+            <div className="eyebrow" style={{ marginBottom: 4 }}>
+              Savings Went To
+            </div>
+            {plan.allocations.map((a) => {
+              const g = data.goals.find((x) => x.id === a.goalId);
+              return (
+                <div key={a.goalId} className="row" style={{ padding: '4px 0' }}>
+                  {g && <GemIcon gem={g.gem} size={16} />}
+                  <span className="grow small">{g?.name ?? 'A goal'}</span>
+                  <span className="amount small">+{pebbles(a.amount)}</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+        <p className="tiny muted" style={{ margin: '10px 0 0' }}>
+          {p.saved ? 'The plan as Pebbles had it when this check came in.' : 'Rebuilt from your bills and goals today; Pebbles didn’t save a plan for this check.'}{' '}
+          <button className="tour-skip" onClick={() => setBack(0)}>
+            Back to the next paycheck
+          </button>
+        </p>
+      </div>
+      <MovesCard data={data} m={p} />
+    </>
   );
 }

@@ -1,10 +1,11 @@
-import { CalendarDays, ChevronRight, Sparkles, Settings as SettingsIcon } from 'lucide-react';
+import { CalendarDays, ChevronLeft, ChevronRight, Sparkles, Settings as SettingsIcon } from 'lucide-react';
 import type { AppData } from '../../data/useData';
 import type { GoTo } from '../App';
 import { SplitBar } from '../charts';
 import { CategoryIcon, GemIcon } from '../components';
 import { InsightList } from '../InsightList';
-import { CoverageCard, GuidelinesCard } from '../AutopilotCards';
+import { CoverageCard, GuidelinesCard, PastPlanCard } from '../AutopilotCards';
+import { useState } from 'react';
 import { monthlyBillsTotal } from '../../core/budget';
 import { detectRecurring } from '../../core/analytics';
 import { fmtDay, fmtShort, addDays } from '../../core/dates';
@@ -13,10 +14,18 @@ import { usd, pebbles } from '../../core/money';
 import { setSavingsOverride } from '../../data/actions';
 
 export function PlanScreen({ data, go }: { data: AppData; go: GoTo }) {
+  const [back, setBack] = useState(0); // looking at an earlier paycheck's plan
   const { plan, essentials, upcoming } = data;
   const recurring = detectRecurring(data.txns, data.bills, data.today).slice(0, 6);
   const monthly = monthlyBillsTotal(data.bills);
   const override = data.paychecks.get(upcoming.period.start)?.savingsOverride ?? null;
+
+  if (back > 0)
+    return (
+      <div>
+        <PastPlanCard data={data} back={back} setBack={setBack} />
+      </div>
+    );
 
   return (
     <div>
@@ -26,13 +35,28 @@ export function PlanScreen({ data, go }: { data: AppData; go: GoTo }) {
         <div className="card-head">
           <div>
             <div className="eyebrow">Paycheck Plan · {fmtDay(upcoming.period.payday)}</div>
-            <div className="small muted">{usd(plan.net)} {data.paychecks.get(upcoming.period.start)?.actualNet != null ? 'take-home from your stub' : 'expected take-home'}</div>
+            <div className="small muted">
+              {usd(plan.net)} {data.paychecks.get(upcoming.period.start)?.actualNet != null ? 'take-home from your stub' : 'expected take-home'}
+            </div>
           </div>
+          <button className="btn ghost small" onClick={() => setBack(1)} aria-label="Earlier paychecks">
+            <ChevronLeft /> Earlier
+          </button>
         </div>
         <SplitBar
           total={plan.net}
           parts={[
-            { key: 'bills', label: 'Bills', value: plan.bills, color: 'var(--sapphire)', hint: plan.billsTopUp ? `Into ${data.coverage.bills?.account.name ?? 'your Bills Account'} · covers bills through ${fmtShort(data.coverage.followingPayday)}` : data.settings.budget.billsMode === 'due_dates' ? `Due by ${fmtShort(addDays(data.afterUpcoming.payday, -1))}` : 'Even share of monthly bills' },
+            {
+              key: 'bills',
+              label: 'Bills',
+              value: plan.bills,
+              color: 'var(--sapphire)',
+              hint: plan.billsTopUp
+                ? `Into ${data.coverage.bills?.account.name ?? 'your Bills Account'} · covers bills through ${fmtShort(data.coverage.followingPayday)}`
+                : data.settings.budget.billsMode === 'due_dates'
+                  ? `Due by ${fmtShort(addDays(data.afterUpcoming.payday, -1))}`
+                  : 'Even share of monthly bills',
+            },
             {
               key: 'you',
               label: 'Your Money',
@@ -109,7 +133,12 @@ export function PlanScreen({ data, go }: { data: AppData; go: GoTo }) {
               {usd(monthly)} a month · {usd((monthly * 12) / 26)} per paycheck
             </div>
             <div className="tiny muted">
-              {plan.billsDue.length ? `This check covers ${plan.billsDue.slice(0, 3).map((x) => x.bill.name).join(', ')}${plan.billsDue.length > 3 ? '…' : ''}` : 'Calendar, suggestions and roommate split'}
+              {plan.billsDue.length
+                ? `This check covers ${plan.billsDue
+                    .slice(0, 3)
+                    .map((x) => x.bill.name)
+                    .join(', ')}${plan.billsDue.length > 3 ? '…' : ''}`
+                : 'Calendar, suggestions and roommate split'}
               {recurring.length ? ` · ${recurring.length} found in your statements` : ''}
             </div>
           </div>
@@ -174,7 +203,6 @@ export function PlanScreen({ data, go }: { data: AppData; go: GoTo }) {
       <div className="card">
         <InsightList items={data.insights} />
       </div>
-
     </div>
   );
 }

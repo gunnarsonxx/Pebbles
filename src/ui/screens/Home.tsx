@@ -1,6 +1,6 @@
 import { allRecipes, whatCanIMake } from '../../core/recipes';
 import { useMemo, useState } from 'react';
-import { ArrowRight, CalendarDays, ChefHat, Fuel, Receipt, ShoppingBasket, Sprout } from 'lucide-react';
+import { ArrowRight, CalendarDays, ChefHat, Fuel, Receipt, ShoppingBasket, Sprout, History } from 'lucide-react';
 import type { AppData } from '../../data/useData';
 import type { GoTo } from '../App';
 import { SplitBar } from '../charts';
@@ -8,7 +8,7 @@ import { PebblePile } from '../PebblePile';
 import { CategoryIcon, GemIcon, Progress } from '../components';
 import { InsightList } from '../InsightList';
 import { UpdateBanner } from '../UpdateCard';
-import { CoverageCard, MovesCard } from '../AutopilotCards';
+import { CoverageCard, MovesCard, PastPlanCard } from '../AutopilotCards';
 import { ReceiveSheet } from '../sheets/ReceiveSheet';
 import { fmtDay, fmtDayOrd, fmtShort, relativeDays, addDays, diffDays } from '../../core/dates';
 import { billsDueBetween } from '../../core/budget';
@@ -35,6 +35,7 @@ export function Ridge() {
 
 export function HomeScreen({ data, go }: { data: AppData; go: GoTo }) {
   const [receiving, setReceiving] = useState(false);
+  const [back, setBack] = useState(0); // looking at an earlier paycheck's plan
   const { upcoming, settings } = data;
   // the same paycheck the payday steps are about, so every number matches
   const plan = data.movesFor?.plan ?? data.plan;
@@ -60,6 +61,11 @@ export function HomeScreen({ data, go }: { data: AppData; go: GoTo }) {
         <p className="muted">{fmtDay(data.today)}</p>
       </div>
       <UpdateBanner />
+      {back > 0 && (
+        <div style={{ marginBottom: 14 }}>
+          <PastPlanCard data={data} back={back} setBack={setBack} />
+        </div>
+      )}
 
       <div className="grid two-wide">
         <div className="card" style={{ overflow: 'hidden', paddingBottom: 26 }}>
@@ -98,6 +104,11 @@ export function HomeScreen({ data, go }: { data: AppData; go: GoTo }) {
             {(isPayday || diffDays(p.payday, data.today) <= 1) && !record?.received && (
               <button className="btn primary" onClick={() => setReceiving(true)}>
                 <Sprout /> I Got Paid
+              </button>
+            )}
+            {back === 0 && (
+              <button className="btn ghost" onClick={() => setBack(1)}>
+                <History /> Last Paycheck’s Plan
               </button>
             )}
           </div>
@@ -152,7 +163,7 @@ export function HomeScreen({ data, go }: { data: AppData; go: GoTo }) {
       </div>
 
       <CoverageCard data={data} compact />
-      <MovesCard data={data} />
+      {back === 0 && <MovesCard data={data} />}
 
       <div className="card mt">
         <div className="card-head">
