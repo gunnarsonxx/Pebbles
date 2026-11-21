@@ -149,7 +149,11 @@ export async function applyPaystub(stub: Omit<Paystub, 'id' | 'createdAt'>, opts
     // re-estimate with the new deductions so the remaining gap is truly unexplained
     const est = estimatePaycheck(period, settings, store.list('rates'), workdays, effectiveRules());
     // taxes and deductions at the stub's own gross, so hours you didn't log don't skew the match
-    const atStubGross = stub.gross != null ? computeWithholding(stub.gross, settings, rulesForYear(effectiveRules(), Number(period.payday.slice(0, 4))).rules).net : est.withholding.net;
+    // that stub's own deductions (a Roth you've since stopped still came out of that check)
+    const atStubGross =
+      stub.gross != null
+        ? computeWithholding(stub.gross, { ...settings, deductions: deductionsFromStub(stub) }, rulesForYear(effectiveRules(), Number(period.payday.slice(0, 4))).rules).net
+        : est.withholding.net;
     const prev = store.get('paychecks', period.start);
     await store.put('paychecks', {
       id: period.start,

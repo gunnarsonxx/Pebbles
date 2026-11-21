@@ -4,7 +4,7 @@ import type { AppData } from '../../data/useData';
 import { DayEditor } from '../sheets/DayEditor';
 import { ReceiveSheet } from '../sheets/ReceiveSheet';
 import { PaystubSheet } from '../sheets/PaystubSheet';
-import { Field, GemIcon, NumberInput, Segmented, Sheet, TextInput, useConfirm, useToast } from '../components';
+import { Field, Fold, GemIcon, NumberInput, Segmented, Sheet, TextInput, useConfirm, useToast } from '../components';
 import { ShiftSchedule } from '../ShiftSchedule';
 import { HolidaySettings } from './Settings';
 import type { GoTo } from '../App';
@@ -14,13 +14,13 @@ import { shiftSplit } from '../../core/pay';
 import { fmtTime } from '../../core/dates';
 import { periodByIndex, periodContaining, allRates } from '../../core/pay';
 import { estimatePaycheck } from '../../core/paycheck';
-import { rangeDays, fmtShort, fmtDay, dowName, dayOfWeek, diffDays, parts } from '../../core/dates';
+import { addDays, rangeDays, fmtShort, fmtDay, dowName, dayOfWeek, diffDays, parts } from '../../core/dates';
 import { signedUsd, usd, uid, num } from '../../core/money';
 import { GEMS } from '../../core/categories';
 import { BASE_RATE_ID } from '../../core/defaults';
 import { archiveRate, clearWorkDay, saveRate } from '../../data/actions';
 import { store } from '../../data/store';
-import type { PayRate } from '../../core/types';
+import type { PayRate, Paystub } from '../../core/types';
 
 type PayView = 'paycheck' | 'shifts';
 
@@ -83,6 +83,10 @@ function PaycheckView({ data, idx, setIdx, openShifts }: { data: AppData; go: Go
   const days = rangeDays(period.start, period.end);
   const record = data.paychecks.get(period.start);
   // a pay stub for this period: its own hours and gross, not your usual schedule
+  const stub = data.paystubs.find((x) => {
+    const ref = x.periodStart ?? x.payDate;
+    return ref ? periodContaining(settings.pay, ref).start === period.start : false;
+  });
   const stubbed = !!(record?.received && record.actualGross != null && record.note === 'From pay stub');
   const rates = allRates(settings.pay.baseRate, data.rates);
   const g = est.gross;
@@ -218,30 +222,35 @@ function PaycheckView({ data, idx, setIdx, openShifts }: { data: AppData; go: Go
           <div className="eyebrow" style={{ marginBottom: 10 }}>
             How We Got There
           </div>
-          {stubbed && (
+          {stubbed && stub && (
             <p className="tiny muted" style={{ margin: '-4px 0 10px' }}>
-              Your pay stub for these two weeks shows {record!.stubHours != null ? `${num(record!.stubHours)} h and ` : ''}
-              {usd(record!.actualGross as number)} gross. The lines below are your usual schedule; change the days in Shifts to match the stub if you want them to line up.
+              Straight from this check’s pay stub.
             </p>
           )}
-          <Line label={`Base Pay`} detail={`${num(g.scheduledHours)} h × ${usd(settings.pay.baseRate)}`} value={usd(g.basePay)} strong />
-          {g.adjustments.map((a, i) => (
-            <Line key={i} label={a.label} detail={a.detail} value={signedUsd(a.amount)} tone={a.amount >= 0 ? 'good' : 'bad'} indent />
-          ))}
-          <div className="divider" />
-          <Line label="Gross Pay" value={usd(g.gross)} strong />
-          {w.preTax.map((d) => (
-            <Line key={d.id} label={d.name} detail="before tax" value={signedUsd(-d.amount)} indent />
-          ))}
-          {w.taxes.map((t) => (
-            <Line key={t.key} label={t.label} detail={t.detail} value={signedUsd(-t.amount)} indent />
-          ))}
-          {w.postTax.map((d) => (
-            <Line key={d.id} label={d.name} detail="after tax" value={signedUsd(-d.amount)} indent />
-          ))}
-          {data.calibration !== 0 && <Line label="Matched to Your Real Paychecks" detail="learned from recent deposits" value={signedUsd(data.calibration)} indent />}
-          <div className="divider" />
-          <Line label="Take-Home" value={usd(est.net)} strong big />
+          {stubbed && stub ? (
+            <StubLines stub={stub} estimate={record!.estimatedNet} />
+          ) : (
+            <>
+              <Line label={`Base Pay`} detail={`${num(g.scheduledHours)} h × ${usd(settings.pay.baseRate)}`} value={usd(g.basePay)} strong />
+              {g.adjustments.map((a, i) => (
+                <Line key={i} label={a.label} detail={a.detail} value={signedUsd(a.amount)} tone={a.amount >= 0 ? 'good' : 'bad'} indent />
+              ))}
+              <div className="divider" />
+              <Line label="Gross Pay" value={usd(g.gross)} strong />
+              {w.preTax.map((d) => (
+                <Line key={d.id} label={d.name} detail="before tax" value={signedUsd(-d.amount)} indent />
+              ))}
+              {w.taxes.map((t) => (
+                <Line key={t.key} label={t.label} detail={t.detail} value={signedUsd(-t.amount)} indent />
+              ))}
+              {w.postTax.map((d) => (
+                <Line key={d.id} label={d.name} detail="after tax" value={signedUsd(-d.amount)} indent />
+              ))}
+              {data.calibration !== 0 && <Line label="Matched to Your Real Paychecks" detail="learned from recent deposits" value={signedUsd(data.calibration)} indent />}
+              <div className="divider" />
+              <Line label="Take-Home" value={usd(est.net)} strong big />
+            </>
+          )}
           <div className="divider" />
           <div className="row small muted" style={{ alignItems: 'flex-start' }}>
             <Info size={16} style={{ flexShrink: 0, marginTop: 2 }} />
@@ -257,7 +266,7 @@ function PaycheckView({ data, idx, setIdx, openShifts }: { data: AppData; go: Go
         </div>
       </div>
 
-      {data.paychecks.size > 0 && <History data={data} />}
+      <History data={data} />
 
       {receiving && <ReceiveSheet data={data} estimate={est} onClose={() => setReceiving(false)} />}
       {rateEdit && <RateSheet rate={rateEdit} onClose={() => setRateEdit(null)} />}
@@ -450,42 +459,153 @@ function Line({ label, detail, value, strong, indent, tone, big }: { label: stri
 }
 
 function History({ data }: { data: AppData }) {
-  const list = [...data.paychecks.values()]
-    .filter((p) => p.received)
-    .sort((a, b) => b.payday.localeCompare(a.payday))
-    .slice(0, 8);
-  if (!list.length) return null;
-  return (
-    <div className="card mt">
-      <div className="eyebrow" style={{ marginBottom: 6 }}>
-        Recent Paychecks
-      </div>
-      <div className="scroll-x">
-        <table className="table">
-          <thead>
-            <tr>
-              <th>Payday</th>
-              <th className="r">Estimated</th>
-              <th className="r">Actual</th>
-              <th className="r">Saved</th>
-            </tr>
-          </thead>
-          <tbody>
-            {list.map((p) => (
+  const all = [...data.paychecks.values()].filter((p) => p.received && p.actualNet != null).sort((a, b) => b.payday.localeCompare(a.payday));
+  if (!all.length) return null;
+  const st = data.payStats;
+  const since = addDays(data.today, -92);
+  const recent = all.filter((p) => p.payday >= since);
+  const savedOf = (id: string) => st.rows.find((r) => r.id === id)?.saved ?? data.paychecks.get(id)?.split?.savings ?? null;
+  const table = (list: typeof all) => (
+    <div className="scroll-x">
+      <table className="table">
+        <thead>
+          <tr>
+            <th>Payday</th>
+            <th className="r">Estimated</th>
+            <th className="r">Paid</th>
+            <th className="r">Saved</th>
+          </tr>
+        </thead>
+        <tbody>
+          {list.map((p) => {
+            const saved = savedOf(p.id);
+            return (
               <tr key={p.id}>
-                <td>{fmtDay(p.payday)}</td>
+                <td>
+                  {fmtDay(p.payday)}
+                  {p.stubHours != null && <div className="tiny muted">{num(p.stubHours)} h</div>}
+                </td>
                 <td className="r num">{usd(p.estimatedNet)}</td>
                 <td className="r num">
-                  {p.actualNet != null ? usd(p.actualNet) : '–'}
+                  {usd(p.actualNet as number)}
                   {p.depositPending && <div className="tiny warn">pending</div>}
                 </td>
-                <td className="r num">{p.split ? usd(p.split.savings, true) : '–'}</td>
+                <td className="r num">{saved != null ? usd(saved) : '–'}</td>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            );
+          })}
+        </tbody>
+      </table>
     </div>
+  );
+  const tr = st.taxReturn;
+  const money = (v: number) => (v >= 0 ? `about ${usd(v, true)} back` : `about ${usd(-v, true)} owed`);
+  return (
+    <div className="mt">
+      <Fold title="Recent Paychecks" count={all.length} note={`last ${usd(all[0].actualNet as number)} · ${fmtShort(all[0].payday)}`}>
+        <div className="tiny muted" style={{ marginBottom: 4 }}>
+          The last 3 months. Estimated is what Pebbles expected for that check’s hours (from its pay stub when there is one).
+        </div>
+        {recent.length ? table(recent) : <p className="small muted">No paychecks in the last 3 months.</p>}
+        <div className="mt-s">
+          <Fold card={false} title={`All Paychecks & ${st.year} Totals`} count={all.length}>
+            {table(all)}
+            {st.count > 0 && (
+              <div className="coverage-math mt-s">
+                <div className="ahead-row head">
+                  <span>{st.year}</span>
+                  <span>Estimated</span>
+                  <span>Paid</span>
+                  <span>Saved</span>
+                </div>
+                <div className="ahead-row">
+                  <span>Average ({st.count} checks)</span>
+                  <span className="num">{usd(st.average.estimated)}</span>
+                  <span className="num strong">{usd(st.average.paid)}</span>
+                  <span className="num">{usd(st.average.saved)}</span>
+                </div>
+                <div className="ahead-row">
+                  <span>Total</span>
+                  <span className="num">{usd(st.totals.estimated)}</span>
+                  <span className="num strong">{usd(st.totals.paid)}</span>
+                  <span className="num">{usd(st.totals.saved)}</span>
+                </div>
+                <p className="tiny muted" style={{ margin: '6px 0 0' }}>
+                  Only {st.year} checks count. The average paid ({usd(st.average.paid)}) is the same “average take-home” Pebbles uses everywhere else (the Bills look-ahead, savings forecasts and goal
+                  dates).
+                </p>
+              </div>
+            )}
+            {tr && (
+              <div className="coverage-math mt-s">
+                <div className="small strong">Your {tr.year} Tax Return, Roughly</div>
+                <div className="tiny muted" style={{ marginBottom: 6 }}>
+                  From your {tr.stubs} {tr.year} pay stub{tr.stubs === 1 ? '' : 's'} (year-to-date through {tr.throughDate ? fmtShort(tr.throughDate) : 'the newest'})
+                  {tr.remainingChecks ? ` plus Pebbles’ estimate for the ${tr.remainingChecks} check${tr.remainingChecks === 1 ? '' : 's'} left this year` : ''}.
+                </div>
+                <div className="row between small">
+                  <span>Gross pay for the year</span>
+                  <span className="num">{usd(tr.gross, true)}</span>
+                </div>
+                <div className="row between small">
+                  <span>Before-tax deductions</span>
+                  <span className="num">−{usd(tr.pretax, true)}</span>
+                </div>
+                {tr.overtimeDeduction > 0 && (
+                  <div className="row between small">
+                    <span>No tax on overtime (estimate)</span>
+                    <span className="num">−{usd(tr.overtimeDeduction, true)}</span>
+                  </div>
+                )}
+                <div className="divider" style={{ margin: '6px 0' }} />
+                <div className="row between small">
+                  <span>
+                    Federal: withheld {usd(tr.federal.withheld, true)}, owed {usd(tr.federal.owed, true)}
+                  </span>
+                  <span className={`num strong ${tr.federal.refund >= 0 ? 'good' : 'bad'}`}>{money(tr.federal.refund)}</span>
+                </div>
+                {tr.state && (
+                  <div className="row between small">
+                    <span>
+                      {data.settings.stateTax.state}: withheld {usd(tr.state.withheld, true)}, owed {usd(tr.state.owed, true)}
+                    </span>
+                    <span className={`num strong ${tr.state.refund >= 0 ? 'good' : 'bad'}`}>{money(tr.state.refund)}</span>
+                  </div>
+                )}
+                <p className="tiny muted" style={{ margin: '6px 0 0' }}>
+                  A rough guide with the standard deduction, not tax advice: credits, other income and your actual W-2 can change it.
+                </p>
+              </div>
+            )}
+          </Fold>
+        </div>
+      </Fold>
+    </div>
+  );
+}
+
+/** A past check's own pay stub, line by line: hours and pay, taxes and deductions, take-home, next to Pebbles' estimate. */
+function StubLines({ stub, estimate }: { stub: Paystub; estimate: number }) {
+  const kindOrder = ['pretax', 'federal', 'social_security', 'medicare', 'state', 'famli', 'local', 'posttax', 'other'];
+  const lines = stub.lines.filter((l) => l.current > 0.004).sort((a, b) => kindOrder.indexOf(a.kind) - kindOrder.indexOf(b.kind));
+  const net = stub.net ?? 0;
+  return (
+    <>
+      {stub.hours
+        .filter((h) => h.amount > 0)
+        .map((h, i) => (
+          <Line key={`h${i}`} label={h.label} detail={h.hours ? `${num(h.hours)} h${h.rate ? ` × ${usd(h.rate)}` : ''}` : undefined} value={usd(h.amount)} indent />
+        ))}
+      <Line label="Gross Pay" value={usd(stub.gross ?? 0)} strong />
+      {lines.map((l, i) => (
+        <Line key={`l${i}`} label={l.label} detail={l.kind === 'pretax' ? 'before tax' : l.kind === 'posttax' ? 'after tax' : undefined} value={signedUsd(-l.current)} indent />
+      ))}
+      <div className="divider" />
+      <Line label="Take-Home" value={usd(net)} strong big />
+      <div className="divider" />
+      <Line label="Pebbles’ estimate for these hours" detail="with this stub’s deductions" value={usd(estimate)} />
+      {Math.abs(net - estimate) >= 1 && <Line label="Difference" value={signedUsd(net - estimate)} tone={net >= estimate ? 'good' : 'bad'} indent />}
+    </>
   );
 }
 

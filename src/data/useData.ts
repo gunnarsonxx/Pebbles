@@ -35,6 +35,7 @@ import { goalsAccount, interestNextMonth, reconcile, type Reconcile } from '../c
 import { paydayMoves, type Move } from '../core/moves';
 import { threePaycheckMonths } from '../core/budget';
 import { actualSplit } from '../core/actual';
+import { estimateReturn, type ReturnEstimate } from '../core/taxreturn';
 import type { DriveEntry, GasPrice, MealPlanEntry, PantryItem, Recipe, ShopItem, Staple } from '../core/types';
 import { paypalFundingAccount, paypalInFlight, withInFlight, type InFlight } from '../core/paypal';
 import { drivingStats, trustworthy, type DrivingStats } from '../core/driving';
@@ -112,6 +113,15 @@ export interface AppData {
   goalForecast: Map<string, GoalForecast>;
   /** look ahead: every payday in a month, with the Bills account played forward and the plan at three pay levels */
   lookAhead: (month: string) => LookAheadCheck[];
+  /** this year's paychecks that came in: estimated vs paid vs saved (averages and totals), and a rough tax return */
+  payStats: {
+    year: number;
+    rows: { id: string; payday: ISODate; estimated: number; paid: number; saved: number; hours: number | null; fromStub: boolean }[];
+    count: number;
+    average: { estimated: number; paid: number; saved: number };
+    totals: { estimated: number; paid: number; saved: number };
+    taxReturn: ReturnEstimate | null;
+  };
   /** the savings account's next 12 months from every future check's plan: at your average pay, 80 h base pay, and projected pay */
   savingsForecasts: () => { average: Forecast; base: Forecast; projected: Forecast };
   /** your savings walked forward: balance each paycheck, with goals' money coming out on their dates */
@@ -492,16 +502,16 @@ export function computeData(version: number, today: ISODate): AppData {
 
   // your usual savings per paycheck, for anything that looks ahead: what you've really been depositing (once
   // there are three paychecks of it), otherwise what an average paycheck of yours saves after bills and basics
+  // this year's paychecks that came in: the one source for "your average take-home" everywhere
+  const thisYear = today.slice(0, 4);
+  const yearChecks = paycheckList.filter((p) => p.received && p.actualNet != null && p.payday.startsWith(thisYear));
   const savingsAvg: AppData['savingsAvg'] = (() => {
     const since = addDays(today, -84);
     const deps = contributions.filter((c) => c.amount > 0 && c.kind !== 'interest' && !c.id.startsWith('bank|') && !c.id.startsWith('int|') && c.date > since && c.date <= today);
     const first = deps.reduce<string | null>((m, c) => (!m || c.date < m ? c.date : m), null);
     const periods = first ? Math.min(6, Math.max(1, Math.ceil((diffDays(today, first) + 1) / 14))) : 0;
     if (periods >= 3) return { perCheck: round2(deps.reduce((t, c) => t + c.amount, 0) / periods), basis: 'deposits', count: periods };
-    const recent = paycheckList
-      .filter((p) => p.received && p.actualNet != null)
-      .sort((x, y) => y.payday.localeCompare(x.payday))
-      .slice(0, 6);
+    const recent = yearChecks;
     const avgNet = recent.length ? recent.reduce((t, p) => t + (p.actualNet as number), 0) / recent.length : upcoming.net;
     // a typical check pays its average share of the year's bills, whichever way you fund the Bills account
     // ("just what's due" makes single checks swing up and down, but over a year it's the same money)
@@ -568,7 +578,7 @@ export function computeData(version: number, today: ISODate): AppData {
   const avgNetAll =
     savingsAvg.avgNet ??
     (() => {
-      const recent = paycheckList.filter((p) => p.received && p.actualNet != null);
+      const recent = yearChecks;
       return recent.length ? round2(recent.reduce((t, p) => t + (p.actualNet as number), 0) / recent.length) : upcoming.net;
     })();
   // one paycheck's plan at three pay levels (cached by payday)
@@ -623,7 +633,53 @@ export function computeData(version: number, today: ISODate): AppData {
     return sfCache;
   };
 
+  // this year's paychecks: estimated vs paid vs saved, and a rough tax return from this year's stubs
+  const payStats: AppData['payStats'] = (() => {
+    const rows = yearChecks
+      .map((p) => {
+        const period = periodContaining(settings.pay, p.periodStart);
+        const saved = actualFor(period, p.actualNet as number)?.savings ?? p.split?.savings ?? 0;
+        return { id: p.id, payday: p.payday, estimated: p.estimatedNet, paid: p.actualNet as number, saved, hours: p.stubHours ?? null, fromStub: p.note === 'From pay stub' };
+      })
+      .sort((a, b) => b.payday.localeCompare(a.payday));
+    const tot = (k: 'estimated' | 'paid' | 'saved') => round2(rows.reduce((t, r) => t + r[k], 0));
+    const n = rows.length || 1;
+    const totals = { estimated: tot('estimated'), paid: tot('paid'), saved: tot('saved') };
+    const yr = Number(thisYear);
+    const stubs = store.list('paystubs');
+    const newestStub = stubs.filter((x) => x.payDate?.startsWith(thisYear)).sort((a, b) => (b.payDate ?? '').localeCompare(a.payDate ?? ''))[0];
+    // the checks still to come this year, after the newest stub
+    const remaining: { gross: number; federal: number; state: number; pretax: number }[] = [];
+    if (newestStub?.payDate) {
+      let pp = periodContaining(settings.pay, newestStub.payDate);
+      while (pp.payday <= newestStub.payDate) pp = periodByIndex(settings.pay, pp.index + 1);
+      for (; pp.payday <= `${thisYear}-12-31`; pp = periodByIndex(settings.pay, pp.index + 1)) {
+        const e = estimatePaycheck(pp, settings, rates, workdays, rulesFile, calibration);
+        const tax = (k: string) => e.withholding.taxes.find((t) => t.key === k)?.amount ?? 0;
+        remaining.push({ gross: e.gross.gross, federal: tax('federal'), state: tax('state'), pretax: e.withholding.preTax.reduce((t, d) => t + d.amount, 0) });
+      }
+    }
+    const taxReturn = estimateReturn({
+      year: yr,
+      stubs,
+      remaining,
+      rules: rulesForYear(rulesFile, yr).rules,
+      filing: settings.filingStatus,
+      state: settings.stateTax.state,
+      overtimeDeduction: overtimeDeductionEstimate(otPremiumYtd, annualized, settings, yrRules).deduction,
+    });
+    return {
+      year: yr,
+      rows,
+      count: rows.length,
+      average: { estimated: round2(totals.estimated / n), paid: round2(totals.paid / n), saved: round2(totals.saved / n) },
+      totals,
+      taxReturn,
+    };
+  })();
+
   return {
+    payStats,
     lookAhead,
     savingsForecasts,
     goalForecast,
