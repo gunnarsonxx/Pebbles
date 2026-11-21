@@ -4,9 +4,8 @@ import type { AppData } from '../../data/useData';
 import { PebblePile } from '../PebblePile';
 import { compressImage, Empty, Field, GemIcon, NumberInput, Progress, Segmented, Sheet, TextInput, ToggleRow, useConfirm, useToast } from '../components';
 import { GEMS, GEM_BY_ID, gemBar } from '../../core/categories';
-import { addDays, fmtLong, diffDays, today } from '../../core/dates';
+import { fmtLong, diffDays, today } from '../../core/dates';
 import { pebbles, usd, uid } from '../../core/money';
-import { thingsQueue } from '../../core/budget';
 import { addContribution, deleteContribution, deleteGoal, newGoal, saveGoal, saveSettings } from '../../data/actions';
 import { cutsToCover, whereToCut } from '../../core/cuts';
 import { SavingsAccountCard } from '../AutopilotCards';
@@ -166,11 +165,12 @@ function GoalCard({ g, data, open }: { g: Goal; data: AppData; open: (id: string
   // one forecast for everything: your savings walked forward check by check, goals filled in order
   const f = data.goalForecast.get(g.id);
   const must = !g.isEmergency && !!g.mustHit && !!g.targetDate;
+  // the emergency fund raises itself step by step: its date is for the full fund
+  const lv = g.isEmergency && g.autoTarget !== false && data.emergency?.goalId === g.id ? data.emergency.levels : null;
+  const emFull = lv?.length && lv[lv.length - 1].amount > g.target ? lv[lv.length - 1].amount : null;
   const mustShort = must && !!data.plan.mustHit && data.plan.mustHit.short > 0.5;
-  const late = !!(f?.ready && g.targetDate && f.ready > g.targetDate);
-  // the goal being filled before this one gets its turn
-  const queue = thingsQueue(data.goals);
-  const ahead = !g.isEmergency && next < 0.5 ? queue[queue.findIndex((x) => x.id === g.id) - 1] : undefined;
+  // not fully there by its date at your usual savings (it's spent on the day with whatever it holds)
+  const late = !!(g.targetDate && !g.isEmergency && ((f?.ready && f.ready > g.targetDate) || (f?.spent && !f.ready)));
   return (
     <button key={g.id} className="card" style={{ textAlign: 'left', border: 0, cursor: 'pointer', color: 'inherit', width: '100%' }} onClick={() => open(g.id)}>
       <div
@@ -206,15 +206,15 @@ function GoalCard({ g, data, open }: { g: Goal; data: AppData; open: (id: string
         <div className="tiny muted">Reached! 🎉</div>
       ) : (
         <>
-          <div className="tiny muted">
-            {next > 0 ? `+${pebbles(next)} next payday` : ahead ? `Its turn comes after ${ahead.name}${f?.starts ? ` (about ${fmtLong(f.starts)})` : ''}` : 'Nothing this payday'}
-          </div>
+          <div className="tiny muted">{next > 0 ? `+${pebbles(next)} next payday` : 'Nothing this payday'}</div>
           <div className={`tiny mt-s ${must ? (mustShort || late ? 'warn strong' : 'good strong') : late ? 'warn' : 'muted'}`}>
             {mustShort
               ? `Must be ready by ${fmtLong(g.targetDate!)} · your checks can’t cover every must-be-ready goal yet (see above)`
               : f?.ready
-                ? `${must ? `Must be ready by ${fmtLong(g.targetDate!)} · ` : g.targetDate ? `Target ${fmtLong(g.targetDate)} · ` : ''}fully saved by ${fmtLong(f.ready)}${f.perCheck > 0 ? ` at about ${usd(f.perCheck)} a paycheck` : ''}${late ? ', after your date' : ''}`
-                : `${g.targetDate ? `Target ${fmtLong(g.targetDate)} · ` : ''}not reached in the next six years at this pace`}
+                ? `${must ? `Must be ready by ${fmtLong(g.targetDate!)} · ` : g.targetDate ? `Target ${fmtLong(g.targetDate)} · ` : ''}${emFull ? `full fund (${usd(emFull)}) by` : 'fully saved by'} ${fmtLong(f.ready)}${f.perCheck > 0 ? ` at about ${usd(f.perCheck)} a paycheck` : ''}${late ? ', after your date' : ''}`
+                : late
+                  ? `${must ? 'Must be ready' : 'Target'} ${fmtLong(g.targetDate!)} · not fully saved by then at your usual savings`
+                  : `${g.targetDate ? `Target ${fmtLong(g.targetDate)} · ` : ''}not reached in the next six years at this pace`}
           </div>
         </>
       )}
@@ -576,17 +576,12 @@ function TotalGoalBanner({ data, onEdit }: { data: AppData; onEdit: () => void }
   const t = data.settings.budget.totalGoal!;
   const payday = data.upcoming.period.payday;
   const checks = t.date < payday ? 0 : Math.floor(diffDays(t.date, payday) / 14) + 1;
-  // your usual savings per paycheck: what you've really put away over the last few months (deposits, not interest),
-  // or your savings aim if there's no history yet. One unusually big or small check doesn't swing it.
-  const since = addDays(data.today, -84);
-  const deposits = data.contributions.filter((c) => c.amount > 0 && c.kind !== 'interest' && c.date > since && c.date <= data.today);
-  const avg = deposits.length ? deposits.reduce((x, c) => x + c.amount, 0) / 6 : (data.plan.net * data.settings.budget.savingsTargetPct) / 100;
-  // goals that must be ready before the date get saved for regardless
-  const mustBy = (data.plan.mustHit?.lines ?? []).filter((l) => l.date <= t.date).reduce((x, l) => x + l.remaining, 0);
-  // goals for things that happen before then get spent on the day, so that money won't still be there
-  const spentGoals = data.goals.filter((g) => !g.archived && !g.isEmergency && g.targetDate && g.targetDate >= data.today && g.targetDate <= t.date);
-  const spent = spentGoals.reduce((x, g) => x + g.target, 0);
-  const projected = Math.max(0, data.saved + Math.max(avg * checks, mustBy) - spent);
+  // the same forecast as the goals and the savings card: usual deposits, interest, goals spent on their dates
+  const avg = data.savingsAvg.perCheck;
+  const at = [...data.forecast.series].reverse().find((p) => p.date <= t.date) ?? data.forecast.series[0];
+  const projected = at.balance;
+  const spentGoals = data.forecast.withdrawals.filter((w) => w.date <= t.date);
+  const spent = spentGoals.reduce((x, w) => x + w.amount, 0);
   const left = Math.max(0, t.amount - data.saved);
   const need = checks > 0 ? left / checks : left;
   const done = data.saved >= t.amount;
@@ -616,7 +611,7 @@ function TotalGoalBanner({ data, onEdit }: { data: AppData; onEdit: () => void }
       </p>
       <p className="tiny muted" style={{ margin: '4px 0 0' }}>
         {usd(data.saved)} saved so far, across all your goals.
-        {spent > 0 ? ` Counts the ${usd(spent)} you’ll spend before then on ${spentGoals.map((g) => g.name).join(', ')} as gone.` : ''}
+        {spent > 0 ? ` Counts the ${usd(spent)} you’ll spend before then on ${spentGoals.map((w) => data.goals.find((g) => g.id === w.goalId)?.name ?? 'a goal').join(', ')} as gone.` : ''}
       </p>
     </div>
   );

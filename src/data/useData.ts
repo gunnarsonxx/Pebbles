@@ -6,7 +6,7 @@ import { today as todayISO, parts, diffDays, addDays } from '../core/dates';
 import { computeGross, resolveDay, periodByIndex, periodContaining, nextUnpaidPeriod, type Period } from '../core/pay';
 import { calibrationFrom, estimatePaycheck, type PaycheckEstimate } from '../core/paycheck';
 import { BUNDLED_RULES, isValidRulesFile, newerVersion, rulesForYear, type TaxRulesFile } from '../core/taxrules';
-import { monthlyBillsTotal, buildPlan, estimateEssentials, goalBalance, totalSaved, forecastGoals, type GoalForecast, type EssentialsEstimate, type PaycheckPlan } from '../core/budget';
+import { monthlyBillsTotal, buildPlan, estimateEssentials, goalBalance, totalSaved, forecastGoals, type Forecast, type GoalForecast, type EssentialsEstimate, type PaycheckPlan } from '../core/budget';
 import { generateInsights, type Insight } from '../core/insights';
 import { overtimeDeductionEstimate } from '../core/tax';
 import type {
@@ -93,6 +93,10 @@ export interface AppData {
   /** Look back at an earlier paycheck: the plan as it was when that check came in (or rebuilt, if Pebbles didn't save one), with its moves. */
   /** every goal's saved-by date, from walking your savings forward check by check */
   goalForecast: Map<string, GoalForecast>;
+  /** your savings walked forward: balance each paycheck, with goals' money coming out on their dates */
+  forecast: Forecast;
+  /** your usual savings per paycheck, and where the number comes from */
+  savingsAvg: { perCheck: number; basis: 'deposits' | 'paychecks' | 'estimate'; count: number; avgNet?: number };
   /** the same forecast with changed goals and some extra saved each check (for trying out a choice) */
   forecastWith: (goals: Goal[], extraPerCheck: number) => Map<string, GoalForecast>;
   planFor: (index: number) => { period: Period; estimate: PaycheckEstimate; plan: PaycheckPlan; moves: Move[]; isPast: boolean; saved: boolean; received: boolean };
@@ -440,28 +444,55 @@ export function computeData(version: number, today: ISODate): AppData {
     return { period, estimate, plan: p, moves, isPast: true, saved: !!s, received: !!rec?.received };
   };
 
-  const goalForecast = forecastGoals({
-    goals,
+  // your usual savings per paycheck, for anything that looks ahead: what you've really been depositing (once
+  // there are three paychecks of it), otherwise what an average paycheck of yours saves after bills and basics
+  const savingsAvg: AppData['savingsAvg'] = (() => {
+    const since = addDays(today, -84);
+    const deps = contributions.filter((c) => c.amount > 0 && c.kind !== 'interest' && !c.id.startsWith('bank|') && !c.id.startsWith('int|') && c.date > since && c.date <= today);
+    const first = deps.reduce<string | null>((m, c) => (!m || c.date < m ? c.date : m), null);
+    const periods = first ? Math.min(6, Math.max(1, Math.ceil((diffDays(today, first) + 1) / 14))) : 0;
+    if (periods >= 3) return { perCheck: round2(deps.reduce((t, c) => t + c.amount, 0) / periods), basis: 'deposits', count: periods };
+    const recent = paycheckList
+      .filter((p) => p.received && p.actualNet != null)
+      .sort((x, y) => y.payday.localeCompare(x.payday))
+      .slice(0, 6);
+    const avgNet = recent.length ? recent.reduce((t, p) => t + (p.actualNet as number), 0) / recent.length : upcoming.net;
+    const typical = buildPlan({ settings, net: round2(avgNet), payday: upPeriod.payday, nextPayday: afterUpcoming.payday, bills, essentials, goals, contributions });
+    return { perCheck: typical.savingsBase ?? typical.savings, basis: recent.length ? 'paychecks' : 'estimate', count: recent.length, avgNet: round2(avgNet) };
+  })();
+  // the emergency fund keeps stepping up (starter month, then the full fund) when it raises itself
+  const emNow = emergencyStatus(emergency, emergency ? (balances.get(emergency.id) ?? 0) : 0, monthlyBillsTotal(bills) + essentials.totalMonthly, settings.budget.emergencyMonths);
+  const emFull = emNow?.levels.length ? emNow.levels[emNow.levels.length - 1].amount : null;
+  const forecastGoalsList = (gs: Goal[]) => gs.map((g) => (g.isEmergency && g.autoTarget !== false && emFull && emFull > g.target ? { ...g, target: emFull } : g));
+  const forecastOpts = {
     contributions,
-    firstAllocations: plan.allocations,
-    savingsPerCheck: plan.savingsBase ?? plan.savings,
-    cap: Math.max(plan.savingsCap ?? plan.savings, plan.savings),
     monthlyNeeds: monthlyBillsTotal(bills) + essentials.totalMonthly,
     payday: upPeriod.payday,
+    apy: gAcct?.apy ?? null,
+    startBalance: gAcct?.balance ?? undefined,
+  };
+  const forecast = forecastGoals({
+    ...forecastOpts,
+    goals: forecastGoalsList(goals),
+    firstAllocations: plan.allocations,
+    firstAmount: plan.savings,
+    savingsPerCheck: savingsAvg.perCheck,
+    cap: Math.max(plan.savingsCap ?? plan.savings, plan.savings, savingsAvg.perCheck),
   });
+  const goalForecast = forecast.byGoal;
 
   const forecastWith: AppData['forecastWith'] = (gs, extra) =>
     forecastGoals({
-      goals: gs,
-      contributions,
-      savingsPerCheck: (plan.savingsBase ?? plan.savings) + extra,
-      cap: Math.max(plan.savingsCap ?? plan.savings, plan.savings) + extra,
-      monthlyNeeds: monthlyBillsTotal(bills) + essentials.totalMonthly,
-      payday: upPeriod.payday,
-    });
+      ...forecastOpts,
+      goals: forecastGoalsList(gs),
+      savingsPerCheck: savingsAvg.perCheck + extra,
+      cap: Math.max(plan.savingsCap ?? plan.savings, plan.savings, savingsAvg.perCheck) + extra,
+    }).byGoal;
 
   return {
     goalForecast,
+    forecast,
+    savingsAvg,
     forecastWith,
     planFor,
     version,

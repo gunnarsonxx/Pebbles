@@ -11,7 +11,6 @@ import type { AppData } from '../data/useData';
 import { setBonusMove, setMove } from '../data/autopilot';
 import { fmtDay, fmtDayOrd, fmtShort } from '../core/dates';
 import { pebbles, usd } from '../core/money';
-import { monthlyRate, projectSavings } from '../core/savingsAccount';
 import { minimumAdvance } from '../core/dailypay';
 import { MARCUS_REFERRAL } from '../core/edition';
 import { desktop, platformKind } from '../platform';
@@ -77,10 +76,16 @@ export function MovesCard({ data, m = data.movesFor }: { data: AppData; m?: AppD
 /** Savings: the real account your goals live in (e.g. Marcus) and its interest. */
 export function SavingsAccountCard({ data }: { data: AppData }) {
   const acct = data.goalsAccount;
-  const monthlyDeposit = (data.plan.savings * 26) / 12;
   const balance = acct?.balance ?? data.saved;
   const apy = acct?.apy ?? null;
-  const proj = apy ? projectSavings(balance, apy, monthlyDeposit, 12) : null;
+  // the next 12 months (26 paychecks) of the same forecast the goals use: your usual deposits, interest, and
+  // each goal's money coming out on its date
+  const pts = data.forecast.series.slice(0, 27);
+  const end = pts[pts.length - 1];
+  const yearEnd = pts[pts.length - 1]?.date ?? data.today;
+  const outs = data.forecast.withdrawals.filter((w) => w.date <= yearEnd);
+  const avg = data.savingsAvg;
+  const proj = apy != null && end ? end : null;
   const rec = data.reconcile;
   const [splitting, setSplitting] = useState(false);
   const [showMath, setShowMath] = useState(false);
@@ -121,12 +126,14 @@ export function SavingsAccountCard({ data }: { data: AppData }) {
         {proj && (
           <div>
             <div className="small muted">In 12 months</div>
-            <div className="big-number">{usd(proj[12].balance)}</div>
-            <div className="tiny muted">incl. about {usd(proj[12].interestTotal)} interest</div>
+            <div className="big-number">{usd(proj.balance)}</div>
+            <div className="tiny muted">
+              incl. about {usd(proj.interest)} interest{proj.spent > 0 ? `, after ${usd(proj.spent)} spent on goals` : ''}
+            </div>
           </div>
         )}
       </div>
-      {proj && <Projection points={proj.map((p) => p.balance)} />}
+      {proj && <Projection points={pts.map((p) => p.balance)} />}
       {proj && apy != null && (
         <>
           <button className="link-btn small mt-s" onClick={() => setShowMath(!showMath)}>
@@ -140,31 +147,42 @@ export function SavingsAccountCard({ data }: { data: AppData }) {
               </div>
               <div className="row between small">
                 <span>
-                  + Deposits: {usd(data.plan.savings)} a paycheck × 26 ÷ 12 = {usd(monthlyDeposit)} a month, for 12 months
+                  + Deposits: this paycheck’s {usd(data.plan.savings)}, then about {usd(avg.perCheck)} a paycheck for {pts.length - 2} more
                 </span>
-                <span className="num">+{usd(monthlyDeposit * 12)}</span>
+                <span className="num">+{usd(proj.deposits)}</span>
               </div>
               <div className="row between small">
-                <span>
-                  + Interest: {apy}% APY ≈ {(monthlyRate(apy) * 100).toFixed(3)}% a month on the balance, growing as deposits come in
-                </span>
-                <span className="num">+{usd(proj[12].interestTotal)}</span>
+                <span>+ Interest: {apy}% APY on the balance as it grows and shrinks</span>
+                <span className="num">+{usd(proj.interest)}</span>
               </div>
+              {outs.map((w) => (
+                <div key={w.goalId} className="row between small">
+                  <span>
+                    − {data.goals.find((g) => g.id === w.goalId)?.name ?? 'A goal'} on {fmtDay(w.date)}
+                  </span>
+                  <span className="num">−{usd(w.amount)}</span>
+                </div>
+              ))}
               <div className="divider" style={{ margin: '6px 0' }} />
               <div className="row between small">
                 <span className="strong">In 12 months</span>
-                <span className="num strong">{usd(proj[12].balance)}</span>
+                <span className="num strong">{usd(proj.balance)}</span>
               </div>
               <div className="row wrap tiny muted mt-s" style={{ gap: 12 }}>
-                {[3, 6, 9].map((m) => (
-                  <span key={m}>
-                    {m} months: {usd(proj[m].balance)}
+                {[7, 13, 20].map((k) => (
+                  <span key={k}>
+                    {Math.round(((k - 1) * 14) / 30.4)} months: {usd(pts[k]?.balance ?? 0)}
                   </span>
                 ))}
               </div>
               <p className="tiny muted" style={{ margin: '6px 0 0' }}>
-                Assumes you keep saving this paycheck’s planned {usd(data.plan.savings)}, the rate stays at {apy}%, and nothing is taken out. Deposits count from the middle of the month they land, so
-                they earn about half a month of interest at first. It updates as your plan, balance or rate change.
+                {avg.basis === 'deposits'
+                  ? `About ${usd(avg.perCheck)} a paycheck is what you’ve actually deposited on average over your last ${avg.count} paychecks.`
+                  : avg.basis === 'paychecks'
+                    ? `About ${usd(avg.perCheck)} a paycheck is what your average take-home (${usd(avg.avgNet ?? 0)}, from your last ${avg.count} paycheck${avg.count === 1 ? '' : 's'}) saves after bills and basics. Once you have a few deposits, Pebbles uses your real average instead.`
+                    : `About ${usd(avg.perCheck)} a paycheck is what your expected take-home saves after bills and basics. Once you have a few deposits, Pebbles uses your real average instead.`}{' '}
+                This paycheck uses its own plan ({usd(data.plan.savings)}). Goals for things are spent on their dates; when a must-be-ready goal needs more than usual, those checks save more. The rate
+                is assumed to stay at {apy}%.
               </p>
             </div>
           )}

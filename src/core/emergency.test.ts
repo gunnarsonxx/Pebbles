@@ -3,7 +3,21 @@ import { emergencyGoalUpdate, emergencyLevels, emergencyStatus } from './emergen
 import { allocateSavings } from './budget';
 import type { Contribution, Goal } from './types';
 
-const goal = (p: Partial<Goal> = {}): Goal => ({ id: 'bed', name: 'Bedrock Fund', target: 3000, targetDate: null, image: null, gem: 'obsidian', priority: 3, isEmergency: true, createdAt: 0, completedAt: null, archived: false, note: '', ...p });
+const goal = (p: Partial<Goal> = {}): Goal => ({
+  id: 'bed',
+  name: 'Bedrock Fund',
+  target: 3000,
+  targetDate: null,
+  image: null,
+  gem: 'obsidian',
+  priority: 3,
+  isEmergency: true,
+  createdAt: 0,
+  completedAt: null,
+  archived: false,
+  note: '',
+  ...p,
+});
 
 describe('emergency fund steps', () => {
   it('starter month, then 3 months (and 6 if you aim for 6)', () => {
@@ -35,8 +49,8 @@ describe('emergency fund steps', () => {
     const car: Goal = { ...goal(), id: 'car', name: 'Car', isEmergency: false, target: 5000, priority: 2 };
     const contribs: Contribution[] = [{ id: 'c', goalId: 'bed', amount: 2000, date: '2026-11-01', note: '', paycheckId: null, kind: 'deposit' }];
     const a = allocateSavings(300, [goal({ target: 5450 }), car], contribs, 1810, '2026-11-20');
-    expect(a.find((x) => x.goalId === 'bed')?.amount).toBe(105);
-    expect(a.find((x) => x.goalId === 'car')?.amount).toBe(195);
+    expect(a.find((x) => x.goalId === 'bed')?.amount).toBe(135); // 45% once past the starter month
+    expect(a.find((x) => x.goalId === 'car')?.amount).toBe(165);
     // once full (completed), everything goes to the other goals
     const done = allocateSavings(300, [goal({ target: 5450, completedAt: 1 }), car], contribs, 1810, '2026-11-20');
     expect(done).toEqual([{ goalId: 'car', amount: 300, reason: expect.any(String) }]);
@@ -51,7 +65,11 @@ describe('payday steps add up to the paycheck', async () => {
     const s = defaultSettings();
     s.budget.billsMode = 'due_dates';
     const essentials = estimateEssentials(s, [], null, '2026-11-19');
-    for (const [net, topUp] of [[1351.37, 890], [1339.02, 0], [987.55, 455]] as const) {
+    for (const [net, topUp] of [
+      [1351.37, 890],
+      [1339.02, 0],
+      [987.55, 455],
+    ] as const) {
       const plan = buildPlan({ settings: s, net, payday: '2026-11-20', nextPayday: '2026-12-04', bills: [], essentials, goals: [goal({ target: 5000 })], contributions: [], billsTopUp: topUp });
       const period = { index: 0, start: '2026-11-01', end: '2026-11-14', payday: '2026-11-20' } as never;
       const moves = paydayMoves({ period, plan, goals: [goal()], savingsName: 'Marcus', states: new Map(), bonusMonth: false, billsAccountName: 'Bills Account', billsThrough: '2026-12-04' });

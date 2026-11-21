@@ -128,7 +128,18 @@ describe('statement import', () => {
 });
 
 function tx(date: string, description: string, amount: number, category?: string): Transaction {
-  return { id: date + description + amount, accountId: 'a', date, description, merchant: cleanMerchant(description), amount, category: category ?? categorize(description, amount), importId: null, excluded: false, note: '' };
+  return {
+    id: date + description + amount,
+    accountId: 'a',
+    date,
+    description,
+    merchant: cleanMerchant(description),
+    amount,
+    category: category ?? categorize(description, amount),
+    importId: null,
+    excluded: false,
+    note: '',
+  };
 }
 
 describe('analytics', () => {
@@ -193,18 +204,23 @@ describe('budget', () => {
     expect(covered.savings + covered.personal).toBeGreaterThan(buildPlan(args).savings + buildPlan(args).personal);
   });
 
-  it('allocates savings: emergency first, then deadlines, then priority', () => {
+  it('allocates savings: the emergency fund gets the biggest share, the rest is shared by date', () => {
     const goals: Goal[] = [
       { id: 'e', name: 'Bedrock', target: 3000, targetDate: null, image: null, gem: 'obsidian', priority: 2, isEmergency: true, createdAt: 0, completedAt: null, archived: false, note: '' },
       { id: 'ring', name: 'Ring', target: 1000, targetDate: '2027-02-12', image: null, gem: 'sapphire', priority: 3, isEmergency: false, createdAt: 0, completedAt: null, archived: false, note: '' },
       { id: 'car', name: 'Car', target: 8000, targetDate: null, image: null, gem: 'jade', priority: 1, isEmergency: false, createdAt: 0, completedAt: null, archived: false, note: '' },
     ];
     const contributions: Contribution[] = [];
-    const a = allocateSavings(300, goals, contributions, 2000, '2026-11-27');
+    const a = allocateSavings(600, goals, contributions, 2000, '2026-11-27');
     const by = Object.fromEntries(a.map((x) => [x.goalId, x.amount]));
-    expect(by.e).toBe(150);
-    expect(by.ring).toBeGreaterThan(0);
-    expect(a.reduce((s, x) => s + x.amount, 0)).toBe(300);
+    expect(by.e).toBe(360); // 60% until it holds a month of needs
+    expect(by.ring).toBeGreaterThan(by.car); // a dated goal needs more per check than a someday one
+    expect(by.car).toBeGreaterThan(0); // but everything moves forward
+    expect(a.reduce((s, x) => s + x.amount, 0)).toBe(600);
+    // when money is short, the soonest date wins
+    const tight = Object.fromEntries(allocateSavings(300, goals, contributions, 2000, '2026-11-27').map((x) => [x.goalId, x.amount]));
+    expect(tight.ring).toBe(120);
+    expect(tight.car).toBeUndefined();
   });
 
   it('spots three-paycheck months', () => {

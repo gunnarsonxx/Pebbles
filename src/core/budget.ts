@@ -3,7 +3,7 @@ import { addDays, diffDays, makeDate, parts } from './dates';
 import { averageCategory, recentFullMonths } from './analytics';
 import { foodPlanMonthly, gasMonthly, inflationSinceReference, currentGasPrice, FOOD_PLAN_LABEL, FALLBACK_GAS_PRICE } from './food';
 import { floorTo, round2 } from './money';
-import { isMustHit, mustHitPlan, type MustHitLine } from './goalpace';
+import { checksUntil, isMustHit, mustHitPlan, type MustHitLine } from './goalpace';
 import type { Bill, Contribution, Goal, ISODate, MarketData, Settings, Transaction } from './types';
 
 // ---------------- bills ----------------
@@ -229,34 +229,61 @@ export function allocateSavings(amount: number, goals: Goal[], contributions: Co
     }
   }
 
-  // 1) emergency fund until it holds one month of needs: half of savings
+  // 1) the emergency fund gets the biggest single share: 60% until it holds a month of needs, then 45% until
+  //    the full fund is there. When "must be ready" goals needed their guaranteed part, a little less (50% / 35%).
   const em = open.find((x) => x.g.isEmergency);
+  const floorsUsed = amount - left > 0.004;
   if (em) {
     const bal = goalBalance(em.g.id, contributions);
     if (bal < monthlyNeeds) {
-      const share = Math.min(em.remaining, open.length > 1 ? left * 0.5 : left, monthlyNeeds - bal + 1);
+      const share = Math.min(em.remaining, open.length > 1 ? left * (floorsUsed ? 0.5 : 0.6) : left, monthlyNeeds - bal + 1);
       give(em.g.id, share, 'Building your first month of safety');
       left -= share;
     } else {
-      // past the starter month: a steady third until the full fund is there (then it's done and steps aside)
-      const share = Math.min(em.remaining, open.length > 1 ? left * 0.35 : left);
+      // past the starter month: a steady share until the full fund is there (then it's done and steps aside)
+      const share = Math.min(em.remaining, open.length > 1 ? left * (floorsUsed ? 0.35 : 0.45) : left);
       give(em.g.id, share, 'Growing to the full emergency fund');
       left -= share;
     }
   }
 
-  // 2) goals for things, one at a time: each is saved up as soon as it can be, then spent on its day, so the
-  //    next one starts from zero. "Must be ready" goals go first (soonest date first), then other dated goals by
-  //    date, then goals with no date (highest priority first).
-  const queue = thingsQueue(open.map((x) => x.g));
-  for (const g of queue) {
-    if (left <= 0.004) break;
-    const x = open.find((o) => o.g.id === g.id)!;
-    const room = x.remaining - (alloc.get(g.id)?.amount ?? 0);
-    if (room <= 0.004) continue;
-    const amt = Math.min(room, left);
-    give(g.id, amt, isMustHit(g) ? 'Must be ready by its date' : g.targetDate ? 'Next in line by date' : 'Next in line');
-    left -= amt;
+  // 1b) then each dated goal's own pace (what's left of it ÷ the checks until its date), soonest date first, so
+  //    every goal moves every check when there's enough, and a near date wins when there isn't
+  {
+    const dated = open.filter((x) => !x.g.isEmergency && x.g.targetDate).sort((p, q) => (p.g.targetDate as string).localeCompare(q.g.targetDate as string));
+    for (const x of dated) {
+      if (left <= 0.004) break;
+      const room = x.remaining - (alloc.get(x.g.id)?.amount ?? 0);
+      const amt = Math.min(room / checksUntil(x.g.targetDate as ISODate, _nextPayday), room, left);
+      if (amt <= 0) continue;
+      give(x.g.id, amt, isMustHit(x.g) ? 'Must be ready by its date' : 'On pace for its date');
+      left -= amt;
+    }
+  }
+
+  // 2) the rest is shared by all your goals for things, every deposit. Each one's share follows what it needs
+  //    per paycheck to make its date (sooner dates and bigger gaps get more); goals with no date get a small
+  //    steady share. "Must be ready" goals already got their guaranteed part above and share in this too.
+  const things = open.filter((x) => !x.g.isEmergency);
+  const pace = (x: (typeof open)[number]) => {
+    const room = x.remaining - (alloc.get(x.g.id)?.amount ?? 0);
+    if (room <= 0.004) return 0;
+    const checks = x.g.targetDate ? checksUntil(x.g.targetDate, _nextPayday) : 52; // no date: as if two years out
+    return (room / checks) * (x.g.priority === 3 ? 1.25 : x.g.priority === 1 ? 0.75 : 1);
+  };
+  for (let round = 0; round < 4 && left > 0.01; round++) {
+    const ws = things.map((x) => ({ x, w: pace(x) })).filter((y) => y.w > 0);
+    const wsum = ws.reduce((t, y) => t + y.w, 0);
+    if (!wsum) break;
+    let used = 0;
+    for (const { x, w } of ws) {
+      const room = x.remaining - (alloc.get(x.g.id)?.amount ?? 0);
+      const amt = Math.min(room, (left * w) / wsum);
+      if (amt <= 0) continue;
+      give(x.g.id, amt, isMustHit(x.g) ? 'Must be ready by its date' : x.g.targetDate ? 'Paced for its date' : 'Steady progress');
+      used += amt;
+    }
+    left -= used; // anything a full goal couldn't take goes around again
   }
 
   // 3) everything else is full: the rest builds the emergency fund
@@ -447,59 +474,111 @@ export interface GoalForecast {
   ready: ISODate | null; // the payday it's fully saved
   starts: ISODate | null; // the first payday it gets money
   perCheck: number; // about what it gets each paycheck while it's being saved for
+  spent: ISODate | null; // a goal for a thing: the day its money comes out (its date)
+}
+
+export interface ForecastPoint {
+  date: ISODate;
+  balance: number; // everything in savings after this check
+  deposits: number; // total put in so far
+  interest: number; // total interest so far
+  spent: number; // total taken out for goals so far
+}
+
+export interface Forecast {
+  byGoal: Map<string, GoalForecast>;
+  series: ForecastPoint[]; // one point per paycheck, starting before the first
+  withdrawals: { goalId: string; date: ISODate; amount: number }[];
 }
 
 /**
- * Walks your savings forward one paycheck at a time with the same rules as the plan: the emergency fund's share,
- * then goals for things in order. A goal for a thing is spent on its date, so once it's saved up, the money stops
- * counting toward anything else and the next goal starts from what it has.
+ * Walks your savings forward one paycheck at a time with the same rules as the plan. This paycheck uses its real
+ * plan; after that, your usual (average) savings per check, raised when "must be ready" goals need more. A goal
+ * for a thing is bought on its date: its money comes out of savings then. The emergency fund stays.
  */
 export function forecastGoals(opts: {
   goals: Goal[];
   contributions: Contribution[];
   firstAllocations?: Allocation[]; // this paycheck's real plan (worked out like the rest if left out)
+  firstAmount?: number; // this paycheck's planned savings
   savingsPerCheck: number; // usual savings after this check
   cap: number; // most a check can save
   monthlyNeeds: number;
   payday: ISODate;
   checks?: number;
-}): Map<string, GoalForecast> {
+  apy?: number | null;
+  startBalance?: number; // what the account holds now (defaults to the goals' total)
+}): Forecast {
   const bal = new Map(opts.goals.map((g) => [g.id, goalBalance(g.id, opts.contributions)]));
   const goals = opts.goals.filter((g) => !g.archived && !g.completedAt).map((g) => ({ ...g }));
-  const out = new Map<string, GoalForecast>(goals.map((g) => [g.id, { ready: null, starts: null, perCheck: 0 }]));
+  const byGoal = new Map<string, GoalForecast>(goals.map((g) => [g.id, { ready: null, starts: null, perCheck: 0, spent: null }]));
   const got = new Map<string, { sum: number; n: number }>();
   const n = opts.checks ?? 26 * 6;
+  const rate = opts.apy ? Math.pow(1 + opts.apy / 100, 14 / 365) - 1 : 0;
+  let total = opts.startBalance ?? opts.goals.filter((g) => !g.archived).reduce((t, g) => t + (bal.get(g.id) ?? 0), 0);
+  let deposits = 0;
+  let interest = 0;
+  let spentTotal = 0;
+  const series: ForecastPoint[] = [{ date: addDays(opts.payday, -1), balance: round2(total), deposits: 0, interest: 0, spent: 0 }];
+  const withdrawals: Forecast['withdrawals'] = [];
+  const waiting = new Set<string>(); // saved up, bought on its date
   for (let k = 0; k < n; k++) {
     const day = addDays(opts.payday, k * 14);
-    const live = goals.filter((g) => !g.completedAt);
-    if (!live.length) break;
-    const contribs: Contribution[] = live.map((g) => ({ id: g.id, goalId: g.id, amount: bal.get(g.id) ?? 0, date: day, note: '', paycheckId: null }));
-    let allocs: Allocation[];
-    if (k === 0 && opts.firstAllocations) allocs = opts.firstAllocations;
-    else {
-      const mh = mustHitPlan(live, (id) => bal.get(id) ?? 0, day);
-      const amount = Math.min(opts.cap, Math.max(opts.savingsPerCheck, Math.ceil(mh.perCheck)));
-      allocs = allocateSavings(amount, live, contribs, opts.monthlyNeeds, day, mh.thisCheck);
+    // goals whose day has come: the money is spent (whatever they hold by then)
+    for (const g of goals) {
+      // (a payday on the goal's date still adds to it first; it's spent before the next payday)
+      if (g.isEmergency || !g.targetDate || g.targetDate >= day || byGoal.get(g.id)!.spent) continue;
+      const amt = round2(bal.get(g.id) ?? 0);
+      byGoal.get(g.id)!.spent = g.targetDate;
+      if (amt > 0) {
+        withdrawals.push({ goalId: g.id, date: g.targetDate, amount: amt });
+        total -= amt;
+        spentTotal += amt;
+      }
+      bal.set(g.id, 0);
+      g.completedAt = 1;
+      waiting.delete(g.id);
     }
+    const live = goals.filter((g) => !g.completedAt && !waiting.has(g.id));
+    let allocs: Allocation[] = [];
+    // what goes into savings this check, even when every goal is already full (it just isn't earmarked)
+    let saved = k === 0 && opts.firstAllocations ? (opts.firstAmount ?? opts.firstAllocations.reduce((t, a) => t + a.amount, 0)) : opts.savingsPerCheck;
+    if (live.length) {
+      const contribs: Contribution[] = live.map((g) => ({ id: g.id, goalId: g.id, amount: bal.get(g.id) ?? 0, date: day, note: '', paycheckId: null }));
+      if (k === 0 && opts.firstAllocations) allocs = opts.firstAllocations;
+      else {
+        const mh = mustHitPlan(live, (id) => bal.get(id) ?? 0, day);
+        const amount = Math.min(opts.cap, Math.max(opts.savingsPerCheck, Math.ceil(mh.perCheck)));
+        allocs = allocateSavings(amount, live, contribs, opts.monthlyNeeds, day, mh.thisCheck);
+        saved = amount;
+      }
+    }
+    const i = total * rate;
+    interest += i;
+    total += i;
     for (const a of allocs) {
       if (a.amount <= 0) continue;
       bal.set(a.goalId, round2((bal.get(a.goalId) ?? 0) + a.amount));
-      const f = out.get(a.goalId);
+      const f = byGoal.get(a.goalId);
       if (f && !f.starts) f.starts = day;
       const gg = got.get(a.goalId) ?? { sum: 0, n: 0 };
       got.set(a.goalId, { sum: gg.sum + a.amount, n: gg.n + 1 });
     }
+    total += saved;
+    deposits += saved;
     for (const g of live) {
       if ((bal.get(g.id) ?? 0) >= g.target - 0.5) {
-        const f = out.get(g.id)!;
+        const f = byGoal.get(g.id)!;
         if (!f.ready) f.ready = day;
-        g.completedAt = 1; // saved up: a thing gets bought on its day; the emergency fund just stays full
+        if (g.isEmergency) g.completedAt = 1;
+        else waiting.add(g.id);
       }
     }
+    series.push({ date: day, balance: round2(total), deposits: round2(deposits), interest: round2(interest), spent: round2(spentTotal) });
   }
-  for (const [id, f] of out) {
+  for (const [id, f] of byGoal) {
     const gg = got.get(id);
     f.perCheck = gg ? round2(gg.sum / gg.n) : 0;
   }
-  return out;
+  return { byGoal, series, withdrawals };
 }
