@@ -500,15 +500,9 @@ export function CoverageCard({ data, compact }: { data: AppData; compact?: boole
             is <strong>{usd(st.lowest)}</strong>
             {st.lowestDate ? ` on ${fmtShort(st.lowestDate)}` : ''}, so there’s always at least a $50 cushion.
           </p>
-          <p className="tiny muted" style={{ margin: '6px 0 0' }}>
-            Your bills average {usd(st.average)} a check;{' '}
-            {st.perCheck > st.average + 5
-              ? `the extra ${usd(st.perCheck - st.average, true)} covers the months when big bills land close together and keeps the cushion.`
-              : 'that, rounded up, is the steady amount.'}{' '}
-            If a bill changes (like the utility bill each month), the amount is checked again.
-          </p>
         </div>
       )}
+      {st && <SteadyMath st={st} />}
       {!st && b.status === 'topup' && b.shortNow === 0 && (
         <p className="small ink2" style={{ margin: '8px 0 0' }}>
           {before.length ? `Everything due before ${next} is covered. ` : ''}
@@ -936,5 +930,79 @@ export function MoneyGlance({ data }: { data: AppData }) {
       </button>
       {open && <CoverageCard data={data} />}
     </>
+  );
+}
+
+/** Exactly how the "same every check" amount is worked out. */
+function SteadyMath({ st }: { st: NonNullable<NonNullable<AppData['coverage']['bills']>['steady']> }) {
+  const [open, setOpen] = useState(false);
+  const t = st.tight;
+  const extra = round2(st.perCheck - st.average);
+  return (
+    <div className="mt-s">
+      <button className="link-btn small" onClick={() => setOpen(!open)} aria-expanded={open}>
+        {open ? 'Hide the Math' : `How ${usd(st.perCheck, true)} Is Figured`}
+      </button>
+      {open && (
+        <div className="coverage-math mt-s">
+          <div className="row between small">
+            <span>Your bills over the next year, per check ({st.checks} paychecks)</span>
+            <span className="num">{usd(st.average)}</span>
+          </div>
+          {t && t.need > st.average ? (
+            <>
+              <div className="small strong mt-s">The tightest stretch: {fmtDay(t.date)}</div>
+              <div className="row between small">
+                <span>Bills paid from now through {fmtShort(t.date)}</span>
+                <span className="num">{usd(t.bills)}</span>
+              </div>
+              <div className="row between small">
+                <span>+ Cushion kept in the account</span>
+                <span className="num">+{usd(t.cushion)}</span>
+              </div>
+              <div className="row between small">
+                <span>− In the account to start{st.shortNow > 0 ? ` (with the ${usd(st.shortNow)} to move in now)` : ''}</span>
+                <span className="num">−{usd(t.start)}</span>
+              </div>
+              <div className="row between small">
+                <span>÷ Deposits by then</span>
+                <span className="num">÷ {t.deposits}</span>
+              </div>
+              <div className="divider" style={{ margin: '6px 0' }} />
+              <div className="row between small">
+                <span className="strong">Needed per check</span>
+                <span className="num strong">{usd(t.need)}</span>
+              </div>
+              <div className="row between small">
+                <span>Rounded up to $5</span>
+                <span className="num strong">{usd(st.perCheck, true)}</span>
+              </div>
+              <p className="tiny muted" style={{ margin: '6px 0 0' }}>
+                That stretch needs more than the year’s average because the bills before it come faster than the deposits do, starting from {usd(t.start)}. The {usd(extra)} a check over the average
+                isn’t spent: it builds up in the account as a buffer. Pebbles works this out again every payday from what’s really in the account, so as the buffer grows the amount comes down toward
+                the average.
+              </p>
+            </>
+          ) : (
+            <>
+              <div className="row between small">
+                <span>Rounded up to $5</span>
+                <span className="num strong">{usd(st.perCheck, true)}</span>
+              </div>
+              <p className="tiny muted" style={{ margin: '6px 0 0' }}>
+                No stretch of the year needs more than the average, so it’s just the average rounded up. Every bill is paid on time with at least a $50 cushion.
+              </p>
+            </>
+          )}
+          <div className="row between tiny muted mt-s">
+            <span>Lowest the account gets over the year</span>
+            <span className="num">
+              {usd(st.lowest)}
+              {st.lowestDate ? ` · ${fmtShort(st.lowestDate)}` : ''}
+            </span>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }

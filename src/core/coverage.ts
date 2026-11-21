@@ -91,6 +91,8 @@ export interface SteadyPlan {
   shortNow: number; // due before the first payday and not covered: has to be moved now
   horizon: ISODate;
   checks: number;
+  /** the stretch of the year that sets the amount: by this date, this much in bills has to come out of this many deposits */
+  tight?: { date: ISODate; bills: number; deposits: number; start: number; cushion: number; need: number } | null;
 }
 
 /**
@@ -119,6 +121,7 @@ export function steadyBillsPlan(opts: { balance: number; bills: Bill[]; txns: Tr
   let cum = 0;
   let shortNow = 0;
   let need = 0;
+  let tight: SteadyPlan['tight'] = null;
   for (const e of events) {
     cum += e.amount;
     const n = depositsBy(e.date);
@@ -129,7 +132,10 @@ export function steadyBillsPlan(opts: { balance: number; bills: Bill[]; txns: Tr
   for (const e of events) {
     cum += e.amount;
     const n = depositsBy(e.date);
-    if (n > 0) need = Math.max(need, (cum - (start - cushion)) / n);
+    if (n > 0 && (cum - (start - cushion)) / n > need) {
+      need = (cum - (start - cushion)) / n;
+      tight = { date: e.date, bills: Math.round(cum * 100) / 100, deposits: n, start: Math.round(start * 100) / 100, cushion, need: Math.round(need * 100) / 100 };
+    }
   }
   const yearBills = events.reduce((s2, e) => s2 + e.amount, 0);
   const average = inYear.length ? yearBills / inYear.length : 0;
@@ -158,6 +164,7 @@ export function steadyBillsPlan(opts: { balance: number; bills: Bill[]; txns: Tr
     shortNow: Math.round(Math.max(0, shortNow) * 100) / 100,
     horizon,
     checks: inYear.length,
+    tight,
   };
 }
 
@@ -255,6 +262,7 @@ export function billsLedger(opts: {
   perCheck: number;
   cushion?: number;
   moveNow?: number;
+  fixed?: boolean; // keep the same amount every check instead of working it out again each payday
 }): LedgerCycle[] {
   const { bills, txns, today } = opts;
   const paydays = opts.paydays.filter((p) => p >= today).sort();
@@ -278,7 +286,15 @@ export function billsLedger(opts: {
     const next = paydays[i + 1];
     const cycle = events.filter((e) => e.date >= p && e.date < next);
     const due = cycle.reduce((s, e) => s + e.amount, 0);
-    const deposit = opts.mode === 'even' ? opts.perCheck : Math.max(0, Math.ceil((due + (opts.cushion ?? 0) - bal) / 5) * 5);
+    // same every check: Pebbles works the amount out again every payday from what's in the account then,
+    // so as a buffer builds the amount comes down (the first check uses today's amount)
+    const deposit =
+      opts.mode === 'even'
+        ? i === 0 || opts.fixed
+          ? opts.perCheck
+          : steadyBillsPlan({ balance: bal, bills, txns: [], today: p, paydays: [...paydays.slice(i), ...Array.from({ length: 26 }, (_, k) => addDays(paydays[paydays.length - 1], (k + 1) * 14))] })
+              .perCheck
+        : Math.max(0, Math.ceil((due + (opts.cushion ?? 0) - bal) / 5) * 5);
     const before = bal;
     bal += deposit;
     let lowest = bal;
