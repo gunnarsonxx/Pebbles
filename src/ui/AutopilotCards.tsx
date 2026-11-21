@@ -12,6 +12,9 @@ import { fmtDay, fmtDayOrd, fmtShort } from '../core/dates';
 import { usd } from '../core/money';
 import { monthlyRate, projectSavings } from '../core/savingsAccount';
 import { minimumAdvance } from '../core/dailypay';
+import { MARCUS_REFERRAL } from '../core/edition';
+import { desktop, platformKind } from '../platform';
+import { Browser } from '@capacitor/browser';
 import type { Standing } from '../core/guidelines';
 
 /** Home: what to do with this paycheck. The only part of money you have to think about. */
@@ -27,9 +30,7 @@ export function MovesCard({ data }: { data: AppData }) {
       <div className="card-head">
         <div>
           <div className="eyebrow">{header}</div>
-          <div className="small muted">
-            {allDone && (isPast || daysTo <= 0) ? 'All done. Nothing else to think about until next payday.' : 'Pebbles did the math. You just move the money.'}
-          </div>
+          <div className="small muted">{allDone && (isPast || daysTo <= 0) ? 'All done. Nothing else to think about until next payday.' : 'Pebbles did the math. You just move the money.'}</div>
         </div>
         <Compass style={{ color: 'var(--moss)' }} />
       </div>
@@ -89,9 +90,11 @@ export function SavingsAccountCard({ data }: { data: AppData }) {
         <div className="row">
           <PiggyBank style={{ color: 'var(--jade)' }} />
           <div className="grow small ink2">
-            Keep your goals in a high-yield savings account like Marcus? Connect it (Budget → Accounts) or import its statement. Pebbles keeps your goals equal to its balance, splits every deposit between goals, and adds the interest to your pile.
+            Keep your goals in a high-yield savings account like Marcus? Connect it (Budget → Accounts) or import its statement. Pebbles keeps your goals equal to its balance, splits every deposit
+            between goals, and adds the interest to your pile.
           </div>
         </div>
+        {MARCUS_REFERRAL && <MarcusSignUp />}
       </div>
     );
   }
@@ -160,8 +163,8 @@ export function SavingsAccountCard({ data }: { data: AppData }) {
                 ))}
               </div>
               <p className="tiny muted" style={{ margin: '6px 0 0' }}>
-                Assumes you keep saving this paycheck’s planned {usd(data.plan.savings)}, the rate stays at {apy}%, and nothing is taken out. Deposits count from
-                the middle of the month they land, so they earn about half a month of interest at first. It updates as your plan, balance or rate change.
+                Assumes you keep saving this paycheck’s planned {usd(data.plan.savings)}, the rate stays at {apy}%, and nothing is taken out. Deposits count from the middle of the month they land, so
+                they earn about half a month of interest at first. It updates as your plan, balance or rate change.
               </p>
             </div>
           )}
@@ -364,7 +367,12 @@ export function CoverageCard({ data, compact }: { data: AppData; compact?: boole
         {what} went through PayPal and hasn’t reached {a.name} yet, so it’s already taken off.{' '}
         <button
           className="link-btn tiny"
-          onClick={() => void store.putMany('transactions', fl.txns.map((t) => ({ ...t, bankHas: true })))}
+          onClick={() =>
+            void store.putMany(
+              'transactions',
+              fl.txns.map((t) => ({ ...t, bankHas: true })),
+            )
+          }
           title="Your bank already shows it: stop taking it off"
         >
           Already Taken Out
@@ -401,8 +409,8 @@ export function CoverageCard({ data, compact }: { data: AppData; compact?: boole
           : st
             ? `${usd(st.perCheck, true)} to ${b.account.name} Every Check`
             : b.status === 'topup'
-            ? `Move ${usd(planned, true)} to ${b.account.name} From ${NextCheck} Check`
-            : `${b.account.name} Covers Every Bill Through ${through}`}
+              ? `Move ${usd(planned, true)} to ${b.account.name} From ${NextCheck} Check`
+              : `${b.account.name} Covers Every Bill Through ${through}`}
       </div>
       <div className="coverage-math mt-s">
         <div className="row between small">
@@ -412,7 +420,9 @@ export function CoverageCard({ data, compact }: { data: AppData; compact?: boole
         {flNote(b.account)}
         {!(isToday && !before.length) && (
           <div className="row between small">
-            <span>{isToday ? `Bills still due before today` : `Bills before ${next}`} ({before.length})</span>
+            <span>
+              {isToday ? `Bills still due before today` : `Bills before ${next}`} ({before.length})
+            </span>
             <span className="num">{b.dueBeforePayday ? `−${usd(b.dueBeforePayday)}` : usd(0)}</span>
           </div>
         )}
@@ -447,8 +457,8 @@ export function CoverageCard({ data, compact }: { data: AppData; compact?: boole
       </div>
       {b.status === 'short' && dp && dpBills > 0 && (
         <p className="small" style={{ margin: '8px 0 0' }}>
-          <strong>Last resort, if it’s due before a transfer would land:</strong> take just <strong>{usd(dpBills)}</strong> from DailyPay, the least that covers it (about {usd(dp.fee)} fee; it comes out of your next
-          check).
+          <strong>Last resort, if it’s due before a transfer would land:</strong> take just <strong>{usd(dpBills)}</strong> from DailyPay, the least that covers it (about {usd(dp.fee)} fee; it comes
+          out of your next check).
         </p>
       )}
       {b.status === 'short' && (
@@ -463,21 +473,30 @@ export function CoverageCard({ data, compact }: { data: AppData; compact?: boole
       {st && b.shortNow === 0 && (
         <div className="small ink2" style={{ margin: '8px 0 0' }}>
           <p style={{ margin: 0 }}>
-            Pebbles played out the next 12 months ({st.checks} paychecks): with {usd(st.perCheck, true)} going in every payday, every bill is paid in full on its due date. The lowest the account gets is{' '}
-            <strong>{usd(st.lowest)}</strong>
+            Pebbles played out the next 12 months ({st.checks} paychecks): with {usd(st.perCheck, true)} going in every payday, every bill is paid in full on its due date. The lowest the account gets
+            is <strong>{usd(st.lowest)}</strong>
             {st.lowestDate ? ` on ${fmtShort(st.lowestDate)}` : ''}, so there’s always at least a $50 cushion.
           </p>
           <p className="tiny muted" style={{ margin: '6px 0 0' }}>
-            Your bills average {usd(st.average)} a check; {st.perCheck > st.average + 5 ? `the extra ${usd(st.perCheck - st.average, true)} covers the months when big bills land close together and keeps the cushion.` : 'that, rounded up, is the steady amount.'} If a bill changes
-            (like the utility bill each month), the amount is checked again.
+            Your bills average {usd(st.average)} a check;{' '}
+            {st.perCheck > st.average + 5
+              ? `the extra ${usd(st.perCheck - st.average, true)} covers the months when big bills land close together and keeps the cushion.`
+              : 'that, rounded up, is the steady amount.'}{' '}
+            If a bill changes (like the utility bill each month), the amount is checked again.
           </p>
         </div>
       )}
       {!st && b.status === 'topup' && b.shortNow === 0 && (
         <p className="small ink2" style={{ margin: '8px 0 0' }}>
           {before.length ? `Everything due before ${next} is covered. ` : ''}
-          {!chosen ? 'Confirm your accounts below and the payday plan will use this amount.' : <>The payday plan puts {usd(planned, true)} of {isToday ? 'today’s' : 'that'} check into {b.account.name}
-          {ahead > 0 ? ` (${usd(ahead, true)} of it toward later bills, since you set bills to the same amount every check)` : ''}, and the rest is planned for savings and you.</>}
+          {!chosen ? (
+            'Confirm your accounts below and the payday plan will use this amount.'
+          ) : (
+            <>
+              The payday plan puts {usd(planned, true)} of {isToday ? 'today’s' : 'that'} check into {b.account.name}
+              {ahead > 0 ? ` (${usd(ahead, true)} of it toward later bills, since you set bills to the same amount every check)` : ''}, and the rest is planned for savings and you.
+            </>
+          )}
         </p>
       )}
       {!st && b.status === 'ok' && (
@@ -514,7 +533,9 @@ export function CoverageCard({ data, compact }: { data: AppData; compact?: boole
           )}
           {sp.status !== 'ok' && (
             <p className="small ink2" style={{ margin: '8px 0 0' }}>
-              {sp.status === 'short' ? `Groceries and gas need a bit more than ${sp.account.name} has. Keep extras on hold until ${next}.` : `Covered, with only a little to spare. Go easy on extras until ${next}.`}
+              {sp.status === 'short'
+                ? `Groceries and gas need a bit more than ${sp.account.name} has. Keep extras on hold until ${next}.`
+                : `Covered, with only a little to spare. Go easy on extras until ${next}.`}
             </p>
           )}
         </>
@@ -558,7 +579,11 @@ export function CoverageCard({ data, compact }: { data: AppData; compact?: boole
             </div>
           </label>
         )}
-        {!chosen && <p className="small ink2" style={{ margin: '0 0 6px' }}>Which account is only for bills? Once you pick it, the payday plan counts what’s already in it and only tops it up.</p>}
+        {!chosen && (
+          <p className="small ink2" style={{ margin: '0 0 6px' }}>
+            Which account is only for bills? Once you pick it, the payday plan counts what’s already in it and only tops it up.
+          </p>
+        )}
         {select('billsAccountId', b.account.id, 'Bills Account', false)}
         {select('spendingAccountId', sp?.account.id ?? '', 'Spending Account', true)}
         {hasPaypal && (
@@ -589,6 +614,32 @@ export function CoverageCard({ data, compact }: { data: AppData; compact?: boole
       <p className="tiny muted" style={{ margin: '8px 0 0' }}>
         {b.asOf ? `Balances as of ${fmtShort(b.asOf)}. ` : ''}Uses the available balance, so pending charges are already out.
       </p>
+    </div>
+  );
+}
+
+/** Community build: open a Marcus account through Pebbles' link. */
+function MarcusSignUp() {
+  const [why, setWhy] = useState(false);
+  const open = () => {
+    if (desktop) void desktop.openExternal(MARCUS_REFERRAL);
+    else if (platformKind === 'android') void Browser.open({ url: MARCUS_REFERRAL });
+    else window.open(MARCUS_REFERRAL, '_blank');
+  };
+  return (
+    <div className="mt-s">
+      <button className="btn primary small" onClick={open}>
+        <PiggyBank /> Open a Marcus Account
+      </button>
+      <button className="tour-skip" style={{ display: 'block', marginTop: 8 }} onClick={() => setWhy(!why)} aria-expanded={why}>
+        Why sign up through Pebbles?
+      </button>
+      {why && (
+        <p className="tiny ink2" style={{ margin: '6px 0 0' }}>
+          It’s a referral link: you get an extra 1% APY on top of Marcus’s regular rate for your first 3 months, and so does the person who shared Pebbles. Nothing else changes, it’s the same free
+          account, and you can always sign up on marcus.com instead.
+        </p>
+      )}
     </div>
   );
 }

@@ -20,3 +20,24 @@ describe('Reach It Sooner boost', () => {
     expect(a1).toBeGreaterThanOrEqual(a0 + 50);
   });
 });
+
+describe('bills every 6 months', () => {
+  it('falls due twice a year and costs a sixth a month', async () => {
+    const { billDueDates, monthlyEquivalent } = await import('./budget');
+    const b = {
+      id: 'ins',
+      name: 'Car Insurance',
+      amount: 600,
+      dueDay: 15,
+      dueMonth: 3,
+      anchorDate: null,
+      frequency: 'semiannual',
+      category: 'insurance',
+      autopay: true,
+      active: true,
+      matchPattern: '',
+    } as any;
+    expect(billDueDates(b, '2026-01-01', '2027-01-01')).toEqual(['2026-03-15', '2026-09-15']);
+    expect(monthlyEquivalent(b)).toBe(100);
+  });
+});

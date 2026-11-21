@@ -245,6 +245,8 @@ export function freqLabel(b: Bill): string {
       return `Monthly on the ${th(b.dueDay)}`;
     case 'yearly':
       return `Yearly · ${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][(b.dueMonth ?? 1) - 1]} ${b.dueDay} (${usd(monthlyEquivalent(b))}/mo)`;
+    case 'semiannual':
+      return `Every 6 months · ${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][((b.dueMonth ?? 1) - 1) % 12]} ${b.dueDay} (${usd(monthlyEquivalent(b))}/mo)`;
     case 'quarterly':
       return `Every 3 months on the ${th(b.dueDay)}`;
     case 'weekly':
@@ -316,18 +318,19 @@ export function BillSheet({ bill, onClose }: { bill: Bill; onClose: () => void }
             <select className="input" value={b.frequency} onChange={(e) => setB({ ...b, frequency: e.target.value as BillFrequency })}>
               <option value="monthly">Monthly</option>
               <option value="yearly">Yearly</option>
+              <option value="semiannual">Every 6 Months</option>
               <option value="quarterly">Every 3 Months</option>
               <option value="biweekly">Every 2 Weeks</option>
               <option value="weekly">Weekly</option>
             </select>
           </Field>
-          {(b.frequency === 'monthly' || b.frequency === 'quarterly' || b.frequency === 'yearly') && (
+          {(b.frequency === 'monthly' || b.frequency === 'quarterly' || b.frequency === 'semiannual' || b.frequency === 'yearly') && (
             <Field label="Due Day of the Month">
               <NumberInput value={b.dueDay} onChange={(v) => setB({ ...b, dueDay: Math.min(31, Math.max(1, Math.round(v ?? 1))) })} />
             </Field>
           )}
-          {(b.frequency === 'yearly' || b.frequency === 'quarterly') && (
-            <Field label={b.frequency === 'yearly' ? 'Month' : 'First Month'}>
+          {(b.frequency === 'yearly' || b.frequency === 'quarterly' || b.frequency === 'semiannual') && (
+            <Field label={b.frequency === 'yearly' ? 'Month' : 'A Month It’s Due'} hint={b.frequency === 'semiannual' ? 'Like car insurance: pick either month it renews' : undefined}>
               <select className="input" value={b.dueMonth ?? 1} onChange={(e) => setB({ ...b, dueMonth: Number(e.target.value) })}>
                 {['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'].map((mm, i) => (
                   <option key={mm} value={i + 1}>

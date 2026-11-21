@@ -17,3 +17,6 @@ export const PRICE_STORE_SHORT = COMMUNITY ? 'Kroger' : 'King Soopers';
 
 /** The Android app id (Google keys restricted to "Android apps" need it). */
 export const ANDROID_PACKAGE = COMMUNITY ? 'app.pebbles.community' : 'app.pebbles.money';
+
+/** Community build only: opening a Marcus account through this link gives the new saver (and the person who shared Pebbles) a rate boost. */
+export const MARCUS_REFERRAL = COMMUNITY ? 'https://www.marcus.com/share/TRI-A5F-MSB9' : '';

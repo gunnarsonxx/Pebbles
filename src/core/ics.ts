@@ -27,6 +27,8 @@ function rrule(b: Bill): string {
   switch (b.frequency) {
     case 'monthly':
       return `RRULE:FREQ=MONTHLY;BYMONTHDAY=${b.dueDay > 28 ? -1 : b.dueDay}`;
+    case 'semiannual':
+      return `RRULE:FREQ=MONTHLY;INTERVAL=6;BYMONTHDAY=${b.dueDay > 28 ? -1 : b.dueDay}`;
     case 'quarterly':
       return `RRULE:FREQ=MONTHLY;INTERVAL=3;BYMONTHDAY=${b.dueDay > 28 ? -1 : b.dueDay}`;
     case 'yearly':
@@ -39,7 +41,10 @@ function rrule(b: Bill): string {
 }
 
 export function billsCalendar(bills: Bill[], today: ISODate, firstPayday?: ISODate): string {
-  const stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+Z$/, 'Z');
+  const stamp = new Date()
+    .toISOString()
+    .replace(/[-:]/g, '')
+    .replace(/\.\d+Z$/, 'Z');
   const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Pebbles//Bills//EN', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', 'X-WR-CALNAME:Pebbles bills'];
   for (const b of bills.filter((x) => x.active)) {
     const start = firstDue(b, today);

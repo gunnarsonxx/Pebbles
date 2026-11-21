@@ -463,7 +463,7 @@ export interface CategoryRule {
   createdAt: number;
 }
 
-export type BillFrequency = 'monthly' | 'yearly' | 'quarterly' | 'weekly' | 'biweekly';
+export type BillFrequency = 'monthly' | 'yearly' | 'semiannual' | 'quarterly' | 'weekly' | 'biweekly';
 
 export interface Bill {
   id: string;

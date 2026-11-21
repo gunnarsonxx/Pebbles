@@ -19,6 +19,8 @@ function perMonth(b: Bill, amount: number): number {
       return amount;
     case 'yearly':
       return amount / 12;
+    case 'semiannual':
+      return amount / 6;
     case 'quarterly':
       return amount / 3;
     case 'weekly':
@@ -67,6 +69,7 @@ export function billDueDates(b: Bill, from: ISODate, to: ISODate): ISODate[] {
     const m = (total % 12) + 1;
     if (b.frequency === 'yearly' && m !== (b.dueMonth ?? 1)) continue;
     if (b.frequency === 'quarterly' && (((m - (b.dueMonth ?? 1)) % 3) + 3) % 3 !== 0) continue;
+    if (b.frequency === 'semiannual' && (((m - (b.dueMonth ?? 1)) % 6) + 6) % 6 !== 0) continue;
     const d = makeDate(y, m, b.dueDay);
     if (d >= from && d < to) out.push(d);
     if (d >= to) break;
