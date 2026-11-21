@@ -6,7 +6,7 @@ import { compressImage, Empty, Field, GemIcon, NumberInput, Progress, Segmented,
 import { GEMS, GEM_BY_ID, gemBar } from '../../core/categories';
 import { addDays, fmtLong, diffDays, today } from '../../core/dates';
 import { pebbles, usd, uid } from '../../core/money';
-import { averagePerCheck, projectGoalDate } from '../../core/budget';
+import { thingsQueue } from '../../core/budget';
 import { addContribution, deleteContribution, deleteGoal, newGoal, saveGoal, saveSettings } from '../../data/actions';
 import { cutsToCover, whereToCut } from '../../core/cuts';
 import { SavingsAccountCard } from '../AutopilotCards';
@@ -162,24 +162,15 @@ function GoalCard({ g, data, open }: { g: Goal; data: AppData; open: (id: string
   const bal = data.balances.get(g.id) ?? 0;
   const pct = g.target > 0 ? bal / g.target : 0;
   const next = perCheck.get(g.id) ?? 0;
-  // finish date from your average per paycheck, not just this one check
-  const avg = averagePerCheck(g.id, data.contributions, next, data.today);
-  const eta = projectGoalDate(g, bal, avg.avg, data.upcoming.period.payday);
   const gem = GEM_BY_ID[g.gem];
-  const mh = data.plan.mustHit?.lines.find((l) => l.goalId === g.id);
-  const mustShort = !!data.plan.mustHit && data.plan.mustHit.short > 0.5;
-  // the must-be-ready goal being filled before this one
-  const before = mh
-    ? (() => {
-        const lines = data.plan.mustHit!.lines;
-        const i = lines.findIndex((l) => l.goalId === g.id);
-        const prev = lines
-          .slice(0, i)
-          .reverse()
-          .find((l) => (l.ready ?? l.date) >= data.today);
-        return prev ? (data.goals.find((x) => x.id === prev.goalId)?.name ?? null) : null;
-      })()
-    : null;
+  // one forecast for everything: your savings walked forward check by check, goals filled in order
+  const f = data.goalForecast.get(g.id);
+  const must = !g.isEmergency && !!g.mustHit && !!g.targetDate;
+  const mustShort = must && !!data.plan.mustHit && data.plan.mustHit.short > 0.5;
+  const late = !!(f?.ready && g.targetDate && f.ready > g.targetDate);
+  // the goal being filled before this one gets its turn
+  const queue = thingsQueue(data.goals);
+  const ahead = !g.isEmergency && next < 0.5 ? queue[queue.findIndex((x) => x.id === g.id) - 1] : undefined;
   return (
     <button key={g.id} className="card" style={{ textAlign: 'left', border: 0, cursor: 'pointer', color: 'inherit', width: '100%' }} onClick={() => open(g.id)}>
       <div
@@ -211,27 +202,19 @@ function GoalCard({ g, data, open }: { g: Goal; data: AppData; open: (id: string
       <div style={{ margin: '8px 0' }}>
         <Progress value={pct} color={gemBar(g.gem)} />
       </div>
-      {mh && !g.completedAt ? (
-        <>
-          {/* a must-be-ready goal: one plan, one date */}
-          <div className="tiny muted">
-            {next > 0 ? `+${pebbles(next)} next payday` : 'Nothing this payday'}
-            {mh.thisCheck < 0.5 && before ? ` · its turn comes after ${before}` : ''}
-          </div>
-          <div className={`tiny strong mt-s ${mustShort ? 'warn' : 'good'}`}>
-            {mustShort
-              ? `Must be ready by ${fmtLong(mh.date)} · your checks can’t cover every must-be-ready goal yet (see above)`
-              : `Must be ready by ${fmtLong(mh.date)} · fully saved by ${fmtLong(mh.ready ?? mh.date)}${mh.perCheck > 0 ? ` at about ${usd(mh.perCheck)} a paycheck` : ''}`}
-          </div>
-        </>
+      {g.completedAt ? (
+        <div className="tiny muted">Reached! 🎉</div>
       ) : (
         <>
-          <div className="row between tiny muted">
-            <span>{g.completedAt ? 'Reached! 🎉' : next > 0 ? `+${pebbles(next)} next payday` : 'Not in this paycheck’s plan'}</span>
-            <span title={`At your average of ${usd(avg.avg)} a paycheck (last ${avg.periods} paychecks, including the next one)`}>{!g.completedAt && eta ? `on track for ${fmtLong(eta)}` : ''}</span>
+          <div className="tiny muted">
+            {next > 0 ? `+${pebbles(next)} next payday` : ahead ? `Its turn comes after ${ahead.name}${f?.starts ? ` (about ${fmtLong(f.starts)})` : ''}` : 'Nothing this payday'}
           </div>
-          <div className="tiny muted" style={{ textAlign: 'right' }}>
-            {!g.completedAt && eta && avg.avg > 0 ? `at your average ${usd(avg.avg)} a paycheck` : ''}
+          <div className={`tiny mt-s ${must ? (mustShort || late ? 'warn strong' : 'good strong') : late ? 'warn' : 'muted'}`}>
+            {mustShort
+              ? `Must be ready by ${fmtLong(g.targetDate!)} · your checks can’t cover every must-be-ready goal yet (see above)`
+              : f?.ready
+                ? `${must ? `Must be ready by ${fmtLong(g.targetDate!)} · ` : g.targetDate ? `Target ${fmtLong(g.targetDate)} · ` : ''}fully saved by ${fmtLong(f.ready)}${f.perCheck > 0 ? ` at about ${usd(f.perCheck)} a paycheck` : ''}${late ? ', after your date' : ''}`
+                : `${g.targetDate ? `Target ${fmtLong(g.targetDate)} · ` : ''}not reached in the next six years at this pace`}
           </div>
         </>
       )}
@@ -477,13 +460,19 @@ function ReachSooner({ goal, data, bal }: { goal: Goal; data: AppData; bal: numb
   const toast = useToast();
   const cur = goal.boost ?? 0;
   const [custom, setCustom] = useState<number | null>(null);
-  const payday = data.upcoming.period.payday;
-  const planned = data.plan.allocations.find((a) => a.goalId === goal.id)?.amount ?? 0;
-  // what it gets on average without any extra, then with each choice
-  const base = averagePerCheck(goal.id, data.contributions, Math.max(0, planned - cur), data.today).avg;
-  const spendNow = data.plan.personal + Math.min(cur, planned);
-  const eta = (extra: number) => projectGoalDate(goal, bal, base + extra, payday);
+  // the same forecast as the goal cards, tried with each extra amount (it comes out of spending money)
+  const others = data.goals.map((x) => (x.id === goal.id ? { ...x, boost: undefined } : x));
+  const spendNow = data.plan.personal + cur;
+  const eta = (extra: number) =>
+    (extra > 0
+      ? data.forecastWith(
+          others.map((x) => (x.id === goal.id ? { ...x, boost: extra } : x)),
+          extra,
+        )
+      : data.forecastWith(others, 0)
+    ).get(goal.id)?.ready ?? null;
   const baseEta = eta(0);
+  void bal;
   const checksBetween = (a: string | null, b: string | null) => (a && b ? Math.round(diffDays(a, b) / 14) : null);
   const options = [...new Set([0, 10, 25, 50, 100, ...(cur && ![10, 25, 50, 100].includes(cur) ? [cur] : [])])].sort((a, b) => a - b);
   const pick = async (v: number) => {
@@ -496,8 +485,7 @@ function ReachSooner({ goal, data, bal }: { goal: Goal; data: AppData; bal: numb
         Reach It Sooner
       </div>
       <p className="tiny muted" style={{ margin: '0 0 6px' }}>
-        Send a set amount extra to this goal every paycheck. It comes out of your spending money, before the rest of your savings is split. Finish dates use your average per paycheck
-        {base > 0 ? ` (${usd(base)} now)` : ''}.
+        Send a set amount extra to this goal every paycheck. It comes out of your spending money, before the rest of your savings is split. Dates follow your goals in order, the same as the cards.
       </p>
       <div className="list">
         {options.map((v) => {

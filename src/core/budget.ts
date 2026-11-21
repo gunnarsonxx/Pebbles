@@ -190,8 +190,16 @@ export interface Allocation {
   reason: string;
 }
 
+/** The order goals for things are saved in: must-be-ready by date, then dated by date, then undated by priority. */
+export function thingsQueue(goals: Goal[]): Goal[] {
+  const rank = (g: Goal) => (isMustHit(g) ? 0 : g.targetDate ? 1 : 2);
+  return goals
+    .filter((g) => !g.isEmergency && !g.archived && !g.completedAt)
+    .sort((a, b) => rank(a) - rank(b) || (a.targetDate ?? '').localeCompare(b.targetDate ?? '') || b.priority - a.priority || a.createdAt - b.createdAt);
+}
+
 /** Split a savings amount across goals: emergency fund first, then deadlines, then priority. */
-export function allocateSavings(amount: number, goals: Goal[], contributions: Contribution[], monthlyNeeds: number, nextPayday: ISODate, mustHit?: Map<string, number>): Allocation[] {
+export function allocateSavings(amount: number, goals: Goal[], contributions: Contribution[], monthlyNeeds: number, _nextPayday: ISODate, mustHit?: Map<string, number>): Allocation[] {
   const active = goals.filter((g) => !g.archived && !g.completedAt);
   const open = active.map((g) => ({ g, remaining: Math.max(0, g.target - goalBalance(g.id, contributions)) })).filter((x) => x.remaining > 0.5);
   if (amount <= 0 || !open.length) return [];
@@ -237,36 +245,24 @@ export function allocateSavings(amount: number, goals: Goal[], contributions: Co
     }
   }
 
-  // 2) deadline goals: what's needed per paycheck to arrive on time
-  const deadlines = open
-    .filter((x) => x.g.targetDate && x.g.targetDate > nextPayday && !(mustHit && isMustHit(x.g)))
-    .map((x) => {
-      const checks = Math.max(1, Math.floor(diffDays(x.g.targetDate as ISODate, nextPayday) / 14) + 1);
-      const rem = x.remaining - (alloc.get(x.g.id)?.amount ?? 0);
-      return { ...x, need: Math.max(0, rem / checks) };
-    })
-    .filter((x) => x.need > 0);
-  const needTotal = deadlines.reduce((s, x) => s + x.need, 0);
-  if (needTotal > 0 && left > 0) {
-    const scale = Math.min(1, left / needTotal);
-    for (const x of deadlines) {
-      const amt = x.need * scale;
-      give(x.g.id, amt, scale < 1 ? 'Toward your target date (stretched)' : 'On pace for your target date');
-      left -= amt;
-    }
+  // 2) goals for things, one at a time: each is saved up as soon as it can be, then spent on its day, so the
+  //    next one starts from zero. "Must be ready" goals go first (soonest date first), then other dated goals by
+  //    date, then goals with no date (highest priority first).
+  const queue = thingsQueue(open.map((x) => x.g));
+  for (const g of queue) {
+    if (left <= 0.004) break;
+    const x = open.find((o) => o.g.id === g.id)!;
+    const room = x.remaining - (alloc.get(g.id)?.amount ?? 0);
+    if (room <= 0.004) continue;
+    const amt = Math.min(room, left);
+    give(g.id, amt, isMustHit(g) ? 'Must be ready by its date' : g.targetDate ? 'Next in line by date' : 'Next in line');
+    left -= amt;
   }
 
-  // 3) the rest by priority weight
-  if (left > 0.01) {
-    let pool = open.filter((x) => x.remaining - (alloc.get(x.g.id)?.amount ?? 0) > 0.5);
-    // the emergency fund already got its share; the rest goes to your other goals while they have room
-    if (pool.some((x) => !x.g.isEmergency)) pool = pool.filter((x) => !x.g.isEmergency);
-    const wsum = pool.reduce((s, x) => s + x.g.priority, 0);
-    for (const x of pool) {
-      const room = x.remaining - (alloc.get(x.g.id)?.amount ?? 0);
-      const amt = Math.min(room, (left * x.g.priority) / wsum);
-      give(x.g.id, amt, x.g.priority === 3 ? 'High priority' : 'Steady progress');
-    }
+  // 3) everything else is full: the rest builds the emergency fund
+  if (left > 0.01 && em) {
+    const room = em.remaining - (alloc.get(em.g.id)?.amount ?? 0);
+    if (room > 0) give(em.g.id, Math.min(room, left), 'Growing to the full emergency fund');
   }
 
   // round to whole dollars, keeping the total
@@ -329,6 +325,8 @@ export interface PaycheckPlan {
   savingsRate: number;
   /** goals that must be ready by their date: what each check needs, and how far short this one is */
   mustHit?: { perCheck: number; short: number; lines: MustHitLine[] };
+  savingsBase?: number; // usual savings per check (without the must-be-ready raise)
+  savingsCap?: number; // the most a check can save with bills and basics covered
 }
 
 export function buildPlan(opts: {
@@ -366,14 +364,12 @@ export function buildPlan(opts: {
     const ideal = (net * b.savingsTargetPct) / 100;
     const minimum = (net * b.minSavingsPct) / 100;
     // deadline needs can pull savings above the ideal, but never below your comfort floor
-    const nextDay = nextPayday;
-    const deadlineNeed = goals
-      .filter((g) => !g.archived && !g.completedAt && g.targetDate && g.targetDate > payday && !isMustHit(g))
-      .reduce((s, g) => {
-        const rem = Math.max(0, g.target - goalBalance(g.id, contributions));
-        const checks = Math.max(1, Math.floor(diffDays(g.targetDate as ISODate, nextDay) / 14) + 1);
-        return s + rem / checks;
-      }, 0);
+    // goals are saved one after another (each spent on its day), so the tightest stretch of dates decides
+    const deadlineNeed = mustHitPlan(
+      goals.map((g) => (g.targetDate && !g.isEmergency ? { ...g, mustHit: true } : { ...g, mustHit: false })),
+      (id) => goalBalance(id, contributions),
+      payday,
+    ).perCheck;
     const room = Math.max(0, available - floor);
     suggested = Math.min(Math.max(ideal, Math.min(deadlineNeed, room)), room);
     // experts suggest keeping wants near 30%: once your bills are entered, extra beyond that grows your savings
@@ -390,11 +386,14 @@ export function buildPlan(opts: {
   }
   // goals that must be ready by their date: save at least the amount that gets every one there on time,
   // even if it means less spending money, as long as bills and basics are covered
+  const baseSuggested = suggested; // your usual savings, before must-be-ready goals raise it
+  let mhWant = 0;
   const mh = mustHitPlan(goals, (id) => goalBalance(id, contributions), payday);
   const cushion = Math.max(25, net * 0.03);
   const mustRoom = Math.max(0, floorTo(available - cushion, 1));
   if (mh.perCheck > 0 && available > 0) {
     const want = Math.min(Math.ceil(mh.perCheck), mustRoom);
+    mhWant = want;
     if (want > suggested) suggested = want;
     if (mh.perCheck > mustRoom + 0.5)
       notes.push(`Your must-be-ready goals need ${'$' + mh.perCheck.toFixed(2)} a check, ${'$' + (mh.perCheck - mustRoom).toFixed(2)} more than this check can spare. Savings shows what to trim.`);
@@ -430,6 +429,8 @@ export function buildPlan(opts: {
     notes,
     savingsRate: net > 0 ? savings / net : 0,
     mustHit: { perCheck: mh.perCheck, short: round2(Math.max(0, mh.perCheck - savings)), lines: mh.lines },
+    savingsBase: round2(opts.savingsOverride != null && opts.savingsOverride >= 0 ? savings : Math.max(0, savings - Math.max(0, mhWant - baseSuggested))),
+    savingsCap: mustRoom,
   };
 }
 
@@ -438,4 +439,67 @@ export function threePaycheckMonths(periodPaydays: ISODate[]): string[] {
   const counts = new Map<string, number>();
   for (const d of periodPaydays) counts.set(d.slice(0, 7), (counts.get(d.slice(0, 7)) ?? 0) + 1);
   return [...counts.entries()].filter(([, n]) => n >= 3).map(([m]) => m);
+}
+
+// ---------------- where every goal ends up ----------------
+
+export interface GoalForecast {
+  ready: ISODate | null; // the payday it's fully saved
+  starts: ISODate | null; // the first payday it gets money
+  perCheck: number; // about what it gets each paycheck while it's being saved for
+}
+
+/**
+ * Walks your savings forward one paycheck at a time with the same rules as the plan: the emergency fund's share,
+ * then goals for things in order. A goal for a thing is spent on its date, so once it's saved up, the money stops
+ * counting toward anything else and the next goal starts from what it has.
+ */
+export function forecastGoals(opts: {
+  goals: Goal[];
+  contributions: Contribution[];
+  firstAllocations?: Allocation[]; // this paycheck's real plan (worked out like the rest if left out)
+  savingsPerCheck: number; // usual savings after this check
+  cap: number; // most a check can save
+  monthlyNeeds: number;
+  payday: ISODate;
+  checks?: number;
+}): Map<string, GoalForecast> {
+  const bal = new Map(opts.goals.map((g) => [g.id, goalBalance(g.id, opts.contributions)]));
+  const goals = opts.goals.filter((g) => !g.archived && !g.completedAt).map((g) => ({ ...g }));
+  const out = new Map<string, GoalForecast>(goals.map((g) => [g.id, { ready: null, starts: null, perCheck: 0 }]));
+  const got = new Map<string, { sum: number; n: number }>();
+  const n = opts.checks ?? 26 * 6;
+  for (let k = 0; k < n; k++) {
+    const day = addDays(opts.payday, k * 14);
+    const live = goals.filter((g) => !g.completedAt);
+    if (!live.length) break;
+    const contribs: Contribution[] = live.map((g) => ({ id: g.id, goalId: g.id, amount: bal.get(g.id) ?? 0, date: day, note: '', paycheckId: null }));
+    let allocs: Allocation[];
+    if (k === 0 && opts.firstAllocations) allocs = opts.firstAllocations;
+    else {
+      const mh = mustHitPlan(live, (id) => bal.get(id) ?? 0, day);
+      const amount = Math.min(opts.cap, Math.max(opts.savingsPerCheck, Math.ceil(mh.perCheck)));
+      allocs = allocateSavings(amount, live, contribs, opts.monthlyNeeds, day, mh.thisCheck);
+    }
+    for (const a of allocs) {
+      if (a.amount <= 0) continue;
+      bal.set(a.goalId, round2((bal.get(a.goalId) ?? 0) + a.amount));
+      const f = out.get(a.goalId);
+      if (f && !f.starts) f.starts = day;
+      const gg = got.get(a.goalId) ?? { sum: 0, n: 0 };
+      got.set(a.goalId, { sum: gg.sum + a.amount, n: gg.n + 1 });
+    }
+    for (const g of live) {
+      if ((bal.get(g.id) ?? 0) >= g.target - 0.5) {
+        const f = out.get(g.id)!;
+        if (!f.ready) f.ready = day;
+        g.completedAt = 1; // saved up: a thing gets bought on its day; the emergency fund just stays full
+      }
+    }
+  }
+  for (const [id, f] of out) {
+    const gg = got.get(id);
+    f.perCheck = gg ? round2(gg.sum / gg.n) : 0;
+  }
+  return out;
 }

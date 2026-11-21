@@ -51,3 +51,49 @@ describe('pace after each goal is spent', () => {
     expect(p.lines.find((l) => l.goalId === 'ring')!.perCheck).toBeLessThan(p.lines[0].perCheck);
   });
 });
+
+describe('goals for things, one at a time in date order', () => {
+  const trips = (must: (id: string) => boolean) => [
+    goal('t1', 1000, '2027-02-11', { mustHit: must('t1') }),
+    goal('t2', 1000, '2027-05-13', { mustHit: must('t2') }),
+    goal('t3', 1000, '2027-08-19', { mustHit: must('t3') }),
+    goal('mv', 1000, '2027-11-27', { mustHit: must('mv') }),
+    goal('ring', 2100, '2028-12-15', { mustHit: must('ring') }),
+  ];
+  const settings = defaultSettings();
+  const base = { settings, payday, nextPayday: '2026-12-18', bills: [], essentials: { perPaycheck: 250, totalMonthly: 540 } as any, contributions: [] };
+
+  it('saves the soonest goal first, and later ones finish in date order', async () => {
+    const { forecastGoals } = await import('./budget');
+    for (const setup of [() => false, (id: string) => id === 't1', () => true]) {
+      const goals = trips(setup);
+      const plan = buildPlan({ ...base, net: 1450, goals });
+      // this check: the first trip gets the money, the ring gets none yet
+      expect(plan.allocations.find((a) => a.goalId === 't1')!.amount).toBeGreaterThan(0);
+      expect(plan.allocations.find((a) => a.goalId === 'ring')).toBeUndefined();
+      const f = forecastGoals({ goals, contributions: [], firstAllocations: plan.allocations, savingsPerCheck: plan.savingsBase!, cap: plan.savingsCap!, monthlyNeeds: 540, payday });
+      const order = ['t1', 't2', 't3', 'mv', 'ring'].map((id) => f.get(id)!.ready!);
+      expect([...order].sort()).toEqual(order);
+      for (const d of order) expect(d).toBeTruthy();
+    }
+  });
+
+  it('a later goal starts from zero once the earlier one is spent', async () => {
+    const { forecastGoals } = await import('./budget');
+    const goals = [goal('a', 1000, '2027-01-15', { mustHit: false }), goal('b', 2000, '2027-12-15', { mustHit: false })];
+    const f = forecastGoals({ goals, contributions: [], savingsPerCheck: 250, cap: 600, monthlyNeeds: 0, payday });
+    // $250 a check: a takes 4 checks, then b takes 8 more (not 4, it isn't "halfway" when a is done)
+    expect(f.get('a')!.ready).toBe('2027-01-15');
+    expect(f.get('b')!.starts).toBe('2027-01-29');
+    expect(f.get('b')!.ready).toBe('2027-05-07');
+  });
+
+  it('turning the toggle on never gives a goal less', () => {
+    for (const id of ['t1', 'ring']) {
+      const off = buildPlan({ ...base, net: 1450, goals: trips(() => false) });
+      const on = buildPlan({ ...base, net: 1450, goals: trips((x) => x === id) });
+      const amt = (p: typeof on) => p.allocations.find((a) => a.goalId === id)?.amount ?? 0;
+      expect(amt(on)).toBeGreaterThanOrEqual(amt(off));
+    }
+  });
+});

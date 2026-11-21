@@ -6,7 +6,7 @@ import { today as todayISO, parts, diffDays, addDays } from '../core/dates';
 import { computeGross, resolveDay, periodByIndex, periodContaining, nextUnpaidPeriod, type Period } from '../core/pay';
 import { calibrationFrom, estimatePaycheck, type PaycheckEstimate } from '../core/paycheck';
 import { BUNDLED_RULES, isValidRulesFile, newerVersion, rulesForYear, type TaxRulesFile } from '../core/taxrules';
-import { monthlyBillsTotal, buildPlan, estimateEssentials, goalBalance, totalSaved, type EssentialsEstimate, type PaycheckPlan } from '../core/budget';
+import { monthlyBillsTotal, buildPlan, estimateEssentials, goalBalance, totalSaved, forecastGoals, type GoalForecast, type EssentialsEstimate, type PaycheckPlan } from '../core/budget';
 import { generateInsights, type Insight } from '../core/insights';
 import { overtimeDeductionEstimate } from '../core/tax';
 import type {
@@ -91,6 +91,10 @@ export interface AppData {
   reconcile: Reconcile | null;
   movesFor: { period: Period; estimate: PaycheckEstimate; plan: PaycheckPlan; moves: Move[]; isPast: boolean } | null;
   /** Look back at an earlier paycheck: the plan as it was when that check came in (or rebuilt, if Pebbles didn't save one), with its moves. */
+  /** every goal's saved-by date, from walking your savings forward check by check */
+  goalForecast: Map<string, GoalForecast>;
+  /** the same forecast with changed goals and some extra saved each check (for trying out a choice) */
+  forecastWith: (goals: Goal[], extraPerCheck: number) => Map<string, GoalForecast>;
   planFor: (index: number) => { period: Period; estimate: PaycheckEstimate; plan: PaycheckPlan; moves: Move[]; isPast: boolean; saved: boolean; received: boolean };
   coverage: Coverage;
   advances: Advances | null; // DailyPay taken since the last payday
@@ -436,7 +440,29 @@ export function computeData(version: number, today: ISODate): AppData {
     return { period, estimate, plan: p, moves, isPast: true, saved: !!s, received: !!rec?.received };
   };
 
+  const goalForecast = forecastGoals({
+    goals,
+    contributions,
+    firstAllocations: plan.allocations,
+    savingsPerCheck: plan.savingsBase ?? plan.savings,
+    cap: Math.max(plan.savingsCap ?? plan.savings, plan.savings),
+    monthlyNeeds: monthlyBillsTotal(bills) + essentials.totalMonthly,
+    payday: upPeriod.payday,
+  });
+
+  const forecastWith: AppData['forecastWith'] = (gs, extra) =>
+    forecastGoals({
+      goals: gs,
+      contributions,
+      savingsPerCheck: (plan.savingsBase ?? plan.savings) + extra,
+      cap: Math.max(plan.savingsCap ?? plan.savings, plan.savings) + extra,
+      monthlyNeeds: monthlyBillsTotal(bills) + essentials.totalMonthly,
+      payday: upPeriod.payday,
+    });
+
   return {
+    goalForecast,
+    forecastWith,
     planFor,
     version,
     today,
