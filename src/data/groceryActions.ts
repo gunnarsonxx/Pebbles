@@ -5,7 +5,7 @@ import { http } from '../platform';
 import { uid } from '../core/money';
 import { krogerLocations, krogerPrice, krogerToken, type KrogerLocation } from '../core/kroger';
 import { analyzeGroceries, sameProduct, searchTerm } from '../core/groceries';
-import { deductionsFromStub } from '../core/paystub';
+import { deductionsFromStub, stubHours } from '../core/paystub';
 import { estimatePaycheck } from '../core/paycheck';
 import { computeWithholding } from '../core/tax';
 import { rulesForYear } from '../core/taxrules';
@@ -155,9 +155,11 @@ export async function applyPaystub(stub: Omit<Paystub, 'id' | 'createdAt'>, opts
       id: period.start,
       periodStart: period.start,
       payday: period.payday,
-      estimatedNet: est.net,
+      // what Pebbles would expect for the hours on this stub (not your usual 80), so the comparison is fair
+      estimatedNet: stub.gross != null ? atStubGross : est.net,
       estimatedNetRaw: atStubGross,
-      estimatedGross: est.gross.gross,
+      estimatedGross: stub.gross ?? est.gross.gross,
+      stubHours: stubHours(stub)?.total ?? null,
       actualNet: stub.net,
       actualGross: stub.gross,
       received: true,

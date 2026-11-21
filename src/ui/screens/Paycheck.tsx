@@ -82,6 +82,8 @@ function PaycheckView({ data, idx, setIdx, openShifts }: { data: AppData; go: Go
   const est = useMemo(() => (offset === 0 ? data.upcoming : estimatePaycheck(period, settings, data.rates, data.workdays, data.rulesFile, data.calibration)), [offset, data, period, settings]);
   const days = rangeDays(period.start, period.end);
   const record = data.paychecks.get(period.start);
+  // a pay stub for this period: its own hours and gross, not your usual schedule
+  const stubbed = !!(record?.received && record.actualGross != null && record.note === 'From pay stub');
   const rates = allRates(settings.pay.baseRate, data.rates);
   const g = est.gross;
   const w = est.withholding;
@@ -125,12 +127,18 @@ function PaycheckView({ data, idx, setIdx, openShifts }: { data: AppData; go: Go
               </div>
               <div style={{ textAlign: 'right' }}>
                 <div className="small muted">Gross</div>
-                <div className="strong num">{usd(g.gross)}</div>
+                <div className="strong num">{usd(stubbed ? (record!.actualGross as number) : g.gross)}</div>
               </div>
             </div>
             <div className="small muted mt-s">
-              {num(g.workedHours)} h worked{g.leaveHours ? ` · ${num(g.leaveHours)} h paid leave` : ''}
-              {g.otHours ? ` · ${num(g.otHours)} h overtime` : ''}
+              {stubbed && record!.stubHours != null ? (
+                <>{num(record!.stubHours)} h on your pay stub</>
+              ) : (
+                <>
+                  {num(g.workedHours)} h worked{g.leaveHours ? ` · ${num(g.leaveHours)} h paid leave` : ''}
+                  {g.otHours ? ` · ${num(g.otHours)} h overtime` : ''}
+                </>
+              )}
             </div>
             {record?.received && record.actualNet != null && Math.abs(record.actualNet - record.estimatedNet) >= 0.01 && (
               <div className={`diff-chip ${record.actualNet >= record.estimatedNet ? 'up' : 'down'}`}>
@@ -158,7 +166,9 @@ function PaycheckView({ data, idx, setIdx, openShifts }: { data: AppData; go: Go
             </span>
             <div className="grow">
               <div className="strong">
-                {g.days.filter((d) => d.status === 'worked').length} shift{g.days.filter((d) => d.status === 'worked').length === 1 ? '' : 's'} · {num(g.workedHours)} h
+                {stubbed && record!.stubHours != null
+                  ? `${num(record!.stubHours)} h on your pay stub`
+                  : `${g.days.filter((d) => d.status === 'worked').length} shift${g.days.filter((d) => d.status === 'worked').length === 1 ? '' : 's'} · ${num(g.workedHours)} h`}
               </div>
               <div className="small muted">
                 {fmtShort(period.start)} – {fmtShort(period.end)}
@@ -208,6 +218,12 @@ function PaycheckView({ data, idx, setIdx, openShifts }: { data: AppData; go: Go
           <div className="eyebrow" style={{ marginBottom: 10 }}>
             How We Got There
           </div>
+          {stubbed && (
+            <p className="tiny muted" style={{ margin: '-4px 0 10px' }}>
+              Your pay stub for these two weeks shows {record!.stubHours != null ? `${num(record!.stubHours)} h and ` : ''}
+              {usd(record!.actualGross as number)} gross. The lines below are your usual schedule; change the days in Shifts to match the stub if you want them to line up.
+            </p>
+          )}
           <Line label={`Base Pay`} detail={`${num(g.scheduledHours)} h × ${usd(settings.pay.baseRate)}`} value={usd(g.basePay)} strong />
           {g.adjustments.map((a, i) => (
             <Line key={i} label={a.label} detail={a.detail} value={signedUsd(a.amount)} tone={a.amount >= 0 ? 'good' : 'bad'} indent />
@@ -264,6 +280,7 @@ function ShiftsView({ data, idx, nowIdx, setIdx, openPaycheck }: { data: AppData
   const days = rangeDays(period.start, period.end);
   const edits = days.filter((d) => data.workdays.has(d));
   const record = data.paychecks.get(period.start);
+  const stubH = record?.note === 'From pay stub' ? (record.stubHours ?? null) : null;
   const overnight = shiftSplit(settings.pay).overnight;
   const resetPeriod = async () => {
     const ok = await ask({
@@ -326,6 +343,11 @@ function ShiftsView({ data, idx, nowIdx, setIdx, openPaycheck }: { data: AppData
             <button className="tip-row" onClick={() => setShiftsOpen(true)}>
               <Moon size={16} /> Work overnight shifts? Set your shift times so hours split across midnight correctly.
             </button>
+          )}
+          {stubH != null && Math.abs(stubH - (g.workedHours + g.leaveHours)) >= 0.5 && (
+            <div className="tip-row" style={{ cursor: 'default' }}>
+              Your pay stub for these two weeks shows {num(stubH)} h; the days below add up to {num(g.workedHours + g.leaveHours)} h. Its pay already uses the stub.
+            </div>
           )}
           <div className="small muted" style={{ marginBottom: 8 }}>
             {overnight ? 'Each night shows the shift that starts that night. Tap one to change it.' : 'Tap a day to change it.'}

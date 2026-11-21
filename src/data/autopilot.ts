@@ -1,3 +1,7 @@
+import { normalizeSettings } from '../core/defaults';
+import { computeWithholding } from '../core/tax';
+import { rulesForYear } from '../core/taxrules';
+import { stubHours } from '../core/paystub';
 // Autopilot: keeps your goals and paychecks in step with the bank, so the only
 // thing you do is move the money Pebbles tells you to.
 import { store } from './store';
@@ -5,7 +9,7 @@ import { emergencyGoalUpdate } from '../core/emergency';
 import { looksVariable } from '../core/billPrompt';
 import { baseName, cleanItemName, fullName, plainNameFor } from '../core/groceries';
 import { balanceBefore, knownTotal, paypalPurchases, type BalancePoint } from '../core/paypal';
-import { computeData } from './useData';
+import { computeData, effectiveRules } from './useData';
 import { today } from '../core/dates';
 import { dedupePaypal } from '../core/paypal';
 import { findPaycheckDeposit, findSavingsTransfer, moveId, type MoveKey } from '../core/moves';
@@ -132,6 +136,23 @@ export async function runAutopilot(): Promise<void> {
       });
       if (pan.length) await store.putMany('pantry', pan);
       await store.setMeta('baseNames:v1', true);
+    }
+
+    // 0a) pay stubs uploaded before: compare each with the hours and gross on the stub, not an 80-hour estimate
+    if (!(await store.getMeta<boolean>('stubHours:v1'))) {
+      const settings = normalizeSettings(store.get('settings', 'settings'));
+      const fixes = store.list('paystubs').flatMap((st) => {
+        if (st.gross == null) return [];
+        const ref = st.periodStart ?? st.payDate;
+        if (!ref) return [];
+        const period = periodContaining(settings.pay, ref);
+        const rec = store.get('paychecks', period.start);
+        if (!rec) return [];
+        const net = computeWithholding(st.gross, settings, rulesForYear(effectiveRules(), Number(period.payday.slice(0, 4))).rules).net;
+        return [{ ...rec, estimatedNet: net, estimatedNetRaw: net, estimatedGross: st.gross, stubHours: stubHours(st)?.total ?? null }];
+      });
+      if (fixes.length) await store.putMany('paychecks', fixes);
+      await store.setMeta('stubHours:v1', true);
     }
 
     // 0b2) coffee drinks and pods were read as plain "Coffee" before; and keep each line's full name

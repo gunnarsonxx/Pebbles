@@ -195,6 +195,7 @@ export interface PaycheckRecord {
   actual?: { bills: number; savings: number; net: number; by: 'you' } | null; // what really happened, as you entered it
   goalAllocations: { goalId: string; amount: number }[];
   depositPending?: boolean; // the bank still shows the deposit as pending
+  stubHours?: number | null; // hours worked that period, read from its pay stub
   note: string;
 }
 

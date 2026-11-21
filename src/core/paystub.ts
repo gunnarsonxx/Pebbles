@@ -40,6 +40,16 @@ export function lineKind(label: string): PaystubLine['kind'] | 'gross' | 'net' |
   return null;
 }
 
+/** Hours on a pay stub: worked hours (regular, overtime, shift and holiday pay) and paid leave (PTO, sick). */
+export function stubHours(stub: { hours: { label: string; hours: number }[] }): { worked: number; leave: number; total: number } | null {
+  const lines = stub.hours.filter((h) => h.hours > 0 && h.hours < 200);
+  if (!lines.length) return null;
+  const leave = lines.filter((h) => /PTO|SICK|VAC|LEAVE|BEREAV|JURY|PERSONAL/i.test(h.label)).reduce((s, h) => s + h.hours, 0);
+  const total = lines.reduce((s, h) => s + h.hours, 0);
+  const r = (v: number) => Math.round(v * 100) / 100;
+  return { worked: r(total - leave), leave: r(leave), total: r(total) };
+}
+
 export type ParsedPaystub = Omit<Paystub, 'id' | 'createdAt'> & { warnings: string[] };
 
 /** Fix what the reader commonly gets wrong in amounts: S for $, stray spaces, dots as thousands separators. */
