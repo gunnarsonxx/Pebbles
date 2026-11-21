@@ -46,13 +46,10 @@ function unb64(s: string): Uint8Array {
 
 async function keyFromToken(token: string): Promise<CryptoKey> {
   const material = await crypto.subtle.importKey('raw', enc.encode(token), 'HKDF', false, ['deriveKey']);
-  return crypto.subtle.deriveKey(
-    { name: 'HKDF', hash: 'SHA-256', salt: enc.encode('pebbles-sync-v1'), info: enc.encode('payload') },
-    material,
-    { name: 'AES-GCM', length: 256 },
-    false,
-    ['encrypt', 'decrypt'],
-  );
+  return crypto.subtle.deriveKey({ name: 'HKDF', hash: 'SHA-256', salt: enc.encode('pebbles-sync-v1'), info: enc.encode('payload') }, material, { name: 'AES-GCM', length: 256 }, false, [
+    'encrypt',
+    'decrypt',
+  ]);
 }
 
 export interface Sealed {

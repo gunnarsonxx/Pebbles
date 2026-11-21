@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { EyeOff, Fuel, House, ImageUp, LocateFixed, MapPin, Pencil, RefreshCw } from 'lucide-react';
 import type { AppData } from '../../data/useData';
 import type { GoTo } from '../App';
-import { Field, NumberInput, Segmented, Sheet, TextInput, useToast } from '../components';
+import { Field, NumberInput, Segmented, Sheet, TextInput, useToast, ShowMore } from '../components';
 import { currentGasPrice } from '../../core/food';
 import { knownPrice, priceStations, pricesFromScreenshot, worthTheDrive, type PricedStation, type Station, type Point } from '../../core/gas';
 import { fmtShort, today } from '../../core/dates';
@@ -298,35 +298,40 @@ export function GasView({ data, go }: { data: AppData; go: GoTo }) {
             </div>
           )}
           <div className={`list${busy ? ' refreshing' : ''}`}>
-            {stations.slice(0, 15).map((s) => (
-              <div key={s.id} className="list-item">
-                <button className="icon-btn" onClick={() => lookUp(s)} aria-label={`Open ${s.name} in Google Maps`} title="See it in Google Maps">
-                  <MapPin size={18} />
-                </button>
-                <div className="grow" style={{ minWidth: 0 }}>
-                  <div className="strong small ellipsis">{s.name}</div>
-                  <div className="tiny muted ellipsis">
-                    {s.miles} mi{s.address ? ` · ${s.address}` : ''}
-                    {s.priceDate
-                      ? ` · ${s.priceSource === 'receipt' ? 'your receipt' : s.priceSource === 'manual' ? 'you logged' : s.priceSource === 'screenshot' ? 'from screenshot' : 'posted'} ${fmtShort(s.priceDate)}`
-                      : s.priceSource === 'estimate'
-                        ? ` · est. from ${s.estimateBasis === 'station' ? 'its past prices' : s.estimateBasis === 'brand' ? `other ${s.name.split(/\s|\|/)[0]} prices` : 'brand average'}`
-                        : ''}
+            <ShowMore
+              items={stations.slice(0, 15)}
+              first={3}
+              more="more stations"
+              render={(s) => (
+                <div key={s.id} className="list-item">
+                  <button className="icon-btn" onClick={() => lookUp(s)} aria-label={`Open ${s.name} in Google Maps`} title="See it in Google Maps">
+                    <MapPin size={18} />
+                  </button>
+                  <div className="grow" style={{ minWidth: 0 }}>
+                    <div className="strong small ellipsis">{s.name}</div>
+                    <div className="tiny muted ellipsis">
+                      {s.miles} mi{s.address ? ` · ${s.address}` : ''}
+                      {s.priceDate
+                        ? ` · ${s.priceSource === 'receipt' ? 'your receipt' : s.priceSource === 'manual' ? 'you logged' : s.priceSource === 'screenshot' ? 'from screenshot' : 'posted'} ${fmtShort(s.priceDate)}`
+                        : s.priceSource === 'estimate'
+                          ? ` · est. from ${s.estimateBasis === 'station' ? 'its past prices' : s.estimateBasis === 'brand' ? `other ${s.name.split(/\s|\|/)[0]} prices` : 'brand average'}`
+                          : ''}
+                    </div>
                   </div>
+                  {s.price != null ? (
+                    <button className={`btn ghost small num${s.priceSource === 'estimate' ? ' est-price' : ''}`} onClick={() => setPricing({ station: s, fromMaps: false })}>
+                      {s.priceSource === 'estimate' ? '~' : ''}
+                      {ppg(s.price)}
+                      {s.priceSource === 'estimate' && <span className="tiny"> est.</span>}
+                    </button>
+                  ) : (
+                    <button className="btn small" onClick={() => setPricing({ station: s, fromMaps: false })}>
+                      <Fuel /> Price
+                    </button>
+                  )}
                 </div>
-                {s.price != null ? (
-                  <button className={`btn ghost small num${s.priceSource === 'estimate' ? ' est-price' : ''}`} onClick={() => setPricing({ station: s, fromMaps: false })}>
-                    {s.priceSource === 'estimate' ? '~' : ''}
-                    {ppg(s.price)}
-                    {s.priceSource === 'estimate' && <span className="tiny"> est.</span>}
-                  </button>
-                ) : (
-                  <button className="btn small" onClick={() => setPricing({ station: s, fromMaps: false })}>
-                    <Fuel /> Price
-                  </button>
-                )}
-              </div>
-            ))}
+              )}
+            />
           </div>
           {!stations.length && <p className="small muted">No stations found nearby.</p>}
           {hidden.length > 0 && (

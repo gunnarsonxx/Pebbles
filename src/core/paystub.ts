@@ -154,7 +154,9 @@ export function parsePaystub(rawLines: OcrLine[], knownRates: number[] = []): Pa
   const unmatched: number[] = [];
   const all = lines.map((l) => l.text).join('\n');
 
-  const pd = all.match(/(?:pay|check|advice|deposit)\s*date[:\s]*([0-9]{1,2}[/-][0-9]{1,2}[/-][0-9]{2,4})/i) ?? all.match(/(?:pay|check|advice|deposit)\s*date[^0-9\n]{0,30}\n[^\n]{0,40}?\b([0-9]{1,2}[/-][0-9]{1,2}[/-][0-9]{2,4})/i);
+  const pd =
+    all.match(/(?:pay|check|advice|deposit)\s*date[:\s]*([0-9]{1,2}[/-][0-9]{1,2}[/-][0-9]{2,4})/i) ??
+    all.match(/(?:pay|check|advice|deposit)\s*date[^0-9\n]{0,30}\n[^\n]{0,40}?\b([0-9]{1,2}[/-][0-9]{1,2}[/-][0-9]{2,4})/i);
   if (pd) out.payDate = parseLooseDate(pd[1]);
   const range = all.match(/(?:period|pay\s*period)[^0-9]{0,30}([0-9]{1,2}[/-][0-9]{1,2}[/-][0-9]{2,4})\s*(?:-|to|through|thru|–)\s*([0-9]{1,2}[/-][0-9]{1,2}[/-][0-9]{2,4})/i);
   if (range) {
@@ -255,7 +257,10 @@ export function parsePaystub(rawLines: OcrLine[], knownRates: number[] = []): Pa
     if (!/^\W*cur+ent\b/i.test(t)) continue;
     const vals = nums(t).map(Math.abs);
     if (vals.length < 2) continue;
-    const above = lines.slice(Math.max(0, i - 4), i).map((l) => l.text).join(' ');
+    const above = lines
+      .slice(Math.max(0, i - 4), i)
+      .map((l) => l.text)
+      .join(' ');
     if (!/gross/i.test(above) || !/net/i.test(above)) continue;
     // gross, FICA-taxable and federal-taxable wages are usually the same: take the reading most of them agree on
     const lead = vals.slice(0, Math.min(3, vals.length - 1));
@@ -317,15 +322,7 @@ export function deductionsFromStub(stub: Pick<Paystub, 'lines' | 'gross'>): Payr
     .filter((l) => (l.kind === 'pretax' || l.kind === 'posttax') && l.current > 0)
     .map((l, i) => {
       const u = l.label.toUpperCase();
-      const kind: DeductionKind = /ROTH/.test(u)
-        ? 'roth_401k'
-        : /401|403|457|RETIRE/.test(u)
-          ? 'traditional_401k'
-          : /\bHSA\b/.test(u)
-            ? 'hsa'
-            : l.kind === 'pretax'
-              ? 'section125'
-              : 'post_tax';
+      const kind: DeductionKind = /ROTH/.test(u) ? 'roth_401k' : /401|403|457|RETIRE/.test(u) ? 'traditional_401k' : /\bHSA\b/.test(u) ? 'hsa' : l.kind === 'pretax' ? 'section125' : 'post_tax';
       const pctValue = gross > 0 ? (l.current / gross) * 100 : 0;
       const isPct = (kind === 'traditional_401k' || kind === 'roth_401k') && gross > 0 && Math.abs(pctValue - Math.round(pctValue)) < 0.05 && Math.round(pctValue) > 0;
       return {

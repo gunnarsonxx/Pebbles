@@ -48,6 +48,7 @@ import { ShiftSchedule } from '../ShiftSchedule';
 import { ACCENTS, PALETTES } from '../themes';
 import { ChecksCard } from '../ChecksCard';
 import { BankSettings, GasStationSettings, GroceryPriceSettings, SetupGuide } from './ConnectionsSettings';
+import { AccountPicks } from '../AutopilotCards';
 import { COMMUNITY, PRICE_STORE_SHORT } from '../../core/edition';
 
 export const SETTINGS_SECTIONS: { id: string; title: string; hint: string; icon: typeof Wallet }[] = [
@@ -99,6 +100,12 @@ export function SettingsScreen({ data, section, open }: { data: AppData; section
       {section === 'budget' && (
         <>
           <BudgetSection s={s} set={set} />
+          <Section title="Your Accounts">
+            <p className="small ink2" style={{ marginTop: 0 }}>
+              Which account pays your bills, which one you spend from, and where PayPal pulls money from. Pebbles uses these for the payday plan and the numbers on Home.
+            </p>
+            <AccountPicks data={data} inSettings />
+          </Section>
           <HouseholdSection s={s} set={set} />
         </>
       )}

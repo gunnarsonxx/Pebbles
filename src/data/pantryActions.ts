@@ -17,7 +17,21 @@ export const deletePantryItem = (id: string) => store.remove('pantry', id);
 export async function addToList(name: string, pantryId: string | null = null, key = ''): Promise<void> {
   const clean = name.trim();
   if (!clean) return;
-  const item: ShopItem = { id: uid('shop_'), name: clean, key: key || clean.toLowerCase().replace(/[^a-z]/g, '').slice(0, 24), qty: 1, pantryId, done: false, doneAt: null, addedAt: Date.now() };
+  const item: ShopItem = {
+    id: uid('shop_'),
+    name: clean,
+    key:
+      key ||
+      clean
+        .toLowerCase()
+        .replace(/[^a-z]/g, '')
+        .slice(0, 24),
+    qty: 1,
+    pantryId,
+    done: false,
+    doneAt: null,
+    addedAt: Date.now(),
+  };
   await store.put('shoplist', item);
 }
 
@@ -43,7 +57,11 @@ export async function removeShopItem(id: string) {
 
 export async function clearBought() {
   const done = store.list('shoplist').filter((s) => s.done);
-  if (done.length) await store.remove('shoplist', done.map((s) => s.id));
+  if (done.length)
+    await store.remove(
+      'shoplist',
+      done.map((s) => s.id),
+    );
 }
 
 /** After a receipt is saved: restock the pantry, tick list items it covers, and log the gas price. */
@@ -52,7 +70,11 @@ export async function afterReceipt(r: Receipt, at: Point | null = null, restock 
   const changed = restock ? restockFromReceipt(pantry, r) : [];
   if (changed.length) await store.putMany('pantry', changed);
   const shop = store.list('shoplist').filter((s) => !s.done && r.items.some((i) => matches({ key: s.key, name: s.name } as PantryItem, i.key, i.name)));
-  if (shop.length) await store.putMany('shoplist', shop.map((s) => ({ ...s, done: true, doneAt: Date.now() })));
+  if (shop.length)
+    await store.putMany(
+      'shoplist',
+      shop.map((s) => ({ ...s, done: true, doneAt: Date.now() })),
+    );
   if (r.fuel) {
     await store.put('gasprices', {
       id: `rc|${r.id}`,
@@ -177,7 +199,8 @@ export async function loadStations(where: 'home' | 'here', point: Point, force =
 
 /** Turn Google's error into what to do about it. */
 export function googleMessage(raw: string): string {
-  if (/not been used|is disabled|SERVICE_DISABLED|has not been enabled/i.test(raw)) return 'Google says Places API (New) isn’t turned on for this key’s project. In Google Cloud: APIs & Services → Library → “Places API (New)” → Enable. (The older “Places API” is a different one.)';
+  if (/not been used|is disabled|SERVICE_DISABLED|has not been enabled/i.test(raw))
+    return 'Google says Places API (New) isn’t turned on for this key’s project. In Google Cloud: APIs & Services → Library → “Places API (New)” → Enable. (The older “Places API” is a different one.)';
   if (/billing/i.test(raw)) return 'Google says billing isn’t set up on this project. Places needs a billing account even though Pebbles stays in the free tier.';
   if (/API key not valid|API_KEY_INVALID/i.test(raw)) return 'Google says the key isn’t valid. Copy it again from Google Cloud → APIs & Services → Credentials.';
   if (/referer|android|ios|restricted|not authorized|API_KEY_.*BLOCKED|blocked/i.test(raw))
@@ -208,7 +231,11 @@ export async function saveStaple(st: Staple): Promise<number> {
 
 export async function deleteStaple(id: string) {
   const members = store.list('pantry').filter((p) => p.stapleId === id);
-  if (members.length) await store.putMany('pantry', members.map((p) => ({ ...p, stapleId: null })));
+  if (members.length)
+    await store.putMany(
+      'pantry',
+      members.map((p) => ({ ...p, stapleId: null })),
+    );
   await store.remove('staples', id);
 }
 
@@ -259,5 +286,9 @@ export async function cooked(m: RecipeMatch, after?: PantryItem[]): Promise<() =
 
 export async function clearCookedPlan() {
   const done = store.list('mealplan').filter((e) => e.cookedAt);
-  if (done.length) await store.remove('mealplan', done.map((e) => e.id));
+  if (done.length)
+    await store.remove(
+      'mealplan',
+      done.map((e) => e.id),
+    );
 }

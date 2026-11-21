@@ -61,7 +61,8 @@ export function AccountsView({ data, openSettings }: { data: AppData; openSettin
         {!hasKeys ? (
           <div className="col">
             <p className="small ink2">
-              Connect your checking account and Marcus so Pebbles sees every purchase, your paycheck and your savings balance automatically. It uses Plaid’s free Trial plan; setup takes about five minutes, once.
+              Connect your checking account and Marcus so Pebbles sees every purchase, your paycheck and your savings balance automatically. It uses Plaid’s free Trial plan; setup takes about five
+              minutes, once.
             </p>
             <button className="btn primary" style={{ alignSelf: 'flex-start' }} onClick={openSettings}>
               <Link2 /> Set Up Bank Connections
@@ -76,11 +77,21 @@ export function AccountsView({ data, openSettings }: { data: AppData; openSettin
                     <Landmark size={18} />
                     <div>
                       <div className="strong">{l.institution}</div>
-                      <div className="tiny muted">{l.lastSync ? `Updated ${new Date(l.lastSync).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}` : 'Waiting for first update'}</div>
+                      <div className="tiny muted">
+                        {l.lastSync ? `Updated ${new Date(l.lastSync).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}` : 'Waiting for first update'}
+                      </div>
                     </div>
                   </div>
                   <div className="row">
-                    <button className="icon-btn" aria-label="Refresh" onClick={() => void syncBank(l).then(() => toast(`${l.institution} refreshed`)).catch((e) => toast((e as Error).message))}>
+                    <button
+                      className="icon-btn"
+                      aria-label="Refresh"
+                      onClick={() =>
+                        void syncBank(l)
+                          .then(() => toast(`${l.institution} refreshed`))
+                          .catch((e) => toast((e as Error).message))
+                      }
+                    >
                       <RefreshCw />
                     </button>
                     <button
@@ -206,7 +217,11 @@ function AccountSheet({ account, onClose }: { account: Account; onClose: () => v
             if (a.holdsGoals) {
               // only one account holds your goals
               const others = store.list('accounts').filter((x) => x.holdsGoals && x.id !== a.id);
-              if (others.length) await store.putMany('accounts', others.map((x) => ({ ...x, holdsGoals: false })));
+              if (others.length)
+                await store.putMany(
+                  'accounts',
+                  others.map((x) => ({ ...x, holdsGoals: false })),
+                );
             }
             await store.put('accounts', a);
             onClose();
@@ -222,7 +237,12 @@ function AccountSheet({ account, onClose }: { account: Account; onClose: () => v
         </Field>
         {a.type === 'savings' && (
           <>
-            <ToggleRow title="My Savings Goals Live Here" hint="Pebbles keeps your goals in step with this account’s balance and adds its interest to them" on={!!a.holdsGoals} onChange={(v) => setA({ ...a, holdsGoals: v })} />
+            <ToggleRow
+              title="My Savings Goals Live Here"
+              hint="Pebbles keeps your goals in step with this account’s balance and adds its interest to them"
+              on={!!a.holdsGoals}
+              onChange={(v) => setA({ ...a, holdsGoals: v })}
+            />
             <Field label="Interest Rate (APY)" hint="It’s on your Marcus app or statement. Pebbles projects your monthly interest from it.">
               <NumberInput value={a.apy ?? null} allowEmpty onChange={(v) => setA({ ...a, apy: v })} suffix="%" />
             </Field>

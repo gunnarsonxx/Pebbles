@@ -1,10 +1,9 @@
-import { CalendarDays, ChevronLeft, ChevronRight, Sparkles, Settings as SettingsIcon } from 'lucide-react';
+import { CalendarDays, ChevronLeft, ChevronRight, Settings as SettingsIcon } from 'lucide-react';
 import type { AppData } from '../../data/useData';
 import type { GoTo } from '../App';
 import { SplitBar } from '../charts';
 import { CategoryIcon, GemIcon } from '../components';
-import { InsightList } from '../InsightList';
-import { CoverageCard, GuidelinesCard, PastPlanCard } from '../AutopilotCards';
+import { CoverageCard, PastPlanCard } from '../AutopilotCards';
 import { useState } from 'react';
 import { monthlyBillsTotal } from '../../core/budget';
 import { detectRecurring } from '../../core/analytics';
@@ -189,19 +188,6 @@ export function PlanScreen({ data, go }: { data: AppData; go: GoTo }) {
             </div>
           </div>
         </div>
-      </div>
-
-      <GuidelinesCard data={data} />
-
-      <div className="section-title">
-        <h2>
-          <Sparkles size={18} style={{ verticalAlign: '-2px', marginRight: 6, color: 'var(--amethyst)' }} />
-          Field notes
-        </h2>
-        <span className="small muted">Ways to save, habits to keep or quit</span>
-      </div>
-      <div className="card">
-        <InsightList items={data.insights} />
       </div>
     </div>
   );

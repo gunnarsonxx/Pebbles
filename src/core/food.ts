@@ -39,8 +39,7 @@ function sizeFactor(n: number): number {
 }
 
 export function foodPlanMonthly(h: HouseholdSettings, plan: HouseholdSettings['foodPlan'] = h.foodPlan, inflationSinceRef = 0): number {
-  const base =
-    (h.adults || 0) * PER_PERSON.adult[plan] + (h.children || 0) * PER_PERSON.child[plan] + (h.seniors || 0) * PER_PERSON.senior[plan];
+  const base = (h.adults || 0) * PER_PERSON.adult[plan] + (h.children || 0) * PER_PERSON.child[plan] + (h.seniors || 0) * PER_PERSON.senior[plan];
   const n = householdSize(h);
   const v = (base || PER_PERSON.adult[plan]) * sizeFactor(n) * (1 + inflationSinceRef);
   return round2(v);

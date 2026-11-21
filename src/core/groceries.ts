@@ -33,7 +33,10 @@ export const NON_GROCERY_DEPTS: GroceryDept[] = ['fuel', 'tobacco', 'lottery', '
 
 // Receipt abbreviations (Kroger/King Soopers, Walmart, Safeway...)
 const ABBR: [RegExp, string][] = [
-  [/\bKING SOOPERS?\b|\bCITY MARKET\b|\bKINGS? SOOP\b|\bKSCM\b|\bCM\b|\bKRO\b|\bKROGER\b|\bKS\b|\bLUCERNE\b|\bKIRKLAND\b|\bGOOD ?& ?GATHER\b|\bMARKET PANTRY\b|\bSIGNATURE SELECT\b|\bPRIVATE SELECTION\b|\bCOMFORT ZONE\b|\bHOME CHEF\b|\bSMART WAY\b|\bBIG K\b|\bSIMTRU\b|\bSIMPLE TRUTH\b|\bPRIV SEL\b|\bP\$\$T\b|\bGV\b|\bGREAT VALUE\b|\bMKTSD\b|\bMARKETSIDE\b|\bEQUATE\b|\bSIGNATURE\b|\bSIG\b|\bO ORGANICS\b|\bHT\b|\bCB\b/g, ''],
+  [
+    /\bKING SOOPERS?\b|\bCITY MARKET\b|\bKINGS? SOOP\b|\bKSCM\b|\bCM\b|\bKRO\b|\bKROGER\b|\bKS\b|\bLUCERNE\b|\bKIRKLAND\b|\bGOOD ?& ?GATHER\b|\bMARKET PANTRY\b|\bSIGNATURE SELECT\b|\bPRIVATE SELECTION\b|\bCOMFORT ZONE\b|\bHOME CHEF\b|\bSMART WAY\b|\bBIG K\b|\bSIMTRU\b|\bSIMPLE TRUTH\b|\bPRIV SEL\b|\bP\$\$T\b|\bGV\b|\bGREAT VALUE\b|\bMKTSD\b|\bMARKETSIDE\b|\bEQUATE\b|\bSIGNATURE\b|\bSIG\b|\bO ORGANICS\b|\bHT\b|\bCB\b/g,
+    '',
+  ],
   [/\bORG\b/g, 'ORGANIC'],
   [/\bWHL\b|\bWHLE\b/g, 'WHOLE'],
   [/\bMLK\b|\bMILKK\b/g, 'MILK'],
@@ -165,10 +168,12 @@ const BASE: [RegExp, string][] = [
 
 // a fruit or vegetable word inside something else (apple juice, banana bread, strawberry yogurt) isn't that fruit
 const PRODUCE = new Set(['Bananas', 'Apples', 'Strawberries', 'Blueberries', 'Grapes', 'Potatoes', 'Onions', 'Broccoli', 'Salad']);
-const MADE_FROM = /DRINK|JUICE|SODA|FLAVOR|CANDY|CHOC|\bBAR\b|BARS|CEREAL|SAUCE|\bPIE\b|CHIP|YOGURT|MUFFIN|BREAD|CAKE|SNACK|POUCH|GUMM|\bTEA\b|JAM|JELLY|PRESERVES|SYRUP|CIDER|WATER|SPREAD|POP ?TART|TOASTER|OATMEAL|SOUP|SEASONING|DIP\b/;
+const MADE_FROM =
+  /DRINK|JUICE|SODA|FLAVOR|CANDY|CHOC|\bBAR\b|BARS|CEREAL|SAUCE|\bPIE\b|CHIP|YOGURT|MUFFIN|BREAD|CAKE|SNACK|POUCH|GUMM|\bTEA\b|JAM|JELLY|PRESERVES|SYRUP|CIDER|WATER|SPREAD|POP ?TART|TOASTER|OATMEAL|SOUP|SEASONING|DIP\b/;
 
 // things for the kitchen or the house, not food: coffee FILTERS aren't coffee, peanut butter CUPS aren't peanut butter
-const NOT_FOOD = /FILTER|\bMAKER\b|\bMUGS?\b|\bCUPS\b|\bPLATES?\b|NAPKIN|\bBAGS?\b|FOIL|PLASTIC WRAP|\bSOAP|DETERGENT|CLEANER|WIPES|CANDLE|SCRUB|BRUSH|SPONGE|TISSUE|LOTION|SHAMPOO|CONDITIONER|DEODORANT|TOOTH|RAZOR|PATCH|BANDAGE|\bVITAMINS?\b(?! ?D\b)|SUPPLEMENT|GUMM(Y|IES) VITAMIN|CAPSULES?|GRINDER|SCOOP|CONTAINERS?|STORAGE|HOLDER|DESCAL|DECALCIF|AIR FRESHENER|DISH|LAUNDRY|POLISH|SPRAY BOTTLE/;
+const NOT_FOOD =
+  /FILTER|\bMAKER\b|\bMUGS?\b|\bCUPS\b|\bPLATES?\b|NAPKIN|\bBAGS?\b|FOIL|PLASTIC WRAP|\bSOAP|DETERGENT|CLEANER|WIPES|CANDLE|SCRUB|BRUSH|SPONGE|TISSUE|LOTION|SHAMPOO|CONDITIONER|DEODORANT|TOOTH|RAZOR|PATCH|BANDAGE|\bVITAMINS?\b(?! ?D\b)|SUPPLEMENT|GUMM(Y|IES) VITAMIN|CAPSULES?|GRINDER|SCOOP|CONTAINERS?|STORAGE|HOLDER|DESCAL|DECALCIF|AIR FRESHENER|DISH|LAUNDRY|POLISH|SPRAY BOTTLE/;
 
 /** The plain name for a cleaned receipt line, or null to keep it as is. */
 export function baseName(upper: string): string | null {
@@ -214,9 +219,20 @@ export function cleanItemName(raw: string): { name: string; key: string } {
   if (!s) s = raw.trim().toUpperCase();
   // plain names for the everyday stuff (milk, bread, eggs, coffee…)
   const base = baseName(s);
-  if (base) return { name: base, key: base.toLowerCase().replace(/[^a-z]/g, '').slice(0, 24) };
+  if (base)
+    return {
+      name: base,
+      key: base
+        .toLowerCase()
+        .replace(/[^a-z]/g, '')
+        .slice(0, 24),
+    };
   // otherwise drop filler words a receipt adds
-  s = s.replace(/\b(GRADE A|ORIGINAL|CLASSIC|FAMILY SIZE|VALUE PACK|FAMILY PACK|REGULAR|FRESH)\b/g, ' ').replace(/\s+/g, ' ').trim() || s;
+  s =
+    s
+      .replace(/\b(GRADE A|ORIGINAL|CLASSIC|FAMILY SIZE|VALUE PACK|FAMILY PACK|REGULAR|FRESH)\b/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim() || s;
   const name = s
     .toLowerCase()
     .split(' ')
@@ -224,33 +240,57 @@ export function cleanItemName(raw: string): { name: string; key: string } {
     .map((w) => w[0].toUpperCase() + w.slice(1))
     .join(' ')
     .slice(0, 40);
-  const key = s.toLowerCase().replace(/[^a-z]/g, '').slice(0, 24);
+  const key = s
+    .toLowerCase()
+    .replace(/[^a-z]/g, '')
+    .slice(0, 24);
   return { name, key };
 }
 
 const DEPTS: [RegExp, GroceryDept][] = [
   [/\bUNLEADED\b|\bUNL\b|\bUNLD\b|REG(ULAR)? UNL|\bPREMIUM UNL|\bPLUS UNL|\bMIDGRADE\b|\bDIESEL\b|\bFUEL\b|\bGASOLINE\b|\bPUMP\b|\bE ?85\b|^GAS\b|\bGAS SALE|\bPREPAY\b/, 'fuel'],
-  [/MARLBORO|NEWPORT|CAMEL|PALL MALL|WINSTON|AMERICAN SPIRIT|\bCIG(S|ARETTE|ARETTES|AR|ARS)?\b|\bZYN\b|\bVELO\b|\bROGUE\b|\bON NICOTINE|NICOTINE|\bPOUCH(ES)?\b|\bVUSE\b|\bJUUL\b|\bVAPE\b|\bNJOY\b|GEEK ?BAR|ELF ?BAR|BREEZE|\bSKOAL\b|COPENHAGEN|GRIZZLY|\bKODIAK\b|\bSNUFF\b|\bDIP\b|BLACK ?N ?MILD|SWISHER|\bBACKWOODS\b|\bTOBACCO\b|\bLUCY\b|\bSESH\b/, 'tobacco'],
+  [
+    /MARLBORO|NEWPORT|CAMEL|PALL MALL|WINSTON|AMERICAN SPIRIT|\bCIG(S|ARETTE|ARETTES|AR|ARS)?\b|\bZYN\b|\bVELO\b|\bROGUE\b|\bON NICOTINE|NICOTINE|\bPOUCH(ES)?\b|\bVUSE\b|\bJUUL\b|\bVAPE\b|\bNJOY\b|GEEK ?BAR|ELF ?BAR|BREEZE|\bSKOAL\b|COPENHAGEN|GRIZZLY|\bKODIAK\b|\bSNUFF\b|\bDIP\b|BLACK ?N ?MILD|SWISHER|\bBACKWOODS\b|\bTOBACCO\b|\bLUCY\b|\bSESH\b/,
+    'tobacco',
+  ],
   [/LOTTERY|LOTTO|POWERBALL|MEGA ?MILLIONS|SCRATCH|SCRATCHER|\bQUICK ?PICK\b|CASH ?5\b|PICK ?3\b/, 'lottery'],
   [/MOTOR OIL|\b5W ?\d0\b|\b10W ?\d0\b|WASHER FLUID|WIPER|ANTIFREEZE|COOLANT|CAR WASH|AIR FRESHENER|\bWASH\b.*\bCAR\b|TIRE/, 'auto'],
   [/CREAM OF WHEAT|OATMEAL|\bGRITS\b|\bCEREAL\b|BROWN SUGAR|\bFLOUR\b|\bSUGAR\b/, 'pantry'],
   // boxed freezer snacks, before 'popcorn' (snacks) and 'rolls' (bakery) can claim them
-  [/FROZEN.*TAQUITO|TAQUITOS|BREADED CHICKEN|CHICKEN CHUNKS|PIZZA ROLL|POPCORN CHICKEN|NUGGET|EGG ROLL|MOZZ(ARELLA)? STICK|CORN DOG|BAGEL BITE|PIZZA BITE|FISH STICK|POT ?STICKER|TATER TOT|ONION RING|CHICKEN STRIP|DINO (NUGGET|BITE)/, 'frozen'],
-  [/FOUNTAIN|\bPOLAR POP\b|\bBIG GULP\b|SLURPEE|FROZEN DRINK|HOT DOG ROLLER|\bROLLER\b|TAQUITO|PIZZA SLICE|\bSLICE\b|\bBURRITO\b|HOT FOOD|\bDELI SAND|\bSANDWICH\b|\bCOFFEE CUP\b|\bHOT COFFEE\b|\bCAPPUCCINO\b|\bFRAPPE\b|\bNACHOS\b|\bCHICKEN TENDER|\bFRIED CHICKEN\b|\bEMPANADA/, 'prepared'],
+  [
+    /FROZEN.*TAQUITO|TAQUITOS|BREADED CHICKEN|CHICKEN CHUNKS|PIZZA ROLL|POPCORN CHICKEN|NUGGET|EGG ROLL|MOZZ(ARELLA)? STICK|CORN DOG|BAGEL BITE|PIZZA BITE|FISH STICK|POT ?STICKER|TATER TOT|ONION RING|CHICKEN STRIP|DINO (NUGGET|BITE)/,
+    'frozen',
+  ],
+  [
+    /FOUNTAIN|\bPOLAR POP\b|\bBIG GULP\b|SLURPEE|FROZEN DRINK|HOT DOG ROLLER|\bROLLER\b|TAQUITO|PIZZA SLICE|\bSLICE\b|\bBURRITO\b|HOT FOOD|\bDELI SAND|\bSANDWICH\b|\bCOFFEE CUP\b|\bHOT COFFEE\b|\bCAPPUCCINO\b|\bFRAPPE\b|\bNACHOS\b|\bCHICKEN TENDER|\bFRIED CHICKEN\b|\bEMPANADA/,
+    'prepared',
+  ],
   [/BEER|WINE|VODKA|WHISK|TEQUILA|RUM\b|SELTZER HARD|IPA\b|LAGER|BUD LIGHT|COORS|MICHELOB|CORONA|MODELO|WHITE CLAW|TRULY|LIQUOR|CABERNET|MERLOT|CHARDONNAY|PINOT/, 'alcohol'],
   [/DIAPER|WIPES|BABY|FORMULA|PULL UPS|HUGGIES|PAMPERS/, 'baby'],
   [/DOG|CAT\b|PET\b|KIBBLE|LITTER|PURINA|MEOW|BLUE BUFFALO/, 'pet'],
   [/ALLERGY|CETIRIZINE|LORATADINE|ZYRTEC|CLARITIN|ALLEGRA|BENADRYL|MUCINEX|DAYQUIL|NYQUIL|ANTACID|TUMS|PEPCID|MELATONIN|\bTABLETS?\b|CAPSULES?/, 'personal'],
   [/SHAMPOO|CONDITIONER|SOAP|BODY WASH|DEODORANT|TOOTH|FLOSS|RAZOR|LOTION|TAMPON|PAD\b|PADS\b|COTTON|ADVIL|TYLENOL|IBUPROFEN|VITAMIN|BANDAGE|COLGATE|CREST|DOVE\b|SUNSCREEN|MAKEUP/, 'personal'],
-  [/TOILET PAPER|PAPER TOWELS|NAPKIN|DETERGENT|DISH|BLEACH|CLEANER|LYSOL|CLOROX|TRASH BAG|GARBAGE BAG|FOIL|PLASTIC WRAP|ZIPLOC|SPONGE|BATTER(Y|IES)|LIGHT BULB|TIDE|DAWN|GAIN\b|SWIFFER|KLEENEX|TISSUE/, 'household'],
-  [/CHIPS|DORITOS|CHEETOS|LAYS|PRINGLES|COOKIE|OREO|CANDY|CHOCOLATE|SNICKERS|M&M|REESE|GUMMY|GUM\b|ICE CREAM|POPCORN|PRETZEL|CRACKER|DONUT|CAKE|BROWNIE|PIE\b|SNACK|JERKY|TRAIL MIX|SKITTLES|KIT KAT|TWIX|HERSHEY/, 'snacks'],
+  [
+    /TOILET PAPER|PAPER TOWELS|NAPKIN|DETERGENT|DISH|BLEACH|CLEANER|LYSOL|CLOROX|TRASH BAG|GARBAGE BAG|FOIL|PLASTIC WRAP|ZIPLOC|SPONGE|BATTER(Y|IES)|LIGHT BULB|TIDE|DAWN|GAIN\b|SWIFFER|KLEENEX|TISSUE/,
+    'household',
+  ],
+  [
+    /CHIPS|DORITOS|CHEETOS|LAYS|PRINGLES|COOKIE|OREO|CANDY|CHOCOLATE|SNICKERS|M&M|REESE|GUMMY|GUM\b|ICE CREAM|POPCORN|PRETZEL|CRACKER|DONUT|CAKE|BROWNIE|PIE\b|SNACK|JERKY|TRAIL MIX|SKITTLES|KIT KAT|TWIX|HERSHEY/,
+    'snacks',
+  ],
   [/SODA|COKE|PEPSI|SPRITE|DR PEPPER|MOUNTAIN DEW|ENERGY|MONSTER|RED BULL|CELSIUS|GATORADE|POWERADE|JUICE|WATER|SPARKLING|LA CROIX|COFFEE|TEA\b|KOMBUCHA|LEMONADE/, 'drinks'],
   [/FROZEN|FRZ|\bICE\b|TOTINO|STOUFFER|HOT POCKET|LEAN CUISINE|EGGO|WAFFLES|TATER TOTS|FRIES/, 'frozen'],
   [/BREAD|BUN|BUNS|BAGEL|TORTILLA|ROLLS|MUFFIN|CROISSANT|BAGUETTE|PITA|ENGLISH MUFFIN/, 'bakery'],
   [/MILK|CHEESE|YOGURT|BUTTER|EGGS|EGG\b|CREAM|SOUR CREAM|COTTAGE|HALF & HALF|CREAMER|MARGARINE|DOZEN/, 'dairy'],
   [/CHICKEN|BEEF|PORK|TURKEY|HAM\b|BACON|SAUSAGE|STEAK|GROUND|FISH|SALMON|TILAPIA|SHRIMP|TUNA\b|HOT DOG|BRATS|DELI|SALAMI|PEPPERONI|LUNCH MEAT|RIBS|ROAST|WINGS|THIGHS|BREAST/, 'meat'],
-  [/BANANAS|APPLES|AVOCADO|LETTUCE|SPINACH|TOMATOES|POTATOES|ONION|GARLIC|CARROT|CELERY|PEPPER|CUCUMBER|BROCCOLI|STRAWBERRIES|BLUEBERR|GRAPES|ORANGE\b|ORANGES|LEMON|LIME|CILANTRO|SALAD|BERRIES|PEACH|PEAR|MELON|WATERMELON|PINEAPPLE|MANGO|CORN\b|ZUCCHINI|SQUASH|MUSHROOM|KALE|CABBAGE|JALAPENO|PRODUCE/, 'produce'],
-  [/PASTA|SPAGHETTI|RICE|BEANS|SAUCE|CEREAL|OATS|OATMEAL|FLOUR|SUGAR|OIL\b|SALT|SPICE|SEASONING|SOUP|BROTH|CANNED|PEANUT|JELLY|JAM\b|HONEY|SYRUP|KETCHUP|MUSTARD|MAYO|DRESSING|SALSA|NOODLE|RAMEN|MAC|TUNA|STOCK|VINEGAR|CORNSTARCH|BAKING|GRANOLA|BAR\b|BARS\b/, 'pantry'],
+  [
+    /BANANAS|APPLES|AVOCADO|LETTUCE|SPINACH|TOMATOES|POTATOES|ONION|GARLIC|CARROT|CELERY|PEPPER|CUCUMBER|BROCCOLI|STRAWBERRIES|BLUEBERR|GRAPES|ORANGE\b|ORANGES|LEMON|LIME|CILANTRO|SALAD|BERRIES|PEACH|PEAR|MELON|WATERMELON|PINEAPPLE|MANGO|CORN\b|ZUCCHINI|SQUASH|MUSHROOM|KALE|CABBAGE|JALAPENO|PRODUCE/,
+    'produce',
+  ],
+  [
+    /PASTA|SPAGHETTI|RICE|BEANS|SAUCE|CEREAL|OATS|OATMEAL|FLOUR|SUGAR|OIL\b|SALT|SPICE|SEASONING|SOUP|BROTH|CANNED|PEANUT|JELLY|JAM\b|HONEY|SYRUP|KETCHUP|MUSTARD|MAYO|DRESSING|SALSA|NOODLE|RAMEN|MAC|TUNA|STOCK|VINEGAR|CORNSTARCH|BAKING|GRANOLA|BAR\b|BARS\b/,
+    'pantry',
+  ],
 ];
 
 export function deptFor(name: string, key: string, rules: ItemRule[] = []): GroceryDept {
@@ -303,9 +343,7 @@ export function isGroceryTrip(r: Receipt): boolean {
 }
 
 export function analyzeGroceries(receipts: Receipt[], asOf: ISODate): GroceryStats | null {
-  const recent = receipts
-    .filter((r) => diffDays(asOf, r.date) <= WINDOW_DAYS && diffDays(asOf, r.date) >= -1 && isGroceryTrip(r))
-    .sort((a, b) => a.date.localeCompare(b.date));
+  const recent = receipts.filter((r) => diffDays(asOf, r.date) <= WINDOW_DAYS && diffDays(asOf, r.date) >= -1 && isGroceryTrip(r)).sort((a, b) => a.date.localeCompare(b.date));
   if (!recent.length) return null;
   const map = new Map<string, ItemStat & { sum: number; count: number }>();
   for (const r of recent) {
@@ -336,9 +374,7 @@ export function analyzeGroceries(receipts: Receipt[], asOf: ISODate): GrocerySta
   const trips = recent.length;
   const items: ItemStat[] = [...map.values()].map(({ sum, count, ...s }) => ({ ...s, avgPrice: round2(sum / count), share: s.trips / trips }));
   // "usual" = shows up in a good share of trips (or 3+ times)
-  const usual = items
-    .filter((i) => (trips >= 3 ? i.share >= 0.4 || i.trips >= 3 : i.trips >= 2) && !WANT_DEPTS.includes(i.dept))
-    .sort((a, b) => b.share - a.share || b.avgPrice - a.avgPrice);
+  const usual = items.filter((i) => (trips >= 3 ? i.share >= 0.4 || i.trips >= 3 : i.trips >= 2) && !WANT_DEPTS.includes(i.dept)).sort((a, b) => b.share - a.share || b.avgPrice - a.avgPrice);
   const usualKeys = new Set(usual.map((u) => u.key));
   const usualTrip = round2(usual.reduce((s, i) => s + i.avgPrice * i.share, 0));
   const extrasDept = new Map<GroceryDept, number>();
@@ -402,7 +438,14 @@ export function receiptSpendByDept(receipts: Receipt[], month: string): { dept: 
   const map = new Map<GroceryDept, { total: number; stores: Set<string> }>();
   for (const r of receipts) {
     if (r.date.slice(0, 7) !== month) continue;
-    const taxShare = r.tax && r.items.length ? r.tax / Math.max(0.01, r.items.reduce((s, i) => s + Math.max(0, i.price), 0)) : 0;
+    const taxShare =
+      r.tax && r.items.length
+        ? r.tax /
+          Math.max(
+            0.01,
+            r.items.reduce((s, i) => s + Math.max(0, i.price), 0),
+          )
+        : 0;
     for (const it of r.items) {
       if (it.price <= 0) continue;
       const cur = map.get(it.dept) ?? { total: 0, stores: new Set<string>() };

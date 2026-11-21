@@ -69,7 +69,16 @@ export function lookupLocal(code: string, saved: SavedBarcode[], receipts: Recei
   if (mine) return { code, name: mine.name, product: mine.product, dept: mine.dept, pack: mine.pack, price: null, source: 'yours' };
   for (const r of [...receipts].sort((a, b) => b.date.localeCompare(a.date))) {
     const it = r.items.find((i) => i.upc && sameProduct(i.upc, code));
-    if (it) return { code, name: it.name, product: it.raw || null, dept: it.dept, pack: it.pack ?? null, price: it.price > 0 ? Math.round((it.price / Math.max(1, it.qty || 1)) * 100) / 100 : null, source: 'receipt' };
+    if (it)
+      return {
+        code,
+        name: it.name,
+        product: it.raw || null,
+        dept: it.dept,
+        pack: it.pack ?? null,
+        price: it.price > 0 ? Math.round((it.price / Math.max(1, it.qty || 1)) * 100) / 100 : null,
+        source: 'receipt',
+      };
   }
   return null;
 }
@@ -102,7 +111,7 @@ export async function lookupOnline(http: HttpFn, code: string, rules: ItemRule[]
   const d = digits(upcEtoA(code) ?? code);
   // Open Food Facts files US products under their 13-digit code
   const ean = d.length === 12 ? `0${d}` : d;
-  const within = <T,>(p: Promise<T>) => Promise.race([p, new Promise<never>((_, rej) => setTimeout(() => rej(new Error('timeout')), timeoutMs))]);
+  const within = <T>(p: Promise<T>) => Promise.race([p, new Promise<never>((_, rej) => setTimeout(() => rej(new Error('timeout')), timeoutMs))]);
   let reached = false;
   try {
     const res = await within(http(`https://world.openfoodfacts.org/api/v2/product/${ean}.json?fields=product_name,product_name_en,generic_name,generic_name_en,brands,quantity`, { headers: HEADERS }));

@@ -3,10 +3,10 @@ import { COMMUNITY } from '../../core/edition';
 import { CalendarPlus, ChevronLeft, ChevronRight, Plus, Search, Users, X } from 'lucide-react';
 import type { AppData } from '../../data/useData';
 import { CategoryIcon, Field, NumberInput, Segmented, Sheet, TextInput, ToggleRow, useToast } from '../components';
-import { billDueDates, monthlyBillsTotal, monthlyEquivalent, roommateTransfer, yourAmount } from '../../core/budget';
+import { billDueDates, billsDueBetween, monthlyBillsTotal, monthlyEquivalent, roommateTransfer, yourAmount } from '../../core/budget';
 import { detectRecurring, type RecurringCandidate } from '../../core/analytics';
 import { CATEGORIES, categoryOf } from '../../core/categories';
-import { addDays, addMonths, dayOfWeek, dowName, fmtDay, fmtMonth, makeDate, daysInMonth } from '../../core/dates';
+import { addDays, addMonths, dayOfWeek, dowName, fmtDay, fmtMonth, makeDate, daysInMonth, relativeDays } from '../../core/dates';
 import { usd } from '../../core/money';
 import { billsCalendar } from '../../core/ics';
 import { periodByIndex } from '../../core/pay';
@@ -137,6 +137,8 @@ export function BillsView({ data }: { data: AppData }) {
           Opens your calendar app (Samsung Calendar works) with every bill as a repeating event and a reminder the day before, plus your paydays. If you change bills later, add it again.
         </p>
       </div>
+
+      <SoonCard data={data} />
 
       {rm && (
         <div className="card">
@@ -418,5 +420,39 @@ export function BillSheet({ bill, onClose }: { bill: Bill; onClose: () => void }
         </p>
       </div>
     </Sheet>
+  );
+}
+
+/** What's due in the next two weeks (it used to sit on Home). */
+function SoonCard({ data }: { data: AppData }) {
+  const soon = billsDueBetween(data.bills, data.today, addDays(data.today, 15));
+  if (!data.bills.length) return null;
+  return (
+    <div className="card">
+      <div className="eyebrow" style={{ marginBottom: 6 }}>
+        Bills in the Next 2 Weeks
+      </div>
+      {soon.length ? (
+        <div className="list">
+          {soon.map((b) => (
+            <div key={b.bill.id + b.date} className="list-item">
+              <CategoryIcon id={b.bill.category} size={34} />
+              <div className="grow">
+                <div className="strong ellipsis">{b.bill.name}</div>
+                <div className="tiny muted">
+                  {fmtDay(b.date)} · {relativeDays(b.date, data.today)}
+                  {b.bill.autopay ? ' · autopay' : ''}
+                </div>
+              </div>
+              <div className="amount">{usd(b.amount)}</div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="small muted" style={{ margin: 0 }}>
+          Nothing due in the next two weeks.
+        </p>
+      )}
+    </div>
   );
 }

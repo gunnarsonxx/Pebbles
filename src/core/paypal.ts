@@ -21,9 +21,7 @@ export function dedupePaypal(txns: Transaction[], accounts: Account[]): PaypalUp
   const used = new Set(txns.filter((t) => t.dupOf).map((t) => t.dupOf as string));
 
   // bank lines that paid for a PayPal purchase
-  const bank = txns
-    .filter((t) => !ppIds.has(t.accountId) && t.amount < 0 && !t.dupOf && BANK_PAYPAL.test(t.description))
-    .sort((a, b) => a.date.localeCompare(b.date));
+  const bank = txns.filter((t) => !ppIds.has(t.accountId) && t.amount < 0 && !t.dupOf && BANK_PAYPAL.test(t.description)).sort((a, b) => a.date.localeCompare(b.date));
   for (const b of bank) {
     const match = pp
       .filter((p) => p.amount < 0 && !used.has(p.id) && Math.abs(p.amount - b.amount) <= 0.01)
@@ -81,7 +79,12 @@ export function paypalPurchases(txns: Transaction[], accounts: Account[], today:
 export function bankHasIt(p: Transaction, txns: Transaction[], funding: Account): boolean {
   if (p.bankHas || txns.some((t) => t.dupOf === p.id)) return true;
   const line = txns.some(
-    (t) => t.accountId === funding.id && Math.abs(t.amount - p.amount) <= 0.01 && diffDays(t.date, p.date) >= -2 && diffDays(t.date, p.date) <= 10 && (BANK_PAYPAL.test(`${t.description} ${t.merchant}`) || t.pending),
+    (t) =>
+      t.accountId === funding.id &&
+      Math.abs(t.amount - p.amount) <= 0.01 &&
+      diffDays(t.date, p.date) >= -2 &&
+      diffDays(t.date, p.date) <= 10 &&
+      (BANK_PAYPAL.test(`${t.description} ${t.merchant}`) || t.pending),
   );
   if (line) return true;
   const seen = p.seenBank;

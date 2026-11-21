@@ -389,8 +389,9 @@ export function computeGross(period: Period, pay: PaySettings, rateList: PayRate
     if (otHours > 0) {
       adjustments.push({
         date: null,
-        label: 'Overtime Premium',
-        detail: `Week of ${fmtDay(wdates[0])} · ${otHours} h × ${(pay.overtime.multiplier - 1).toFixed(1)} × $${rateForOt.toFixed(2)}`,
+        label: `Overtime (${pay.overtime.multiplier}× pay)`,
+        // the regular part of these hours is already in Base Pay, so this line is the extra on top
+        detail: `Week of ${fmtDay(wdates[0])} · ${otHours} h paid at ${pay.overtime.multiplier}× ($${(rateForOt * pay.overtime.multiplier).toFixed(2)}/h). Their regular $${rateForOt.toFixed(2)}/h is already in Base Pay, so this adds the extra $${(rateForOt * (pay.overtime.multiplier - 1)).toFixed(2)}/h`,
         amount: premium,
         kind: 'overtime',
       });

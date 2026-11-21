@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Camera, Check, ListPlus, Minus, Plus, ScanBarcode, ShoppingCart, Trash2, Sparkles } from 'lucide-react';
 import type { AppData } from '../../data/useData';
-import { Empty, Field, NumberInput, Segmented, Sheet, TextInput, ToggleRow, useConfirm, useToast } from '../components';
+import { Empty, Field, NumberInput, Segmented, Sheet, TextInput, ToggleRow, useConfirm, useToast, Fold, ShowMore } from '../components';
 import { ReceiptSheet } from '../sheets/ReceiptSheet';
 import { PastItemsSheet, StapleGotSheet, StaplePicker, StapleSheet } from '../sheets/KitchenSheets';
 import { ScanKitchenSheet } from '../sheets/ScanKitchenSheet';
@@ -17,7 +17,10 @@ function useList(data: AppData) {
     const priceOf = makePriceOf(data.groceries, [...data.prices.values()]);
     const lines = buildList(data.pantry, data.shoplist, data.receipts, data.today, priceOf, data.staples);
     const taxRate = data.groceries?.taxRate ?? 0.0407;
-    const trip = estimateTrip(lines.filter((l) => l.why !== 'due'), taxRate);
+    const trip = estimateTrip(
+      lines.filter((l) => l.why !== 'due'),
+      taxRate,
+    );
     return { lines, trip, taxRate };
   }, [data]);
 }
@@ -164,7 +167,10 @@ function ListRow({ line, onTick, onRemove }: { line: ListLine; onTick: () => voi
           {line.qty > 1 ? ` ×${line.qty}` : ''}
         </div>
         {line.staple && line.staple.options.length > 0 && (
-          <div className="tiny ink2">Any of: {line.staple.options.slice(0, 4).join(', ')}{line.staple.options.length > 4 ? '…' : ''}, or something new</div>
+          <div className="tiny ink2">
+            Any of: {line.staple.options.slice(0, 4).join(', ')}
+            {line.staple.options.length > 4 ? '…' : ''}, or something new
+          </div>
         )}
         <div className="tiny muted">
           {line.always ? '★ Staple · ' : ''}
@@ -199,6 +205,7 @@ export function PantryView({ data }: { data: AppData }) {
   const lowCount = data.pantry.filter((p) => stockOf(p) !== 'ok').length;
   const [stapleEdit, setStapleEdit] = useState<Staple | 'new' | null>(null);
   const staples = stapleStatus(data.staples, data.pantry);
+  const lowStaples = always.filter((p) => stockOf(p) !== 'ok').length + staples.filter((x) => x.stock !== 'ok').length;
   const [newStapleName, setNewStapleName] = useState('');
   const suggest = (data.groceries?.usual ?? []).filter((u) => !data.pantry.some((p) => p.always && (p.key === u.key || p.name.toLowerCase() === u.name.toLowerCase())));
   const addStaple = async (name: string, key?: string) => {
@@ -304,19 +311,22 @@ export function PantryView({ data }: { data: AppData }) {
           </button>
         </div>
       </div>
-      <div className="card" style={{ padding: '10px 14px' }}>
-        <div className="eyebrow" style={{ margin: '4px 0' }}>
-          Staples
-        </div>
+      <Fold title="Staples" count={always.length + staples.length} defaultOpen note={lowStaples ? `${lowStaples} low` : undefined}>
         <div className="tiny muted">What you always get. They go on your list as soon as they run low.</div>
-        {always.length > 0 && <div className="list mt-s">{always.map(row)}</div>}
+        {always.length > 0 && (
+          <div className="list mt-s">
+            <ShowMore items={always} first={3} render={(p) => row(p)} more="more staples" />
+          </div>
+        )}
         {staples.length > 0 && (
           <div className="list">
             {staples.map(({ staple, items, stock }) => (
               <button key={staple.id} className="list-item" style={{ width: '100%', textAlign: 'left' }} onClick={() => setStapleEdit(staple)}>
                 <div className="grow">
                   <div className="strong small">{staple.name}</div>
-                  <div className="tiny muted ellipsis">Any of: {items.length ? items.map((p) => `${p.name} (${p.mode === 'level' ? LEVEL_LABEL[p.level] : `${num(p.qty)} ${p.unit}`})`).join(' · ') : 'nothing yet'}</div>
+                  <div className="tiny muted ellipsis">
+                    Any of: {items.length ? items.map((p) => `${p.name} (${p.mode === 'level' ? LEVEL_LABEL[p.level] : `${num(p.qty)} ${p.unit}`})`).join(' · ') : 'nothing yet'}
+                  </div>
                 </div>
                 <span className={`tiny strong ${stock === 'out' ? 'bad' : stock === 'low' ? 'warn' : 'good'}`}>{stock === 'out' ? 'Out' : stock === 'low' ? 'Low' : 'Stocked'}</span>
               </button>
@@ -347,18 +357,22 @@ export function PantryView({ data }: { data: AppData }) {
           <Plus /> Swap Group
         </button>
         <span className="tiny muted"> For things where any one will do, like air fryer food.</span>
-      </div>
-      {others.length > 0 && <div className="eyebrow" style={{ margin: '4px 2px 0' }}>Everything Else</div>}
+      </Fold>
+      {others.length > 0 && (
+        <div className="eyebrow" style={{ margin: '4px 2px 0' }}>
+          Everything Else
+        </div>
+      )}
       {[...groups.entries()]
         .sort((a, b) => DEPT_LABEL[a[0]].localeCompare(DEPT_LABEL[b[0]]))
-        .map(([dept, list]) => (
-          <div key={dept} className="card" style={{ padding: '10px 14px' }}>
-            <div className="eyebrow" style={{ margin: '4px 0' }}>
-              {DEPT_LABEL[dept]}
-            </div>
-            <div className="list">{list.map(row)}</div>
-          </div>
-        ))}
+        .map(([dept, list]) => {
+          const low = list.filter((p) => stockOf(p) !== 'ok').length;
+          return (
+            <Fold key={dept} title={DEPT_LABEL[dept]} count={list.length} note={low ? `${low} low or out` : undefined} defaultOpen={filter === 'low'}>
+              <div className="list">{list.sort((a, b) => a.name.localeCompare(b.name)).map(row)}</div>
+            </Fold>
+          );
+        })}
       <p className="tiny muted">Receipts ask what’s still in your kitchen before anything goes here. Tap an item to change how it’s tracked or make it a staple.</p>
       {bulk && <BulkAdd data={data} onClose={() => setBulk(false)} />}
       {fromReceipts && <PastItemsSheet data={data} onClose={() => setFromReceipts(false)} />}
@@ -400,7 +414,14 @@ function BulkAdd({ data, onClose }: { data: AppData; onClose: () => void }) {
         <p className="small ink2" style={{ margin: 0 }}>
           One per line. Add a number to count it, a number and unit to measure it, or nothing to just track Full / Half / Low / Out.
         </p>
-        <textarea className="input" rows={8} value={text} onChange={(e) => setText(e.target.value)} placeholder={'eggs 12\nrice 5 lb\nsoup 4 cans\nmilk\ncoffee low\npeanut butter'} style={{ minHeight: 170, padding: 12, lineHeight: 1.5 }} />
+        <textarea
+          className="input"
+          rows={8}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder={'eggs 12\nrice 5 lb\nsoup 4 cans\nmilk\ncoffee low\npeanut butter'}
+          style={{ minHeight: 170, padding: 12, lineHeight: 1.5 }}
+        />
         {parsed.length > 0 && (
           <div className="list">
             {parsed.map((p) => (

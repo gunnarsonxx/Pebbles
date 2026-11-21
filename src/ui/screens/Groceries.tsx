@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { PRICE_STORE, PRICE_STORE_SHORT } from '../../core/edition';
 import { Camera, RefreshCw, ShoppingBasket, Store, Tag } from 'lucide-react';
 import type { AppData } from '../../data/useData';
-import { Empty, Segmented, useToast } from '../components';
+import { Empty, Segmented, useToast, Fold, ShowMore } from '../components';
 import { PantryView, ShoppingListView } from './Pantry';
 import { GasView } from './Gas';
 import { MealsView } from './Meals';
@@ -235,10 +235,15 @@ export function GroceriesView({ data, openSettings }: { data: AppData; openSetti
             </div>
           )}
           {deals.length > 0 && (
-            <div style={{ marginBottom: 12 }}>
-              <div className="row gap-s small strong" style={{ marginBottom: 4 }}>
-                <Tag size={15} /> On sale this week at {PRICE_STORE_SHORT}
-              </div>
+            <Fold
+              card={false}
+              title={
+                <>
+                  <Tag size={14} /> On Sale This Week
+                </>
+              }
+              count={deals.length}
+            >
               {deals.map(({ u, p }) => (
                 <div key={p.id} className="row between small" style={{ padding: '4px 0' }}>
                   <span>
@@ -252,42 +257,47 @@ export function GroceriesView({ data, openSettings }: { data: AppData; openSetti
                   </span>
                 </div>
               ))}
-            </div>
+            </Fold>
           )}
-          <div className="list">
-            {(g?.usual ?? []).slice(0, 20).map((u) => {
-              const live = livePrices(u.key, u.desc).sort((a, b) => priceOf(a) - priceOf(b));
-              const kp = live[0];
-              const best = Object.entries(u.byStore).sort((a, b) => a[1].last - b[1].last)[0];
-              return (
-                <div key={u.key} className="list-item" style={{ alignItems: 'flex-start' }}>
-                  <div className="grow" style={{ minWidth: 0 }}>
-                    <div className="strong small">{u.name}</div>
-                    <div className="tiny muted">
-                      You paid {usd(u.lastPrice)} at {u.lastStore}
-                      {best && best[0] !== u.lastStore ? ` · cheapest ${best[0]} ${usd(best[1].last)}` : ''}
-                    </div>
-                  </div>
-                  {kp && (kp.promo ?? kp.regular) != null && (
-                    <div style={{ textAlign: 'right' }}>
-                      <div className={`num strong small${kp.promo != null ? ' good' : ''}`}>{usd((kp.promo ?? kp.regular) as number)}</div>
+          <div className="list price-list">
+            <ShowMore
+              items={(g?.usual ?? []).slice(0, 20)}
+              first={5}
+              more="more items"
+              render={(u) => {
+                const live = livePrices(u.key, u.desc).sort((a, b) => priceOf(a) - priceOf(b));
+                const kp = live[0];
+                const best = Object.entries(u.byStore).sort((a, b) => a[1].last - b[1].last)[0];
+                const now = kp && (kp.promo ?? kp.regular) != null ? ((kp.promo ?? kp.regular) as number) : null;
+                return (
+                  <div key={u.key} className="price-row">
+                    <div className="price-name">
+                      <div className="strong small">{u.name}</div>
                       <div className="tiny muted">
-                        {kp.promo != null ? 'sale · ' : ''}
-                        {kp.store}
+                        Paid {usd(u.lastPrice)} · {u.lastStore}
                       </div>
+                      {best && best[0] !== u.lastStore && (
+                        <div className="tiny good">
+                          Cheapest you’ve paid: {usd(best[1].last)} · {best[0]}
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-              );
-            })}
+                    {now != null && (
+                      <div className="price-now">
+                        <div className={`num strong small${kp!.promo != null ? ' good' : ''}`}>{usd(now)}</div>
+                        <div className="tiny muted">{kp!.promo != null ? 'on sale' : 'now'}</div>
+                      </div>
+                    )}
+                  </div>
+                );
+              }}
+            />
           </div>
           <p className="tiny muted mt">Walmart doesn’t share prices with apps, so its prices come from your own Walmart receipts.</p>
         </div>
 
-        <div className="card mt">
-          <div className="eyebrow" style={{ marginBottom: 6 }}>
-            Receipts
-          </div>
+        <div className="mt" />
+        <Fold title="Receipts" count={data.receipts.length} note={data.receipts[0] ? `latest ${fmtShort(data.receipts[0].date)}` : undefined}>
           <div className="list">
             {data.receipts.slice(0, 20).map((r) => {
               const extras = extrasOn(r, g);
@@ -313,7 +323,7 @@ export function GroceriesView({ data, openSettings }: { data: AppData; openSetti
               );
             })}
           </div>
-        </div>
+        </Fold>
       </div>
       {sheets}
     </>

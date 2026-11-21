@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { CalendarCheck, Check, ChefHat, Clock, EyeOff, ListPlus, Minus, Plus, Trash2, Users, X } from 'lucide-react';
 import type { AppData } from '../../data/useData';
-import { Empty, Field, NumberInput, Sheet, TextInput, useConfirm, useToast } from '../components';
+import { Empty, Field, NumberInput, Sheet, TextInput, useConfirm, useToast, ShowMore } from '../components';
 import { allRecipes, BASICS_NOTE, matchRecipe, parseIngredients, prepShopping, usedUp, whatCanIMake, type RecipeMatch } from '../../core/recipes';
 import { addToList, addToPlan, clearCookedPlan, cooked, deleteRecipe, removeFromPlan, saveRecipe } from '../../data/pantryActions';
 import { uid } from '../../core/money';
@@ -130,9 +130,7 @@ export function MealsView({ data, openPantry }: { data: AppData; openPantry: () 
         <div className="eyebrow">Ready Now</div>
         {ready.length ? (
           <div className="list">
-            {ready.map((m) => (
-              <RecipeRow key={m.recipe.id} m={m} onOpen={() => setOpen(m.recipe)} />
-            ))}
+            <ShowMore items={ready} first={3} render={(m) => <RecipeRow key={m.recipe.id} m={m} onOpen={() => setOpen(m.recipe)} />} more="more you can make" />
           </div>
         ) : (
           <p className="small muted">Nothing complete yet with this filter. Check “One or Two Things Away” below.</p>
@@ -143,9 +141,7 @@ export function MealsView({ data, openPantry }: { data: AppData; openPantry: () 
         <div className="card">
           <div className="eyebrow">One or Two Things Away</div>
           <div className="list">
-            {almost.slice(0, 12).map((m) => (
-              <RecipeRow key={m.recipe.id} m={m} onOpen={() => setOpen(m.recipe)} />
-            ))}
+            <ShowMore items={almost.slice(0, 12)} first={3} render={(m) => <RecipeRow key={m.recipe.id} m={m} onOpen={() => setOpen(m.recipe)} />} more="more" />
           </div>
         </div>
       )}

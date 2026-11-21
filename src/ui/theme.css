@@ -1982,3 +1982,105 @@ svg.spin {
   .tour-card { animation: none; }
   .tour-target { animation: none; outline: 2px solid var(--moss); }
 }
+
+/* Home: three numbers at a glance */
+.glance {
+  width: 100%;
+  border: 0;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  padding: 14px 12px;
+}
+.glance-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.glance-tile {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.glance-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+}
+.glance-num {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+.glance-chev {
+  flex-shrink: 0;
+  color: var(--ink-3);
+  transition: transform 0.2s;
+}
+
+/* folding sections */
+.fold-head {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: none;
+  border: 0;
+  padding: 4px 0;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+.fold-head .eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.fold-count {
+  font-size: 11px;
+  letter-spacing: 0;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--bg-deep);
+  color: var(--ink-2);
+}
+.fold-chev {
+  margin-left: auto;
+  flex-shrink: 0;
+  color: var(--ink-3);
+  transition: transform 0.2s;
+}
+.fold-body {
+  margin-top: 6px;
+}
+.show-more {
+  display: block;
+  margin: 6px 0 2px;
+}
+
+/* prices on what you buy: name on the left (wraps), today's price on the right, never on top of each other */
+.price-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 12px;
+  align-items: start;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--line);
+}
+.price-row:last-of-type {
+  border-bottom: 0;
+}
+.price-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.price-now {
+  text-align: right;
+  white-space: nowrap;
+}

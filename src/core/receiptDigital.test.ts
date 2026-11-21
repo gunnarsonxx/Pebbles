@@ -140,7 +140,15 @@ describe('telling similar things apart', async () => {
     expect(cleanItemName('Kroger Classic Blend Medium Roast Ground Coffee, 29 oz').name).toBe('Coffee');
     expect(cleanItemName('Folgers Classic Roast K-Cup Pods 24 ct').name).toBe('Coffee Pods');
     const items = [
-      { raw: 'Starbucks Frappuccino Mocha Chilled Coffee Drink', desc: 'Starbucks Frappuccino Mocha Chilled Coffee Drink', name: 'Coffee', key: 'coffee', price: 7.49, qty: 1, dept: 'drinks' as const },
+      {
+        raw: 'Starbucks Frappuccino Mocha Chilled Coffee Drink',
+        desc: 'Starbucks Frappuccino Mocha Chilled Coffee Drink',
+        name: 'Coffee',
+        key: 'coffee',
+        price: 7.49,
+        qty: 1,
+        dept: 'drinks' as const,
+      },
       { raw: 'Kroger Classic Blend Medium Roast Ground Coffee', desc: 'Kroger Classic Blend Medium Roast Ground Coffee', name: 'Coffee', key: 'coffee', price: 12.99, qty: 1, dept: 'drinks' as const },
       { raw: 'Kroger Classic Blend Medium Roast Ground Coffee', desc: 'Kroger Classic Blend Medium Roast Ground Coffee', name: 'Coffee', key: 'coffee', price: 12.99, qty: 1, dept: 'drinks' as const },
     ];

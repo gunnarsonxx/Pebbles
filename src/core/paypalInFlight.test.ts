@@ -6,7 +6,19 @@ const acct = (id: string, name: string, available: number): Account => ({ id, na
 const spend = acct('spend', 'USAA Spending Account', 20);
 const bills = acct('bills', 'USAA Bills Account', 344.08);
 const pp: Account = { id: 'pp', name: 'PayPal', institution: 'PayPal', type: 'other', source: 'plaid' };
-const tx = (p: Partial<Transaction>): Transaction => ({ id: Math.random().toString(36), accountId: 'pp', date: '2026-11-20', description: '', merchant: '', amount: 0, category: 'shopping', importId: null, excluded: false, note: '', ...p });
+const tx = (p: Partial<Transaction>): Transaction => ({
+  id: Math.random().toString(36),
+  accountId: 'pp',
+  date: '2026-11-20',
+  description: '',
+  merchant: '',
+  amount: 0,
+  category: 'shopping',
+  importId: null,
+  excluded: false,
+  note: '',
+  ...p,
+});
 
 describe('PayPal purchases the bank balance doesn’t show yet', () => {
   const steam = tx({ id: 'steam', description: 'Payment to Valve Corporation', merchant: 'Steam', amount: -15.99, category: 'entertainment' });

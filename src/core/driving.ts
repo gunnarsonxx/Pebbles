@@ -110,4 +110,3 @@ export const trustworthy = (s: DrivingStats | null): s is DrivingStats => !!s &&
 export function monthlyFuelCost(milesPerMonth: number, mpg: number, perGallon: number): number {
   return round2((milesPerMonth / mpg) * perGallon);
 }
-

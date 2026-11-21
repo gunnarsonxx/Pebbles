@@ -189,7 +189,12 @@ export function parseOfx(text: string): ParseResult {
 }
 
 function decodeEntities(s: string): string {
-  return s.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&apos;/g, "'").replace(/&quot;/g, '"');
+  return s
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&apos;/g, "'")
+    .replace(/&quot;/g, '"');
 }
 
 // ---------------- PDF (text lines) ----------------
@@ -296,7 +301,7 @@ export function parsePdfLines(lines: string[], fallbackYear = new Date().getFull
     continuation = 0;
     txns.push(last);
   }
-  if (!txns.length) warnings.push("No transactions were recognized in this PDF. If your bank offers CSV or QFX downloads, those import perfectly.");
+  if (!txns.length) warnings.push('No transactions were recognized in this PDF. If your bank offers CSV or QFX downloads, those import perfectly.');
   else warnings.push('PDF statements are read by layout, so give the list a quick look before importing.');
   return { format: 'pdf', transactions: txns, warnings };
 }
@@ -398,7 +403,10 @@ function titleCase(s: string): string {
 
 /** Merchant key used to group transactions (recurring detection, rules). */
 export function merchantKey(desc: string): string {
-  return cleanMerchant(desc).toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 16);
+  return cleanMerchant(desc)
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '')
+    .slice(0, 16);
 }
 
 /** Stable ids so re-importing the same statement never creates duplicates. */

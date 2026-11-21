@@ -20,6 +20,9 @@ import {
   transactionFromPlaid,
   type LinkedItem,
   type PlaidCreds,
+  refreshTransactions,
+  getLiveBalances,
+  itemStatus,
 } from '../core/plaid';
 import { today } from '../core/dates';
 import type { Account, BankLink } from '../core/types';
@@ -185,14 +188,16 @@ export async function connectBank(onStatus: (msg: string) => void, reconnect?: B
 }
 
 /** Pull new, changed and removed transactions plus balances for one bank. */
-export async function syncBank(link: BankLink): Promise<{ added: number }> {
+export async function syncBank(link: BankLink, live = false): Promise<{ added: number }> {
   const creds = plaidCreds();
   if (!creds) return { added: 0 };
   try {
     const r = await syncTransactions(http, creds, link.accessToken, link.cursor);
     const rules = store.list('rules');
-    // accounts & balances come from /accounts/get so they show up even before transactions are ready
-    const plaidAccounts = await getAccounts(http, creds, link.accessToken).catch(() => r.accounts);
+    // accounts & balances: straight from the bank when you ask for a refresh, else Plaid's latest copy
+    const plaidAccounts = await (live ? getLiveBalances(http, creds, link.accessToken).catch(() => getAccounts(http, creds, link.accessToken)) : getAccounts(http, creds, link.accessToken)).catch(
+      () => r.accounts,
+    );
     const accounts: Account[] = (plaidAccounts.length ? plaidAccounts : r.accounts).map((a) => {
       const fresh = accountFromPlaid(a, link.institution, link.id, today());
       const cur = store.get('accounts', fresh.id);
@@ -234,8 +239,11 @@ export async function syncBank(link: BankLink): Promise<{ added: number }> {
     const removed = r.removed.map((id) => 'p_' + id).filter((id) => store.get('transactions', id));
     if (removed.length) await store.remove('transactions', removed);
     await store.put('links', { ...link, cursor: r.cursor, lastSync: Date.now(), error: null });
+    // when Plaid itself last heard from the bank: "nothing new" usually just means Plaid hasn't checked again yet
+    const st = await itemStatus(http, creds, link.accessToken).catch(() => null);
+    const heard = st?.lastSuccess ? ` · Plaid last got news from ${link.institution} ${ago(st.lastSuccess)}` : '';
     await log(
-      `${link.institution}: ${accounts.length} account${accounts.length === 1 ? '' : 's'}, ${merged.length} new or updated transaction${merged.length === 1 ? '' : 's'}` +
+      `${link.institution}: ${accounts.length} account${accounts.length === 1 ? '' : 's'}, ${merged.length} new or updated transaction${merged.length === 1 ? '' : 's'}${live ? ', live balances' : ''}${heard}` +
         (merged.length === 0 && !link.cursor ? ' (banks can take a few minutes to send history the first time)' : ''),
     );
     return { added: merged.length };
@@ -247,16 +255,50 @@ export async function syncBank(link: BankLink): Promise<{ added: number }> {
   }
 }
 
+function ago(iso: string): string {
+  const mins = Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 60_000));
+  if (mins < 60) return `${mins} min ago`;
+  const h = Math.round(mins / 60);
+  return h < 48 ? `${h} h ago` : `${Math.round(h / 24)} days ago`;
+}
+
 let syncing = false;
+let refreshUnsupported = false;
+let followUps: ReturnType<typeof setTimeout>[] = [];
+/**
+ * Pull from every bank. A refresh you ask for (force) also asks Plaid to check each bank right now and gets live
+ * balances; since the bank's answer takes a moment to reach Plaid, Pebbles looks again a minute and three minutes later.
+ */
 export async function syncAllBanks(force = false): Promise<void> {
-  if (syncing || !plaidCreds()) return;
+  const creds = plaidCreds();
+  if (syncing || !creds) return;
   syncing = true;
   try {
     await recoverPendingLinks().catch(() => {});
-    for (const link of store.list('links')) {
+    const links = store.list('links');
+    if (force && !refreshUnsupported) {
+      for (const link of links) {
+        await refreshTransactions(http, creds, link.accessToken).catch(async (e) => {
+          // not every Plaid plan includes on-demand refresh; then Plaid checks the bank on its own schedule
+          if (e instanceof PlaidError && /PRODUCT|NOT_ENABLED|INVALID_PRODUCT|not authorized|ACCESS/i.test(`${e.code} ${e.message}`)) {
+            refreshUnsupported = true;
+            await log('On-demand refresh isn’t on your Plaid plan, so Plaid checks your banks on its own schedule (a few times a day).');
+          }
+        });
+      }
+    }
+    for (const link of links) {
       // banks that haven't sent anything yet are retried every time
       if (!force && link.cursor && link.lastSync && Date.now() - link.lastSync < 30 * 60_000) continue;
-      await syncBank(link).catch(() => {});
+      await syncBank(link, force).catch(() => {});
+    }
+    if (force && !refreshUnsupported) {
+      followUps.forEach(clearTimeout);
+      followUps = [60_000, 180_000].map((ms) =>
+        setTimeout(async () => {
+          for (const link of store.list('links')) await syncBank(link).catch(() => {});
+        }, ms),
+      );
     }
   } finally {
     syncing = false;

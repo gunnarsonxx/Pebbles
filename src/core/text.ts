@@ -2,7 +2,35 @@
 // unless they start or end the title). Abbreviations and odd casing (FICA, W-4, 401(k), APY,
 // iPhone) are left exactly as written.
 
-const SMALL = new Set(['a', 'an', 'the', 'and', 'but', 'or', 'nor', 'for', 'so', 'yet', 'as', 'at', 'by', 'in', 'of', 'on', 'per', 'to', 'via', 'vs', 'vs.', 'from', 'into', 'onto', 'with', 'than', 'if']);
+const SMALL = new Set([
+  'a',
+  'an',
+  'the',
+  'and',
+  'but',
+  'or',
+  'nor',
+  'for',
+  'so',
+  'yet',
+  'as',
+  'at',
+  'by',
+  'in',
+  'of',
+  'on',
+  'per',
+  'to',
+  'via',
+  'vs',
+  'vs.',
+  'from',
+  'into',
+  'onto',
+  'with',
+  'than',
+  'if',
+]);
 
 function capWord(w: string): string {
   // leave anything that already has capitals after the first letter, digits, or symbols-only

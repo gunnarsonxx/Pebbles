@@ -190,8 +190,19 @@ describe('no tax on overtime', () => {
 
 describe('learning from real paychecks', () => {
   const rec = (payday: string, raw: number, shown: number, actual: number) => ({
-    id: payday, periodStart: payday, payday, estimatedNet: shown, estimatedNetRaw: raw, estimatedGross: 1760,
-    actualNet: actual, actualGross: null, received: true, savingsOverride: null, split: null, goalAllocations: [], note: '',
+    id: payday,
+    periodStart: payday,
+    payday,
+    estimatedNet: shown,
+    estimatedNetRaw: raw,
+    estimatedGross: 1760,
+    actualNet: actual,
+    actualGross: null,
+    received: true,
+    savingsOverride: null,
+    split: null,
+    goalAllocations: [],
+    note: '',
   });
   it('needs two consistent paychecks', () => {
     expect(calibrationFrom([rec('2026-10-02', 1400, 1400, 1380)])).toBe(0);
@@ -210,7 +221,18 @@ describe('learning from real paychecks', () => {
 describe('overnight shifts (9:30p–6a, 30 min break after midnight)', () => {
   const s = defaultSettings();
   // shifts start Sat, Sun, Mon, Tue, Wed nights; pay periods run Sun–Sat
-  s.pay = { ...s.pay, periodAnchor: '2026-11-08', paydayOffset: 6, baseRate: 20, workDays: [6, 0, 1, 2, 3], shiftStart: '21:30', shiftEnd: '06:00', breakMinutes: 30, breakAfterMidnight: true, holidays: { ids: [], observed: false, rule: 'calendar', confirmed: true } };
+  s.pay = {
+    ...s.pay,
+    periodAnchor: '2026-11-08',
+    paydayOffset: 6,
+    baseRate: 20,
+    workDays: [6, 0, 1, 2, 3],
+    shiftStart: '21:30',
+    shiftEnd: '06:00',
+    breakMinutes: 30,
+    breakAfterMidnight: true,
+    holidays: { ids: [], observed: false, rule: 'calendar', confirmed: true },
+  };
   const period = periodByIndex(s.pay, 0); // Sun Nov 8 – Sat Nov 21
 
   it('splits each shift 2.5 h before midnight and 5.5 h after', async () => {
@@ -257,7 +279,18 @@ describe('overnight shifts (9:30p–6a, 30 min break after midnight)', () => {
 
 describe('overnight shift edge cases', () => {
   const s = defaultSettings();
-  s.pay = { ...s.pay, periodAnchor: '2026-11-08', paydayOffset: 6, baseRate: 20, workDays: [6, 0, 1, 2, 3], shiftStart: '21:30', shiftEnd: '06:00', breakMinutes: 30, breakAfterMidnight: true, holidays: { ids: [], observed: false, rule: 'calendar', confirmed: true } };
+  s.pay = {
+    ...s.pay,
+    periodAnchor: '2026-11-08',
+    paydayOffset: 6,
+    baseRate: 20,
+    workDays: [6, 0, 1, 2, 3],
+    shiftStart: '21:30',
+    shiftEnd: '06:00',
+    breakMinutes: 30,
+    breakAfterMidnight: true,
+    holidays: { ids: [], observed: false, rule: 'calendar', confirmed: true },
+  };
   const p0 = periodByIndex(s.pay, 0);
   const p1 = periodByIndex(s.pay, 1);
 
@@ -290,7 +323,18 @@ describe('holidays', () => {
   });
 
   const s = defaultSettings();
-  s.pay = { ...s.pay, periodAnchor: '2026-11-08', paydayOffset: 6, baseRate: 20, workDays: [6, 0, 1, 2, 3], shiftStart: '21:30', shiftEnd: '06:00', breakMinutes: 30, breakAfterMidnight: true, holidayMultiplier: 1.5 };
+  s.pay = {
+    ...s.pay,
+    periodAnchor: '2026-11-08',
+    paydayOffset: 6,
+    baseRate: 20,
+    workDays: [6, 0, 1, 2, 3],
+    shiftStart: '21:30',
+    shiftEnd: '06:00',
+    breakMinutes: 30,
+    breakAfterMidnight: true,
+    holidayMultiplier: 1.5,
+  };
   const p0 = periodByIndex(s.pay, 0); // includes Veterans Day, Wed Nov 11
 
   it('pays the hours worked on the holiday date at 1.5×', () => {

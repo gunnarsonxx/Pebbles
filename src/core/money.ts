@@ -73,7 +73,12 @@ export function parseAmount(raw: string): number | null {
 export function uid(prefix = ''): string {
   const a = new Uint8Array(9);
   crypto.getRandomValues(a);
-  return prefix + Array.from(a, (b) => b.toString(36).padStart(2, '0')).join('').slice(0, 14);
+  return (
+    prefix +
+    Array.from(a, (b) => b.toString(36).padStart(2, '0'))
+      .join('')
+      .slice(0, 14)
+  );
 }
 
 /** Small, fast, deterministic string hash (FNV-1a 32 bit) as base36. */

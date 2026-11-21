@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState, ty
 import { createPortal } from 'react-dom';
 import {
   AlertTriangle,
+  ChevronDown,
   ArrowLeftRight,
   Baby,
   Banknote,
@@ -405,4 +406,56 @@ export async function compressImage(file: File, max = 900, quality = 0.8): Promi
   } finally {
     URL.revokeObjectURL(url);
   }
+}
+
+/** A section that folds up: a header (with an optional count) that opens and closes what's under it. */
+export function Fold({
+  title,
+  count,
+  note,
+  defaultOpen = false,
+  children,
+  card = true,
+}: {
+  title: ReactNode;
+  count?: number;
+  note?: ReactNode;
+  defaultOpen?: boolean;
+  children: ReactNode;
+  card?: boolean;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className={card ? 'card fold' : 'fold'} style={card ? { padding: '10px 14px' } : undefined}>
+      <button className="fold-head" onClick={() => setOpen(!open)} aria-expanded={open}>
+        <span className="eyebrow" style={{ margin: 0 }}>
+          {title}
+          {count != null && <span className="fold-count">{count}</span>}
+        </span>
+        {note && !open && (
+          <span className="tiny muted grow ellipsis" style={{ textAlign: 'right' }}>
+            {note}
+          </span>
+        )}
+        <ChevronDown size={18} className="fold-chev" style={{ transform: open ? 'rotate(180deg)' : undefined }} />
+      </button>
+      {open && <div className="fold-body">{children}</div>}
+    </div>
+  );
+}
+
+/** The first few of a list, with a button for the rest. */
+export function ShowMore<T>({ items, first = 3, render, more = 'more' }: { items: T[]; first?: number; render: (x: T, i: number) => ReactNode; more?: string }) {
+  const [all, setAll] = useState(false);
+  const shown = all ? items : items.slice(0, first);
+  return (
+    <>
+      {shown.map(render)}
+      {items.length > first && (
+        <button className="link-btn small show-more" onClick={() => setAll(!all)}>
+          {all ? 'Show fewer' : `Show ${items.length - first} ${more}`}
+        </button>
+      )}
+    </>
+  );
 }

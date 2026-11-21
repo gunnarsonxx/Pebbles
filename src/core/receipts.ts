@@ -53,16 +53,33 @@ const STORES: [RegExp, string][] = [
   [/\bCVS\b/i, 'CVS'],
 ];
 
-export const GAS_STORES = new Set(['Circle K', '7-Eleven', "Loaf 'N Jug", 'Maverik', 'Murphy USA', 'Kum & Go', 'QuikTrip', 'Conoco', 'Phillips 66', 'Shell', 'Sinclair', 'Chevron', 'Exxon', 'Valero', "Love's", 'Pilot', 'Speedway', "Casey's"]);
+export const GAS_STORES = new Set([
+  'Circle K',
+  '7-Eleven',
+  "Loaf 'N Jug",
+  'Maverik',
+  'Murphy USA',
+  'Kum & Go',
+  'QuikTrip',
+  'Conoco',
+  'Phillips 66',
+  'Shell',
+  'Sinclair',
+  'Chevron',
+  'Exxon',
+  'Valero',
+  "Love's",
+  'Pilot',
+  'Speedway',
+  "Casey's",
+]);
 
 /** The pump line: gallons and price per gallon (a receipt shows them a few different ways). */
 export function findFuel(text: string): { gallons: number; perGallon: number; grade: string } | null {
   const t = text.toUpperCase();
   const gal = t.match(/(\d{1,3}\.\d{2,3})\s*(?:G\b|GAL\b|GALS\b|GALLONS?\b)/) ?? t.match(/GAL(?:LON)?S?\s*[:=]?\s*(\d{1,3}\.\d{2,3})/);
   const ppg =
-    t.match(/(?:PRICE\s*\/?\s*G(?:AL)?|PPG|PER\s*GAL(?:LON)?)\s*[:=]?\s*\$?\s*(\d\.\d{2,3})/) ??
-    t.match(/@\s*\$?\s*(\d\.\d{2,3})\s*(?:\/\s*G(?:AL)?)?/) ??
-    t.match(/\$?(\d\.\d{3})\s*\/\s*G/);
+    t.match(/(?:PRICE\s*\/?\s*G(?:AL)?|PPG|PER\s*GAL(?:LON)?)\s*[:=]?\s*\$?\s*(\d\.\d{2,3})/) ?? t.match(/@\s*\$?\s*(\d\.\d{2,3})\s*(?:\/\s*G(?:AL)?)?/) ?? t.match(/\$?(\d\.\d{3})\s*\/\s*G/);
   if (!gal || !ppg) return null;
   const gallons = parseFloat(gal[1]);
   const perGallon = parseFloat(ppg[1]);
@@ -71,7 +88,8 @@ export function findFuel(text: string): { gallons: number; perGallon: number; gr
   return { gallons, perGallon, grade };
 }
 
-const SKIP = /\b(BALANCE|CHANGE|CASH|VISA|MASTER\s*CARD|MASTERCARD|AMEX|DISCOVER|DEBIT|CREDIT|TEND(ER)?|APPROV|AUTH|REF\s*#|ACCOUNT|ACCT|CARD\s*#|ITEMS?\s+SOLD|ITEM\s+COUNT|FUEL\s+POINTS|POINTS|REWARDS|THANK|STORE\s*#|ST\s*#|OP\s*#|TE\s*#|TR\s*#|TC\s*#|CASHIER|TERMINAL|PHONE|WWW\.|\.COM|SURVEY|PAYMENT|EBT|CHIP|AID\b|TVR|SIGNATURE|MGR|MANAGER|RECEIPT|INVOICE|ORDER\s*#)\b/i;
+const SKIP =
+  /\b(BALANCE|CHANGE|CASH|VISA|MASTER\s*CARD|MASTERCARD|AMEX|DISCOVER|DEBIT|CREDIT|TEND(ER)?|APPROV|AUTH|REF\s*#|ACCOUNT|ACCT|CARD\s*#|ITEMS?\s+SOLD|ITEM\s+COUNT|FUEL\s+POINTS|POINTS|REWARDS|THANK|STORE\s*#|ST\s*#|OP\s*#|TE\s*#|TR\s*#|TC\s*#|CASHIER|TERMINAL|PHONE|WWW\.|\.COM|SURVEY|PAYMENT|EBT|CHIP|AID\b|TVR|SIGNATURE|MGR|MANAGER|RECEIPT|INVOICE|ORDER\s*#)\b/i;
 const DISCOUNT = /(SAVINGS|SAVED|\bSC\b|COUPON|CPN|\bDISC\b|DISCOUNT|PROMO|REWARD|MFR|LOYALTY|PRICE\s*CUT|DIGITAL|DIG\s*CPN|ROLLBACK|MARKDOWN)/i;
 const PRICE_END = /(-?\$?\s?\d{1,4}[.,]\s?\d{2})\s*(-)?\s*(?:[A-Z]{1,2}|\*|[A-Z]\s[A-Z])?\s*$/;
 
@@ -101,7 +119,10 @@ const UPC_LINE = /^UPC[:\s]*([\d\s]{6,})/i;
 
 /** "$6-49", "$449", "S0.50" → 6.49, 4.49, 0.50 (OCR swaps . for - and $ for S). */
 export function looseMoney(t: string): number {
-  const d = t.replace(/[S$\s]/gi, '').replace(/O/g, '0').replace(/[-,]/, '.');
+  const d = t
+    .replace(/[S$\s]/gi, '')
+    .replace(/O/g, '0')
+    .replace(/[-,]/, '.');
   if (/^\d+\.\d{2}$/.test(d)) return parseFloat(d);
   if (/^\d{3,}$/.test(d)) return parseInt(d, 10) / 100;
   return parseFloat(d);
@@ -247,8 +268,7 @@ function parseDigital(lines: OcrLine[], rules: ItemRule[], fallbackDate?: string
       tax = diff;
     }
   }
-  if (!complete)
-    warnings.push(`The receipt lists ${listed} items and Pebbles found ${units}. If the rest are further down, add another screenshot below.`);
+  if (!complete) warnings.push(`The receipt lists ${listed} items and Pebbles found ${units}. If the rest are further down, add another screenshot below.`);
   if (!date) warnings.push('No date on this part of the receipt. Check the date below.');
   return {
     fuel: null,
@@ -313,7 +333,14 @@ export function parseReceipt(lines: OcrLine[], rules: ItemRule[] = [], fallbackD
       if (pm && pendingName) {
         const p = fixOcrPrice(pm[1]);
         const c = cleanItemName(pendingName.text);
-        items.push({ raw: `${pendingName.text} ${text}`, ...c, price: round2(p.value), qty: at[2] ? 1 : qty || 1, dept: deptFor(c.name, c.key, rules), lowConfidence: pendingName.confidence < 70 || raw.confidence < 70 || p.fixed });
+        items.push({
+          raw: `${pendingName.text} ${text}`,
+          ...c,
+          price: round2(p.value),
+          qty: at[2] ? 1 : qty || 1,
+          dept: deptFor(c.name, c.key, rules),
+          lowConfidence: pendingName.confidence < 70 || raw.confidence < 70 || p.fixed,
+        });
         pendingName = null;
       } else if (items.length && !at[2]) {
         items[items.length - 1].qty = qty || 1;
@@ -405,7 +432,8 @@ export function mergeReceipts(a: ParsedReceipt, b: ParsedReceipt): ParsedReceipt
   const listed = [...a.warnings, ...b.warnings].map((w) => w.match(/lists (\d+) items/)?.[1]).find(Boolean);
   // receipts count units (3 cans = 3 items), not lines
   const units = items.reduce((s2, i) => s2 + Math.max(1, i.qty || 1), 0);
-  if (listed && Number(listed) > items.length && Number(listed) > units) warnings.push(`The receipt lists ${listed} items and Pebbles found ${units}. If the rest are further down, add another screenshot below.`);
+  if (listed && Number(listed) > items.length && Number(listed) > units)
+    warnings.push(`The receipt lists ${listed} items and Pebbles found ${units}. If the rest are further down, add another screenshot below.`);
   const realDate = a.warnings.some((w) => /No date/.test(w)) ? b.date : a.date;
   if (a.warnings.some((w) => /No date/.test(w)) && b.warnings.some((w) => /No date/.test(w))) warnings.push('No date on this part of the receipt. Check the date below.');
   const savings = items.some((i) => i.deal) ? round2(items.reduce((s, i) => s + (i.deal?.saved ?? 0), 0)) : (a.savings ?? b.savings);

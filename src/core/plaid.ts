@@ -192,6 +192,23 @@ export async function syncTransactions(http: HttpFn, creds: PlaidCreds, accessTo
   throw new PlaidError('Plaid kept changing during download. Try again in a minute.', null);
 }
 
+/** Ask Plaid to check the bank for new transactions right now (they arrive a little later). */
+export async function refreshTransactions(http: HttpFn, creds: PlaidCreds, accessToken: string): Promise<void> {
+  await call(http, creds, '/transactions/refresh', { access_token: accessToken });
+}
+
+/** Balances straight from the bank, not Plaid's last copy. */
+export async function getLiveBalances(http: HttpFn, creds: PlaidCreds, accessToken: string): Promise<PlaidAccount[]> {
+  const r = await call<{ accounts: PlaidAccount[] }>(http, creds, '/accounts/balance/get', { access_token: accessToken });
+  return r.accounts;
+}
+
+/** When Plaid last got new transactions from the bank (and last tried). */
+export async function itemStatus(http: HttpFn, creds: PlaidCreds, accessToken: string): Promise<{ lastSuccess: string | null; lastFailure: string | null }> {
+  const r = await call<{ status?: { transactions?: { last_successful_update?: string | null; last_failed_update?: string | null } } }>(http, creds, '/item/get', { access_token: accessToken });
+  return { lastSuccess: r.status?.transactions?.last_successful_update ?? null, lastFailure: r.status?.transactions?.last_failed_update ?? null };
+}
+
 export async function getAccounts(http: HttpFn, creds: PlaidCreds, accessToken: string): Promise<PlaidAccount[]> {
   const r = await call<{ accounts: PlaidAccount[] }>(http, creds, '/accounts/get', { access_token: accessToken });
   return r.accounts;

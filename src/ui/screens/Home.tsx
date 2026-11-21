@@ -1,17 +1,14 @@
-import { allRecipes, whatCanIMake } from '../../core/recipes';
-import { useMemo, useState } from 'react';
-import { ArrowRight, CalendarDays, ChefHat, Fuel, Receipt, ShoppingBasket, Sprout, History } from 'lucide-react';
+import { useState } from 'react';
+import { ArrowRight, CalendarDays, Fuel, Receipt, ShoppingBasket, Sprout, History } from 'lucide-react';
 import type { AppData } from '../../data/useData';
 import type { GoTo } from '../App';
 import { SplitBar } from '../charts';
 import { PebblePile } from '../PebblePile';
-import { CategoryIcon, GemIcon, Progress } from '../components';
-import { InsightList } from '../InsightList';
+import { GemIcon, Progress } from '../components';
 import { UpdateBanner } from '../UpdateCard';
-import { CoverageCard, MovesCard, PastPlanCard } from '../AutopilotCards';
+import { MoneyGlance, MovesCard, PastPlanCard } from '../AutopilotCards';
 import { ReceiveSheet } from '../sheets/ReceiveSheet';
-import { fmtDay, fmtDayOrd, fmtShort, relativeDays, addDays, diffDays } from '../../core/dates';
-import { billsDueBetween } from '../../core/budget';
+import { fmtDay, fmtDayOrd, fmtShort, relativeDays, diffDays } from '../../core/dates';
 import { pebbles, usd } from '../../core/money';
 import { currentGasPrice } from '../../core/food';
 import { gemBar } from '../../core/categories';
@@ -39,14 +36,12 @@ export function HomeScreen({ data, go }: { data: AppData; go: GoTo }) {
   const { upcoming, settings } = data;
   // the same paycheck the payday steps are about, so every number matches
   const plan = data.movesFor?.plan ?? data.plan;
-  const mealsReady = useMemo(() => (data.pantry.length ? whatCanIMake(allRecipes(data.customRecipes), data.pantry).ready.length : 0), [data.pantry, data.customRecipes]);
   const planPayday = data.movesFor?.period.payday ?? upcoming.period.payday;
   const p = upcoming.period;
   const record = data.paychecks.get(p.start);
   const actual = record?.received && record.actualNet != null ? record.actualNet : null;
   const changes = upcoming.gross.adjustments.length;
   const isPayday = diffDays(p.payday, data.today) <= 0;
-  const bills = billsDueBetween(data.bills, data.today, addDays(data.today, 15));
   const activeGoals = data.goals.filter((g) => !g.archived);
   const gas = currentGasPrice(data.market);
   const completedGems = activeGoals.filter((g) => g.completedAt).map((g) => g.gem);
@@ -162,8 +157,7 @@ export function HomeScreen({ data, go }: { data: AppData; go: GoTo }) {
         </div>
       </div>
 
-      <CoverageCard data={data} compact />
-      {back === 0 && <MovesCard data={data} />}
+      <MoneyGlance data={data} />
 
       <div className="card mt">
         <div className="card-head">
@@ -208,59 +202,7 @@ export function HomeScreen({ data, go }: { data: AppData; go: GoTo }) {
         )}
         {plan.shortfall > 0 && <p className="small bad mt">Short by {usd(plan.shortfall)} this check. See Plan for ideas.</p>}
       </div>
-
-      <div className="grid two mt">
-        <div className="card">
-          <div className="card-head">
-            <div className="eyebrow">Bills in the Next 2 Weeks</div>
-            <button className="btn ghost small" onClick={() => go('budget', 'bills')}>
-              All Bills
-            </button>
-          </div>
-          {bills.length ? (
-            <div className="list">
-              {bills.slice(0, 5).map((b) => (
-                <div key={b.bill.id + b.date} className="list-item">
-                  <CategoryIcon id={b.bill.category} size={34} />
-                  <div className="grow">
-                    <div className="strong ellipsis">{b.bill.name}</div>
-                    <div className="tiny muted">
-                      {fmtDay(b.date)} · {relativeDays(b.date, data.today)}
-                      {b.bill.autopay ? ' · autopay' : ''}
-                    </div>
-                  </div>
-                  <div className="amount">{usd(b.amount)}</div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="small muted">{data.bills.length ? 'Nothing due in the next two weeks.' : 'Add your monthly bills in Plan so Pebbles can set money aside for them.'}</p>
-          )}
-        </div>
-
-        <div className="card">
-          <div className="card-head">
-            <div className="eyebrow">Field Notes</div>
-            <button className="btn ghost small" onClick={() => go('plan')}>
-              More
-            </button>
-          </div>
-          <InsightList items={data.insights} limit={2} />
-        </div>
-      </div>
-
-      {data.pantry.length > 0 && (
-        <button className="card action-card mt" onClick={() => go('groceries', 'meals')}>
-          <span className="list-icon" style={{ background: 'var(--moss-soft)', color: 'var(--moss-strong)' }}>
-            <ChefHat />
-          </span>
-          <div className="grow">
-            <div className="strong">{mealsReady ? `${mealsReady} Meal${mealsReady === 1 ? '' : 's'} You Can Make Right Now` : 'What Can I Make?'}</div>
-            <div className="small muted">From what’s already in your kitchen, before you buy more.</div>
-          </div>
-          <ArrowRight />
-        </button>
-      )}
+      {back === 0 && <MovesCard data={data} foldable />}
 
       <div className="row wrap mt" style={{ gap: 8 }}>
         {gas && (

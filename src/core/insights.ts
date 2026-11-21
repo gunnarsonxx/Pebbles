@@ -58,7 +58,10 @@ export function generateInsights(i: InsightInput): Insight[] {
   const subs = detectRecurring(txns, [], asOf).filter((r) => r.category === 'subscriptions' || r.category === 'entertainment');
   const subMonthly = subs.reduce((s, r) => s + (r.frequency === 'yearly' ? r.amount / 12 : r.frequency === 'weekly' ? (r.amount * 52) / 12 : r.amount), 0);
   if (subs.length >= 2) {
-    const names = subs.slice(0, 4).map((s) => `${s.name} (${usd(s.amount)})`).join(', ');
+    const names = subs
+      .slice(0, 4)
+      .map((s) => `${s.name} (${usd(s.amount)})`)
+      .join(', ');
     out.push({
       id: 'subs',
       kind: 'cut',
@@ -100,9 +103,7 @@ export function generateInsights(i: InsightInput): Insight[] {
     }
 
     // Coffee habit
-    const coffee = txns.filter(
-      (t) => months.includes(monthKey(t.date)) && t.amount < 0 && /STARBUCKS|DUTCH BROS|COFFEE|DUNKIN|SCOOTERS|PEET|CARIBOU|ESPRESSO|CAFE/i.test(t.description),
-    );
+    const coffee = txns.filter((t) => months.includes(monthKey(t.date)) && t.amount < 0 && /STARBUCKS|DUTCH BROS|COFFEE|DUNKIN|SCOOTERS|PEET|CARIBOU|ESPRESSO|CAFE/i.test(t.description));
     if (coffee.length / Math.max(1, months.length) >= 8) {
       const monthly = -coffee.reduce((s, t) => s + t.amount, 0) / months.length;
       out.push({
@@ -226,7 +227,9 @@ export function generateInsights(i: InsightInput): Insight[] {
   }
 
   // Three-paycheck months
-  const triple = threePaycheckMonths(i.upcomingPaydays).filter((m) => m >= current).slice(0, 1);
+  const triple = threePaycheckMonths(i.upcomingPaydays)
+    .filter((m) => m >= current)
+    .slice(0, 1);
   if (triple.length) {
     out.push({
       id: `triple-${triple[0]}`,
@@ -326,6 +329,123 @@ export function generateInsights(i: InsightInput): Insight[] {
         priority: 38,
       });
     }
+  }
+
+  // more notes from your own spending
+  if (hasData && last) {
+    const personal = (t: Transaction) => t.amount < 0 && !t.excluded && !t.dupOf && categoryOf(t.category).group === 'personal';
+    const inMonth = (m: string) => txns.filter((t) => monthKey(t.date) === m);
+    const lastTx = inMonth(last);
+
+    // where the most money went
+    const top = topMerchants(txns, last, 1)[0];
+    if (top && top.total >= 60) {
+      out.push({
+        id: 'top-merchant',
+        kind: 'heads_up',
+        title: `${top.name} Was Your Biggest Spot`,
+        body: `${usd(top.total)} over ${top.count} purchase${top.count === 1 ? '' : 's'} in ${fmtMonth(last)}. Worth a look: is that where you want the most money to go?`,
+        monthlyImpact: 0,
+        priority: 22,
+      });
+    }
+
+    // the category that changed the most from the month before
+    const prev = months[1];
+    if (prev) {
+      const byCat = (m: string) => {
+        const map = new Map<string, number>();
+        for (const t of inMonth(m)) if (personal(t) || ['groceries', 'gas'].includes(t.category)) map.set(t.category, (map.get(t.category) ?? 0) - t.amount);
+        return map;
+      };
+      const a = byCat(last);
+      const b = byCat(prev);
+      const changes = [...new Set([...a.keys(), ...b.keys()])].map((c) => ({ c, d: (a.get(c) ?? 0) - (b.get(c) ?? 0) })).sort((x, y) => Math.abs(y.d) - Math.abs(x.d));
+      const ch = changes[0];
+      if (ch && Math.abs(ch.d) >= 50) {
+        out.push({
+          id: 'biggest-change',
+          kind: ch.d > 0 ? 'heads_up' : 'win',
+          title: `${categoryOf(ch.c).name} ${ch.d > 0 ? 'Went Up' : 'Came Down'} ${usd(Math.abs(ch.d), true)}`,
+          body: `${fmtMonth(last)} vs ${fmtMonth(prev)}: ${usd(a.get(ch.c) ?? 0, true)} compared to ${usd(b.get(ch.c) ?? 0, true)}.${ch.d > 0 ? ' A one-off, or a new habit?' : ' Nice work keeping it down.'}`,
+          monthlyImpact: ch.d > 0 ? round2(ch.d) : 0,
+          priority: ch.d > 0 ? 34 : 18,
+        });
+      }
+    }
+
+    // small buys add up
+    const small = lastTx.filter((t) => personal(t) && -t.amount < 12);
+    const smallTotal = small.reduce((x, t) => x - t.amount, 0);
+    if (small.length >= 10 && smallTotal >= 60) {
+      out.push({
+        id: 'small-buys',
+        kind: 'cut',
+        title: `${small.length} Small Buys Added Up to ${usd(smallTotal, true)}`,
+        body: `Purchases under $12 in ${fmtMonth(last)}. Each one feels like nothing; together they're a ${usd(smallTotal / 2, true)} paycheck. Cutting a third of them frees about ${usd(smallTotal / 3, true)} a month.`,
+        monthlyImpact: round2(smallTotal / 3),
+        priority: 30,
+      });
+    }
+
+    // the days right after payday
+    if (i.upcomingPaydays.length) {
+      const spent = (from: number, to: number) =>
+        txns
+          .filter((t) => personal(t) && monthKey(t.date) === last)
+          .filter((t) => {
+            // days since the most recent payday on a 14-day cycle
+            const d = ((diffDays(t.date, i.upcomingPaydays[0]) % 14) + 14) % 14;
+            return d >= from && d <= to;
+          })
+          .reduce((x, t) => x - t.amount, 0);
+      const first3 = spent(0, 2);
+      const rest = spent(3, 13);
+      const all = first3 + rest;
+      if (all >= 150 && first3 / all > 0.4) {
+        out.push({
+          id: 'payday-splurge',
+          kind: 'heads_up',
+          title: 'Most Fun Money Goes in the First 3 Days',
+          body: `${Math.round((first3 / all) * 100)}% of your personal spending in ${fmtMonth(last)} happened within 3 days of payday. Moving savings first thing on payday (Pebbles' payday moves) keeps it from slipping away.`,
+          monthlyImpact: 0,
+          priority: 26,
+        });
+      }
+    }
+
+    // weekends
+    const wk = lastTx.filter(personal);
+    const weekend = wk.filter((t) => [0, 5, 6].includes(new Date(`${t.date}T12:00:00`).getDay())).reduce((x, t) => x - t.amount, 0);
+    const wkAll = wk.reduce((x, t) => x - t.amount, 0);
+    if (wkAll >= 200 && weekend / wkAll > 0.6) {
+      out.push({
+        id: 'weekends',
+        kind: 'heads_up',
+        title: 'Weekends Are Where It Goes',
+        body: `${Math.round((weekend / wkAll) * 100)}% of your personal spending in ${fmtMonth(last)} was Friday through Sunday. Planning one free weekend activity a month is an easy trim.`,
+        monthlyImpact: round2(weekend * 0.15),
+        priority: 20,
+      });
+    }
+  }
+
+  // bills vs take-home (experts suggest about half for needs)
+  const billsMonthly = monthlyBillsTotal(i.bills);
+  const netMonthly = (i.netPerPaycheck * 26) / 12;
+  if (billsMonthly > 0 && netMonthly > 0) {
+    const share = billsMonthly / netMonthly;
+    out.push({
+      id: 'bills-share',
+      kind: share > 0.5 ? 'heads_up' : 'win',
+      title: share > 0.5 ? `Bills Take ${Math.round(share * 100)}% of Your Pay` : `Bills Are ${Math.round(share * 100)}% of Your Pay`,
+      body:
+        share > 0.5
+          ? `${usd(billsMonthly, true)} a month out of about ${usd(netMonthly, true)} take-home. Experts aim for needs around 50%; the biggest bills (rent, car, insurance) are where a change matters most.`
+          : `${usd(billsMonthly, true)} a month out of about ${usd(netMonthly, true)} take-home, under the 50% experts suggest for needs. That room is what lets you save.`,
+      monthlyImpact: 0,
+      priority: share > 0.5 ? 36 : 12,
+    });
   }
 
   return out.sort((a, b) => b.priority - a.priority);

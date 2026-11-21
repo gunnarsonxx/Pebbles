@@ -1,7 +1,23 @@
-import { useState } from 'react';
-import { Check, ChevronLeft, ChevronRight, Circle, Compass, PiggyBank, TriangleAlert, CircleCheck, CircleDot, SlidersHorizontal } from 'lucide-react';
+import { useState, type ReactNode } from 'react';
+import {
+  Check,
+  Pencil,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Landmark,
+  ShoppingBasket,
+  Smile,
+  Circle,
+  Compass,
+  PiggyBank,
+  TriangleAlert,
+  CircleCheck,
+  CircleDot,
+  SlidersHorizontal,
+} from 'lucide-react';
 import { SplitBar } from './charts';
-import { GemIcon, NumberInput, Segmented, Sheet, useToast } from './components';
+import { Field, GemIcon, NumberInput, Sheet, useToast } from './components';
 import { store } from '../data/store';
 import { saveSettings } from '../data/actions';
 import { setGoalSplit } from '../core/savingsAccount';
@@ -18,7 +34,8 @@ import { Browser } from '@capacitor/browser';
 import type { Standing } from '../core/guidelines';
 
 /** Home: what to do with this paycheck. The only part of money you have to think about. */
-export function MovesCard({ data, m = data.movesFor }: { data: AppData; m?: AppData['movesFor'] }) {
+export function MovesCard({ data, m = data.movesFor, foldable }: { data: AppData; m?: AppData['movesFor']; foldable?: boolean }) {
+  const [open, setOpen] = useState(!foldable);
   if (!m) return null;
   const { period, plan, moves, isPast } = m;
   const daysTo = Math.round((Date.parse(period.payday) - Date.parse(data.today)) / 86_400_000);
@@ -26,49 +43,58 @@ export function MovesCard({ data, m = data.movesFor }: { data: AppData; m?: AppD
   const header = isPast || daysTo <= 0 ? `Payday Moves · ${fmtDay(period.payday)}` : `On Payday (${fmtDay(period.payday)}), Do This`;
   return (
     <div className="card mt">
-      <div className="card-head">
+      <button
+        className="card-head"
+        style={{ width: '100%', background: 'none', border: 0, padding: 0, color: 'inherit', textAlign: 'left', cursor: foldable ? 'pointer' : 'default', marginBottom: open ? undefined : 0 }}
+        onClick={() => foldable && setOpen(!open)}
+        aria-expanded={open}
+      >
         <div>
           <div className="eyebrow">{header}</div>
-          <div className="small muted">{allDone && (isPast || daysTo <= 0) ? 'All done. Nothing else to think about until next payday.' : 'Pebbles did the math. You just move the money.'}</div>
+          {(open || allDone) && (
+            <div className="small muted">{allDone && (isPast || daysTo <= 0) ? 'All done. Nothing else to think about until next payday.' : 'Pebbles did the math. You just move the money.'}</div>
+          )}
         </div>
-        <Compass style={{ color: 'var(--moss)' }} />
-      </div>
-      <div className="list">
-        {moves.map((mv) => (
-          <div key={mv.key} className="list-item" style={{ alignItems: 'flex-start' }}>
-            {mv.checkable ? (
-              <button
-                className="icon-btn"
-                style={{ marginTop: -6 }}
-                aria-label={mv.done ? 'Mark not done' : 'Mark done'}
-                onClick={() => {
-                  if (mv.key === 'bonus') {
-                    const g = data.goals.find((x) => !x.archived && !x.completedAt && !x.isEmergency) ?? data.goals.find((x) => !x.archived);
-                    void setBonusMove(period, mv.amount, g?.id ?? null, !mv.done);
-                  } else void setMove(period, plan, mv.key, !mv.done, false, mv.key === 'sweep' && data.goalsAccount?.source === 'plaid');
-                }}
-              >
-                {mv.done ? <CircleCheck style={{ color: 'var(--good)' }} /> : <Circle />}
-              </button>
-            ) : (
-              <div className="icon-btn" style={{ marginTop: -6, cursor: 'default' }}>
-                <CircleDot style={{ color: 'var(--ink-3)' }} />
-              </div>
-            )}
-            <div className="grow">
-              <div className="strong" style={mv.done ? { textDecoration: 'line-through', color: 'var(--ink-3)' } : undefined}>
-                {mv.title}
-              </div>
-              <div className="small muted">{mv.detail}</div>
-              {mv.done && mv.auto && (
-                <div className="tiny good row gap-s">
-                  <Check size={12} /> Spotted in your bank, checked off for you
+        {foldable ? <ChevronDown style={{ color: 'var(--ink-3)', transform: open ? 'rotate(180deg)' : undefined, transition: 'transform 0.2s' }} /> : <Compass style={{ color: 'var(--moss)' }} />}
+      </button>
+      {open && (
+        <div className="list">
+          {moves.map((mv) => (
+            <div key={mv.key} className="list-item" style={{ alignItems: 'flex-start' }}>
+              {mv.checkable ? (
+                <button
+                  className="icon-btn"
+                  style={{ marginTop: -6 }}
+                  aria-label={mv.done ? 'Mark not done' : 'Mark done'}
+                  onClick={() => {
+                    if (mv.key === 'bonus') {
+                      const g = data.goals.find((x) => !x.archived && !x.completedAt && !x.isEmergency) ?? data.goals.find((x) => !x.archived);
+                      void setBonusMove(period, mv.amount, g?.id ?? null, !mv.done);
+                    } else void setMove(period, plan, mv.key, !mv.done, false, mv.key === 'sweep' && data.goalsAccount?.source === 'plaid');
+                  }}
+                >
+                  {mv.done ? <CircleCheck style={{ color: 'var(--good)' }} /> : <Circle />}
+                </button>
+              ) : (
+                <div className="icon-btn" style={{ marginTop: -6, cursor: 'default' }}>
+                  <CircleDot style={{ color: 'var(--ink-3)' }} />
                 </div>
               )}
+              <div className="grow">
+                <div className="strong" style={mv.done ? { textDecoration: 'line-through', color: 'var(--ink-3)' } : undefined}>
+                  {mv.title}
+                </div>
+                <div className="small muted">{mv.detail}</div>
+                {mv.done && mv.auto && (
+                  <div className="tiny good row gap-s">
+                    <Check size={12} /> Spotted in your bank, checked off for you
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -351,7 +377,6 @@ export function CoverageCard({ data, compact }: { data: AppData; compact?: boole
   const c = data.coverage;
   const b = c.bills;
   const sp = c.spending;
-  const pickable = data.accounts.filter((a) => (a.type === 'checking' || a.type === 'savings') && !a.holdsGoals && (a.available ?? a.balance) != null);
   if (!b) return null;
   const chosen = !!data.settings.budget.billsAccountId;
   const isToday = c.nextPayday === data.today;
@@ -398,26 +423,6 @@ export function CoverageCard({ data, compact }: { data: AppData; compact?: boole
       </div>
     );
   };
-  const hasPaypal = data.accounts.some((a) => /paypal/i.test(`${a.name} ${a.institution ?? ''}`));
-  const pick = (key: 'billsAccountId' | 'spendingAccountId', id: string) =>
-    void saveSettings((s) => ({
-      ...s,
-      budget: { ...s.budget, billsAccountId: s.budget.billsAccountId ?? b.account.id, spendingAccountId: s.budget.spendingAccountId ?? sp?.account.id ?? null, [key]: id || null },
-    }));
-  const select = (key: 'billsAccountId' | 'spendingAccountId', value: string, label: string, allowNone: boolean) => (
-    <label className="row between small" style={{ gap: 8 }}>
-      <span className="ink2">{label}</span>
-      <select className="input coverage-pick" value={value} aria-label={label} onChange={(e) => pick(key, e.target.value)}>
-        {allowNone && <option value="">None</option>}
-        {pickable.map((a) => (
-          <option key={a.id} value={a.id}>
-            {name(a)}
-            {a.mask ? ` ••${a.mask}` : ''}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
   return (
     <div className={`card coverage cov-${tone} mt`}>
       <div className="eyebrow">{st ? 'Bills · Same Every Check' : `Bills Through ${through}`}</div>
@@ -581,54 +586,7 @@ export function CoverageCard({ data, compact }: { data: AppData; compact?: boole
         </>
       )}
 
-      <div className="coverage-accounts mt">
-        {chosen && (
-          <label className="row between small" style={{ gap: 8 }}>
-            <span className="ink2">How Much Goes In</span>
-            <div style={{ minWidth: 230 }}>
-              <Segmented
-                value={data.settings.budget.billsMode}
-                options={[
-                  { value: 'even', label: 'Same Every Check' },
-                  { value: 'due_dates', label: 'Just What’s Due' },
-                ]}
-                onChange={(v) => void saveSettings((x) => ({ ...x, budget: { ...x.budget, billsMode: v } }))}
-              />
-            </div>
-          </label>
-        )}
-        {!chosen && (
-          <p className="small ink2" style={{ margin: '0 0 6px' }}>
-            Which account is only for bills? Once you pick it, the payday plan counts what’s already in it and only tops it up.
-          </p>
-        )}
-        {select('billsAccountId', b.account.id, 'Bills Account', false)}
-        {select('spendingAccountId', sp?.account.id ?? '', 'Spending Account', true)}
-        {hasPaypal && (
-          <label className="row between small" style={{ gap: 8 }}>
-            <span className="ink2">PayPal Pays From</span>
-            <select
-              className="input coverage-pick"
-              value={data.settings.budget.paypalFromAccountId ?? data.paypalFrom?.id ?? 'paypal-balance'}
-              aria-label="PayPal Pays From"
-              onChange={(e) => void saveSettings((s) => ({ ...s, budget: { ...s.budget, paypalFromAccountId: e.target.value } }))}
-            >
-              {pickable.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {name(a)}
-                  {a.mask ? ` ••${a.mask}` : ''}
-                </option>
-              ))}
-              <option value="paypal-balance">PayPal Balance</option>
-            </select>
-          </label>
-        )}
-        {!chosen && (
-          <button className="btn small mt-s" onClick={() => pick('billsAccountId', b.account.id)}>
-            Use These Accounts
-          </button>
-        )}
-      </div>
+      {!chosen && <AccountPicks data={data} />}
       <p className="tiny muted" style={{ margin: '8px 0 0' }}>
         {b.asOf ? `Balances as of ${fmtShort(b.asOf)}. ` : ''}Uses the available balance, so pending charges are already out.
       </p>
@@ -666,6 +624,8 @@ function MarcusSignUp() {
 export function PastPlanCard({ data, back, setBack }: { data: AppData; back: number; setBack: (n: number) => void }) {
   const p = data.planFor(data.upcoming.period.index - back);
   const { plan, period } = p;
+  const a = p.actual;
+  const [editing, setEditing] = useState(false);
   return (
     <>
       <div className="card">
@@ -721,6 +681,54 @@ export function PastPlanCard({ data, back, setBack }: { data: AppData; back: num
             })}
           </div>
         )}
+        <div className="mt">
+          <div className="row between">
+            <div className="eyebrow">What Actually Happened</div>
+            <button className="btn ghost small" onClick={() => setEditing(true)}>
+              <Pencil /> Edit
+            </button>
+          </div>
+          {a ? (
+            <>
+              <div className="coverage-math mt-s">
+                <div className="row between tiny muted">
+                  <span />
+                  <span style={{ display: 'flex', gap: 18 }}>
+                    <span style={{ width: 70, textAlign: 'right' }}>Planned</span>
+                    <span style={{ width: 70, textAlign: 'right' }}>Actual</span>
+                  </span>
+                </div>
+                {[
+                  { k: 'Take-home', p: plan.net, v: a.net },
+                  { k: 'To bills', p: plan.bills, v: a.bills },
+                  { k: 'To savings', p: plan.savings, v: a.savings },
+                  { k: 'Left for you', p: round2(plan.net - plan.bills - plan.savings), v: round2(a.net - a.bills - a.savings) },
+                ].map((r) => (
+                  <div key={r.k} className="row between small">
+                    <span>{r.k}</span>
+                    <span style={{ display: 'flex', gap: 18 }}>
+                      <span className="num muted" style={{ width: 70, textAlign: 'right' }}>
+                        {usd(r.p, true)}
+                      </span>
+                      <span className={`num strong ${Math.abs(r.v - r.p) >= 1 ? (r.k === 'Left for you' ? (r.v < r.p ? 'good' : 'warn') : '') : ''}`} style={{ width: 70, textAlign: 'right' }}>
+                        {usd(r.v, true)}
+                      </span>
+                    </span>
+                  </div>
+                ))}
+              </div>
+              <p className="tiny muted" style={{ margin: '6px 0 0' }}>
+                {a.source === 'bank'
+                  ? 'Filled in from your bank: what landed in your Bills account and savings between this payday and the next. Edit it if something was different.'
+                  : 'As you entered it.'}
+              </p>
+            </>
+          ) : (
+            <p className="small muted" style={{ margin: '4px 0 0' }}>
+              Nothing from your bank yet for this check. Tap Edit to enter what you moved.
+            </p>
+          )}
+        </div>
         <p className="tiny muted" style={{ margin: '10px 0 0' }}>
           {p.saved ? 'The plan as Pebbles had it when this check came in.' : 'Rebuilt from your bills and goals today; Pebbles didn’t save a plan for this check.'}{' '}
           <button className="tour-skip" onClick={() => setBack(0)}>
@@ -729,6 +737,204 @@ export function PastPlanCard({ data, back, setBack }: { data: AppData; back: num
         </p>
       </div>
       <MovesCard data={data} m={p} />
+      {editing && <ActualSheet data={data} period={period} planNet={plan.net} start={a ?? { net: plan.net, bills: plan.bills, savings: plan.savings }} onClose={() => setEditing(false)} />}
+    </>
+  );
+}
+
+/** Enter what really happened with a past check: take-home, what went to bills, what went to savings. */
+function ActualSheet({
+  data,
+  period,
+  planNet,
+  start,
+  onClose,
+}: {
+  data: AppData;
+  period: { start: string; payday: string };
+  planNet: number;
+  start: { net: number; bills: number; savings: number };
+  onClose: () => void;
+}) {
+  const toast = useToast();
+  const [net, setNet] = useState<number | null>(start.net);
+  const [bills, setBills] = useState<number | null>(start.bills);
+  const [savings, setSavings] = useState<number | null>(start.savings);
+  const rec = data.paychecks.get(period.start);
+  const save = async (clear = false) => {
+    const base = rec ?? {
+      id: period.start,
+      periodStart: period.start,
+      payday: period.payday,
+      estimatedNet: planNet,
+      estimatedGross: 0,
+      actualNet: null,
+      actualGross: null,
+      received: true,
+      savingsOverride: null,
+      split: null,
+      goalAllocations: [],
+      note: 'Entered by you',
+    };
+    await store.put(
+      'paychecks',
+      clear ? { ...base, actual: null } : { ...base, actualNet: net ?? base.actualNet, received: true, actual: { net: net ?? planNet, bills: bills ?? 0, savings: savings ?? 0, by: 'you' } },
+    );
+    toast(clear ? 'Back to what your bank shows' : 'Saved what happened');
+    onClose();
+  };
+  return (
+    <Sheet
+      title={`What Happened · ${fmtDay(period.payday)}`}
+      onClose={onClose}
+      footer={
+        <>
+          {rec?.actual && (
+            <button className="btn" onClick={() => void save(true)}>
+              Use the Bank’s Numbers
+            </button>
+          )}
+          <button className="btn primary" onClick={() => void save()}>
+            Save
+          </button>
+        </>
+      }
+    >
+      <div className="col gap-l">
+        <p className="small ink2" style={{ margin: 0 }}>
+          What really came in and where it went. Pebbles uses this for your history and averages; your goals keep following your savings account’s balance.
+        </p>
+        <div className="form-grid two">
+          <Field label="Take-Home That Came In">
+            <NumberInput value={net} onChange={setNet} prefix="$" money allowEmpty />
+          </Field>
+          <Field label="Moved to Bills">
+            <NumberInput value={bills} onChange={setBills} prefix="$" money allowEmpty />
+          </Field>
+          <Field label="Moved to Savings">
+            <NumberInput value={savings} onChange={setSavings} prefix="$" money allowEmpty />
+          </Field>
+          <Field label="Left for You">
+            <div className="big-number num">{usd((net ?? 0) - (bills ?? 0) - (savings ?? 0))}</div>
+          </Field>
+        </div>
+      </div>
+    </Sheet>
+  );
+}
+
+/** Which account is for bills, which for spending, and where PayPal pulls from (Settings → Budget, and first-time setup). */
+export function AccountPicks({ data, inSettings }: { data: AppData; inSettings?: boolean }) {
+  const c = data.coverage;
+  const b = c.bills;
+  const sp = c.spending;
+  const pickable = data.accounts.filter((a) => (a.type === 'checking' || a.type === 'savings') && !a.holdsGoals && (a.available ?? a.balance) != null);
+  if (!pickable.length) return inSettings ? <p className="small muted">Connect your bank (Budget → Accounts) to pick your bills and spending accounts.</p> : null;
+  const chosen = !!data.settings.budget.billsAccountId;
+  const name = (a: Account) => `${a.institution && !a.name.includes(a.institution) ? `${a.institution} ` : ''}${a.name}`;
+  const hasPaypal = data.accounts.some((a) => /paypal/i.test(`${a.name} ${a.institution ?? ''}`));
+  const pick = (key: 'billsAccountId' | 'spendingAccountId', id: string) =>
+    void saveSettings((s) => ({
+      ...s,
+      budget: { ...s.budget, billsAccountId: s.budget.billsAccountId ?? b?.account.id ?? null, spendingAccountId: s.budget.spendingAccountId ?? sp?.account.id ?? null, [key]: id || null },
+    }));
+  const select = (key: 'billsAccountId' | 'spendingAccountId', value: string, label: string, allowNone: boolean) => (
+    <label className="row between small" style={{ gap: 8 }}>
+      <span className="ink2">{label}</span>
+      <select className="input coverage-pick" value={value} aria-label={label} onChange={(e) => pick(key, e.target.value)}>
+        {allowNone && <option value="">None</option>}
+        {pickable.map((a) => (
+          <option key={a.id} value={a.id}>
+            {name(a)}
+            {a.mask ? ` ••${a.mask}` : ''}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+  return (
+    <div className={inSettings ? 'col' : 'coverage-accounts mt'} style={inSettings ? { gap: 10 } : undefined}>
+      {!chosen && (
+        <p className="small ink2" style={{ margin: '0 0 6px' }}>
+          Which account is only for bills? Once you pick it, the payday plan counts what’s already in it and only tops it up.
+        </p>
+      )}
+      {select('billsAccountId', b?.account.id ?? '', 'Bills Account', false)}
+      {select('spendingAccountId', sp?.account.id ?? '', 'Spending Account', true)}
+      {hasPaypal && (
+        <label className="row between small" style={{ gap: 8 }}>
+          <span className="ink2">PayPal Pays From</span>
+          <select
+            className="input coverage-pick"
+            value={data.settings.budget.paypalFromAccountId ?? data.paypalFrom?.id ?? 'paypal-balance'}
+            aria-label="PayPal Pays From"
+            onChange={(e) => void saveSettings((s) => ({ ...s, budget: { ...s.budget, paypalFromAccountId: e.target.value } }))}
+          >
+            {pickable.map((a) => (
+              <option key={a.id} value={a.id}>
+                {name(a)}
+                {a.mask ? ` ••${a.mask}` : ''}
+              </option>
+            ))}
+            <option value="paypal-balance">PayPal Balance</option>
+          </select>
+        </label>
+      )}
+      {!chosen && b && (
+        <button className="btn small mt-s" onClick={() => pick('billsAccountId', b.account.id)}>
+          Use These Accounts
+        </button>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Home: three numbers at a glance. Bills (what's left in the Bills account once its bills are paid), groceries,
+ * gas & basics until payday, and guilt-free money. Tap to see how each is figured.
+ */
+export function MoneyGlance({ data }: { data: AppData }) {
+  const [open, setOpen] = useState(false);
+  const c = data.coverage;
+  const b = c.bills;
+  const sp = c.spending;
+  const plan = data.plan;
+  // bills: after what's due before payday; if that's covered, after next check's move and the bills until the one after
+  let billsLeft: number | null = null;
+  if (b) {
+    const before = round2(b.balance - b.dueBeforePayday);
+    const planned = data.settings.budget.billsAccountId && plan.billsTopUp && data.upcoming.period.payday === c.nextPayday ? plan.bills : b.topUp;
+    billsLeft = before < 0 ? before : round2(before + planned - b.dueNextCycle);
+  }
+  // groceries/gas/basics and guilt-free: from the Spending account when there is one, else this check's plan
+  const basics = sp ? sp.living : plan.essentials;
+  const free = sp ? sp.left : plan.personal;
+  const tone = (v: number) => (v < 0 ? 'bad' : 'good');
+  const tiles = [
+    b && billsLeft != null ? { key: 'bills', icon: <Landmark />, value: billsLeft, color: 'var(--sapphire)', label: 'Bills account after its bills', tone: tone(billsLeft) } : null,
+    { key: 'basics', icon: <ShoppingBasket />, value: basics, color: 'var(--citrine)', label: sp ? 'Groceries, gas & basics until payday' : 'Groceries, gas & basics this check', tone: '' },
+    { key: 'free', icon: <Smile />, value: free, color: 'var(--amethyst)', label: sp ? 'Guilt-free until payday' : 'Guilt-free this check', tone: tone(free) },
+  ].filter(Boolean) as { key: string; icon: ReactNode; value: number; color: string; label: string; tone: string }[];
+  return (
+    <>
+      <button className="card mt glance" onClick={() => setOpen(!open)} aria-expanded={open} aria-label={open ? 'Hide the details' : 'Show the details'}>
+        <div className="glance-row">
+          {tiles.map((t) => (
+            <div key={t.key} className="glance-tile" title={t.label}>
+              <span className="glance-icon" style={{ background: `color-mix(in srgb, ${t.color} 16%, var(--card))`, color: t.color }}>
+                {t.icon}
+              </span>
+              <span className={`glance-num num ${t.tone}`}>
+                {t.value < 0 ? '−' : ''}
+                {usd(Math.abs(t.value), true)}
+              </span>
+              {open && <span className="tiny muted center">{t.label}</span>}
+            </div>
+          ))}
+          <ChevronDown className="glance-chev" style={{ transform: open ? 'rotate(180deg)' : undefined }} />
+        </div>
+      </button>
+      {open && <CoverageCard data={data} />}
     </>
   );
 }

@@ -150,7 +150,15 @@ export function steadyBillsPlan(opts: { balance: number; bills: Bill[]; txns: Tr
       lowestDate = e.date;
     }
   }
-  return { perCheck, average: Math.round(average * 100) / 100, lowest: Math.round(lowest * 100) / 100, lowestDate, shortNow: Math.round(Math.max(0, shortNow) * 100) / 100, horizon, checks: inYear.length };
+  return {
+    perCheck,
+    average: Math.round(average * 100) / 100,
+    lowest: Math.round(lowest * 100) / 100,
+    lowestDate,
+    shortNow: Math.round(Math.max(0, shortNow) * 100) / 100,
+    horizon,
+    checks: inYear.length,
+  };
 }
 
 export function coverage(opts: {

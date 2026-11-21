@@ -128,11 +128,15 @@ class SyncClient {
     const hub = this.state.hub;
     if (!hub) throw new Error('Not paired');
     const body = JSON.stringify(await seal(hub.token, req));
-    const res = await lanRequest(`http://${hub.host}:${hub.port}/sync`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Pebbles-Token': hub.tokenId },
-      body,
-    }, 8000);
+    const res = await lanRequest(
+      `http://${hub.host}:${hub.port}/sync`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Pebbles-Token': hub.tokenId },
+        body,
+      },
+      8000,
+    );
     if (res.status === 401) {
       this.set({ status: 'error', message: 'This phone was unpaired on the computer. Pair again in Settings.' });
       throw new Error('Unpaired by computer');
@@ -144,8 +148,14 @@ class SyncClient {
   /** Pair this phone with the desktop using the address and 6-digit code it shows. */
   async pair(address: string, code: string): Promise<HubLink> {
     // "192.168.1.20:47821" or, from the QR code, several addresses: "192.168.1.20,10.0.0.5:47821"
-    const [hostsRaw, portRaw] = address.trim().replace(/^https?:\/\//, '').split(':');
-    const hosts = hostsRaw.split(',').map((h) => h.trim()).filter(Boolean);
+    const [hostsRaw, portRaw] = address
+      .trim()
+      .replace(/^https?:\/\//, '')
+      .split(':');
+    const hosts = hostsRaw
+      .split(',')
+      .map((h) => h.trim())
+      .filter(Boolean);
     const port = Number(portRaw) || DEFAULT_PORT;
     const cleanCode = code.replace(/\D/g, '');
     if (!hosts.length) throw new Error('Enter the address shown on your computer');
@@ -174,11 +184,15 @@ class SyncClient {
     }
     const { keys, pubRaw } = await pairKeys();
     const offer = await makeOffer(cleanCode, pubRaw);
-    const res = await lanRequest(`http://${host}:${port}/pair`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ deviceId: store.deviceId, deviceName: deviceName(), ...offer }),
-    }, 8000);
+    const res = await lanRequest(
+      `http://${host}:${port}/pair`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deviceId: store.deviceId, deviceName: deviceName(), ...offer }),
+      },
+      8000,
+    );
     if (res.status === 403) throw new Error('That code didn’t match. Check the code on your computer (it changes every few minutes).');
     if (res.status === 429) throw new Error('Too many tries. Start pairing again on your computer.');
     if (res.status !== 200) throw new Error(`Pairing failed (${res.status}).`);

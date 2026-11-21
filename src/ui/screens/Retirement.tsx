@@ -23,7 +23,10 @@ export function RetirementView({ data }: { data: AppData }) {
   const needsMonthly = monthlyBillsTotal(data.bills) + data.essentials.totalMonthly;
   const lifestyle = (needsMonthly + perMonth(Math.max(0, data.plan.personal))) * 12;
   const annualSpending = f.annualSpending ?? Math.round(lifestyle);
-  const plan = firePlan({ age: f.age, retireAge: f.retireAge, invested: f.invested, monthlyInvest, annualSpending, returnPct: f.returnPct, inflationPct: f.inflationPct, withdrawalPct: f.withdrawalPct }, needsMonthly * 12);
+  const plan = firePlan(
+    { age: f.age, retireAge: f.retireAge, invested: f.invested, monthlyInvest, annualSpending, returnPct: f.returnPct, inflationPct: f.inflationPct, withdrawalPct: f.withdrawalPct },
+    needsMonthly * 12,
+  );
   const monthlyIncome = perMonth(data.upcoming.net) + match;
   const savingsRate = monthlyIncome > 0 ? ((monthlyInvest + perMonth(data.plan.savings)) / (monthlyIncome + payroll)) * 100 : 0;
 
@@ -68,8 +71,8 @@ export function RetirementView({ data }: { data: AppData }) {
           {empty
             ? `Tap “Your numbers” to add your age and anything you already have in a 401(k) or IRA. To cover today’s ${usd(annualSpending / 12, true)} a month, you’d want about ${usd(plan.fi, true)} invested.`
             : plan.fiAge == null
-            ? `With ${usd(monthlyInvest, true)} a month going in, savings won’t reach ${usd(plan.fi, true)}. Your next step below is the best way to change that.`
-            : `You’ll need about ${usd(plan.fi, true)} invested to cover ${usd(annualSpending / 12, true)} a month for life. You’re ${Math.round(plan.progress * 100)}% of the way there.`}
+              ? `With ${usd(monthlyInvest, true)} a month going in, savings won’t reach ${usd(plan.fi, true)}. Your next step below is the best way to change that.`
+              : `You’ll need about ${usd(plan.fi, true)} invested to cover ${usd(annualSpending / 12, true)} a month for life. You’re ${Math.round(plan.progress * 100)}% of the way there.`}
         </p>
         <div className="mt">
           <Progress value={plan.progress} color="var(--jade)" />
@@ -285,4 +288,3 @@ function Projection({ points, target }: { points: { age: number; balance: number
     </svg>
   );
 }
-

@@ -92,7 +92,8 @@ export interface RecurringCandidate {
 }
 
 /** Names that are almost always a subscription or a bill, even after one charge. */
-export const BILL_NAMES = /NETFLIX|SPOTIFY|HULU|DISNEY|CRUNCHYROLL|APPLE\.COM|APPLE ?ONE|ICLOUD|GOOGLE ?(ONE|STORAGE|PLAY)|YOUTUBE|AMAZON ?PRIME|PRIME ?VIDEO|AUDIBLE|KINDLE|HBO|\bMAX\b|PARAMOUNT|PEACOCK|SIRIUS|PANDORA|XBOX|PLAYSTATION|PSN|NINTENDO|STEAM ?(SUB|PLUS)|TWITCH|PATREON|ONLYFANS|OPENAI|CHATGPT|CLAUDE|ANTHROPIC|ADOBE|MICROSOFT|OFFICE ?365|DROPBOX|NORDVPN|EXPRESSVPN|PLANET ?FITNESS|24 ?HOUR ?FITNESS|LA ?FITNESS|CRUNCH|GOLDS? ?GYM|ANYTIME ?FITNESS|GEICO|PROGRESSIVE|STATE ?FARM|ALLSTATE|USAA|LIBERTY ?MUTUAL|LEMONADE|VERIZON|T-?MOBILE|AT ?& ?T|MINT ?MOBILE|VISIBLE|CRICKET|METRO ?BY|XCEL|COLORADO SPRINGS UTIL|CSU ?(UTIL|PAY)|BLACK ?HILLS|COMCAST|XFINITY|CENTURYLINK|QUANTUM ?FIBER|SPECTRUM|STARLINK|DUOLINGO|CALM|HEADSPACE|NOOM|DOORDASH ?DASHPASS|DASHPASS|UBER ?ONE|INSTACART ?\+|WALMART ?\+|WMT ?PLUS|COSTCO ?MEMBER|SAMS ?CLUB ?MEMBER/i;
+export const BILL_NAMES =
+  /NETFLIX|SPOTIFY|HULU|DISNEY|CRUNCHYROLL|APPLE\.COM|APPLE ?ONE|ICLOUD|GOOGLE ?(ONE|STORAGE|PLAY)|YOUTUBE|AMAZON ?PRIME|PRIME ?VIDEO|AUDIBLE|KINDLE|HBO|\bMAX\b|PARAMOUNT|PEACOCK|SIRIUS|PANDORA|XBOX|PLAYSTATION|PSN|NINTENDO|STEAM ?(SUB|PLUS)|TWITCH|PATREON|ONLYFANS|OPENAI|CHATGPT|CLAUDE|ANTHROPIC|ADOBE|MICROSOFT|OFFICE ?365|DROPBOX|NORDVPN|EXPRESSVPN|PLANET ?FITNESS|24 ?HOUR ?FITNESS|LA ?FITNESS|CRUNCH|GOLDS? ?GYM|ANYTIME ?FITNESS|GEICO|PROGRESSIVE|STATE ?FARM|ALLSTATE|USAA|LIBERTY ?MUTUAL|LEMONADE|VERIZON|T-?MOBILE|AT ?& ?T|MINT ?MOBILE|VISIBLE|CRICKET|METRO ?BY|XCEL|COLORADO SPRINGS UTIL|CSU ?(UTIL|PAY)|BLACK ?HILLS|COMCAST|XFINITY|CENTURYLINK|QUANTUM ?FIBER|SPECTRUM|STARLINK|DUOLINGO|CALM|HEADSPACE|NOOM|DOORDASH ?DASHPASS|DASHPASS|UBER ?ONE|INSTACART ?\+|WALMART ?\+|WMT ?PLUS|COSTCO ?MEMBER|SAMS ?CLUB ?MEMBER/i;
 
 /**
  * Bills hiding in your statements. The normal scan wants a steady amount on a steady schedule;
@@ -129,7 +130,17 @@ export function detectRecurring(txns: Transaction[], bills: Bill[] = [], asOf?: 
       if (!thorough || !BILL_NAMES.test(only.description) || diffDays(asOf ?? only.date, only.date) > 40) continue;
       const name = cleanMerchant(only.description);
       if (bills.some((b) => b.active && (b.name.toLowerCase() === name.toLowerCase() || (b.matchPattern && only.description.toUpperCase().includes(b.matchPattern.toUpperCase()))))) continue;
-      out.push({ key, name, amount: round2(-only.amount), frequency: 'monthly', lastDate: only.date, count: 1, category: only.category, dueDay: Number(only.date.slice(8, 10)), pattern: name.toUpperCase().split(' ').slice(0, 2).join(' ') });
+      out.push({
+        key,
+        name,
+        amount: round2(-only.amount),
+        frequency: 'monthly',
+        lastDate: only.date,
+        count: 1,
+        category: only.category,
+        dueDay: Number(only.date.slice(8, 10)),
+        pattern: name.toUpperCase().split(' ').slice(0, 2).join(' '),
+      });
       continue;
     }
     const gaps = list.slice(1).map((t, i) => diffDays(t.date, list[i].date));

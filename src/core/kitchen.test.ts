@@ -80,7 +80,18 @@ describe('meals from the pantry', () => {
 describe('filling the pantry from old receipts', () => {
   it('lists what you bought that isn’t in the pantry, most-bought first, and keeps each one’s date', async () => {
     const { pastItems, applyPicks } = await import('./kitchen');
-    const r = (date: string, names: string[]) => ({ id: date, store: 'King Soopers', date, items: names.map((n) => item(n)), subtotal: null, tax: null, total: null, savings: null, source: 'pdf' as const, createdAt: 0 });
+    const r = (date: string, names: string[]) => ({
+      id: date,
+      store: 'King Soopers',
+      date,
+      items: names.map((n) => item(n)),
+      subtotal: null,
+      tax: null,
+      total: null,
+      savings: null,
+      source: 'pdf' as const,
+      createdAt: 0,
+    });
     const receipts = [r('2026-09-01', ['Rice', 'Sugar']), r('2026-10-01', ['Rice', 'Coffee']), r('2026-11-01', ['Rice', 'Milk'])];
     const list = pastItems(receipts, [newPantryItem('Milk')], new Set(['rice']));
     expect(list.map((x) => [x.item.name, x.trips, x.date, x.usual])).toEqual([
@@ -105,7 +116,15 @@ describe('adding something whose name is inside another item’s name', () => {
     // still the same thing: plurals, and a long receipt line for a plain pantry name
     expect(matches(newPantryItem('Egg'), 'eggs', 'Eggs')).toBe(true);
     expect(matches(newPantryItem('Eggs'), 'largeeggs', 'Large Eggs')).toBe(true);
-    const coffee = { raw: 'Kroger Classic Blend Medium Roast Ground Coffee, 29 oz', desc: 'Kroger Classic Blend Medium Roast Ground Coffee, 29 oz', name: 'Coffee', key: 'coffee', price: 12.99, qty: 1, dept: 'drinks' as const };
+    const coffee = {
+      raw: 'Kroger Classic Blend Medium Roast Ground Coffee, 29 oz',
+      desc: 'Kroger Classic Blend Medium Roast Ground Coffee, 29 oz',
+      name: 'Coffee',
+      key: 'coffee',
+      price: 12.99,
+      qty: 1,
+      dept: 'drinks' as const,
+    };
     const res = applyPicks([{ item: coffee, left: 'full', count: null, always: false, stapleId: null }], [creamer, choc], [], '2026-10-27');
     expect(res.added).toEqual(['Coffee']);
     expect(res.updated).toEqual([]);
@@ -127,7 +146,12 @@ describe('different things that share a word', () => {
     // the same coffee in another size is the same pantry item
     expect(findSame([grounds], { key: 'coffee', name: 'Coffee', raw: 'x', desc: 'Kroger Classic Blend Medium Roast Ground Coffee, 11.5 oz' })).toBe(grounds);
     // a pick marked "keep separate" is added on its own
-    const res = applyPicks([{ item: { raw: 'Kroger Classic Blend Coffee', name: 'Coffee', key: 'coffee', price: 0, qty: 1, dept: 'drinks' }, left: 'full', count: null, always: false, stapleId: null, separate: true }], [grounds], [], '2026-11-20');
+    const res = applyPicks(
+      [{ item: { raw: 'Kroger Classic Blend Coffee', name: 'Coffee', key: 'coffee', price: 0, qty: 1, dept: 'drinks' }, left: 'full', count: null, always: false, stapleId: null, separate: true }],
+      [grounds],
+      [],
+      '2026-11-20',
+    );
     expect(res.added).toEqual(['Coffee']);
   });
 });

@@ -120,15 +120,39 @@ describe('nearby gas', () => {
 
   it('reads Google posted prices', () => {
     const st = parsePlaces(
-      JSON.stringify({ places: [{ id: 'abc', displayName: { text: 'Shell' }, location: { latitude: 38.84, longitude: -104.82 }, fuelOptions: { fuelPrices: [{ type: 'REGULAR_UNLEADED', price: { currencyCode: 'USD', units: '3', nanos: 199000000 }, updateTime: '2026-11-19T10:00:00Z' }] } }] }),
+      JSON.stringify({
+        places: [
+          {
+            id: 'abc',
+            displayName: { text: 'Shell' },
+            location: { latitude: 38.84, longitude: -104.82 },
+            fuelOptions: { fuelPrices: [{ type: 'REGULAR_UNLEADED', price: { currencyCode: 'USD', units: '3', nanos: 199000000 }, updateTime: '2026-11-19T10:00:00Z' }] },
+          },
+        ],
+      }),
       home,
     );
     expect(st[0].live?.perGallon).toBe(3.199);
   });
 
   it('uses your own receipts for prices and checks if a far station is worth it', () => {
-    const st = parseOverpass(JSON.stringify({ elements: [{ type: 'node', id: 2, lat: 38.835, lon: -104.822, tags: { name: 'Circle K' } }, { type: 'node', id: 3, lat: 38.9, lon: -104.82, tags: { name: 'Costco Gas' } }] }), home);
-    const priced = priceStations(st, [{ id: 'p1', station: 'Circle K', stationId: null, lat: 38.8351, lon: -104.8221, perGallon: 3.459, grade: 'Regular', date: '2026-11-18', source: 'receipt' }, { id: 'p2', station: 'Costco Gas', stationId: 'osm:node/3', lat: null, lon: null, perGallon: 3.099, grade: 'Regular', date: '2026-11-17', source: 'manual' }], '2026-11-19');
+    const st = parseOverpass(
+      JSON.stringify({
+        elements: [
+          { type: 'node', id: 2, lat: 38.835, lon: -104.822, tags: { name: 'Circle K' } },
+          { type: 'node', id: 3, lat: 38.9, lon: -104.82, tags: { name: 'Costco Gas' } },
+        ],
+      }),
+      home,
+    );
+    const priced = priceStations(
+      st,
+      [
+        { id: 'p1', station: 'Circle K', stationId: null, lat: 38.8351, lon: -104.8221, perGallon: 3.459, grade: 'Regular', date: '2026-11-18', source: 'receipt' },
+        { id: 'p2', station: 'Costco Gas', stationId: 'osm:node/3', lat: null, lon: null, perGallon: 3.099, grade: 'Regular', date: '2026-11-17', source: 'manual' },
+      ],
+      '2026-11-19',
+    );
     expect(priced[0].price).toBe(3.459);
     expect(priced[1].price).toBe(3.099);
     expect(worthTheDrive(priced[1], priced[0], 12, 25)).toBeGreaterThan(0);
@@ -150,7 +174,17 @@ describe('Google fuel data', async () => {
   it('uses another gasoline grade when regular isn’t listed, and tells empty from unreadable', () => {
     const json = JSON.stringify({
       places: [
-        { id: 'a', displayName: { text: 'A' }, location: { latitude: 38.8, longitude: -104.8 }, fuelOptions: { fuelPrices: [{ type: 'E10', price: { units: '3', nanos: 99000000 } }, { type: 'DIESEL', price: { units: '3', nanos: 590000000 } }] } },
+        {
+          id: 'a',
+          displayName: { text: 'A' },
+          location: { latitude: 38.8, longitude: -104.8 },
+          fuelOptions: {
+            fuelPrices: [
+              { type: 'E10', price: { units: '3', nanos: 99000000 } },
+              { type: 'DIESEL', price: { units: '3', nanos: 590000000 } },
+            ],
+          },
+        },
         { id: 'b', displayName: { text: 'B' }, location: { latitude: 38.81, longitude: -104.8 } },
       ],
     });
@@ -191,7 +225,21 @@ describe('gas estimates and screenshot prices', async () => {
   });
 
   it('reads a Google Maps list screenshot', () => {
-    const lines = ['Gas', 'Circle K', '4.0 ★★★★ (212) · Gas station · 0.6 mi', '7480 Austin Bluffs Pkwy', '$2.95 Regular', 'Costco Gasoline', '4.6 (1,024) · 2.1 mi', '$2.79', 'Circle K', '1200 Academy Blvd', 'Regular $3.05', 'Some Car Wash', '$9.99'];
+    const lines = [
+      'Gas',
+      'Circle K',
+      '4.0 ★★★★ (212) · Gas station · 0.6 mi',
+      '7480 Austin Bluffs Pkwy',
+      '$2.95 Regular',
+      'Costco Gasoline',
+      '4.6 (1,024) · 2.1 mi',
+      '$2.79',
+      'Circle K',
+      '1200 Academy Blvd',
+      'Regular $3.05',
+      'Some Car Wash',
+      '$9.99',
+    ];
     const got = pricesFromScreenshot(lines, stations).map((x) => [x.station.id, x.perGallon]);
     expect(got).toEqual([
       ['osm:node/1', 2.95],

@@ -34,6 +34,7 @@ import { BUNDLED_GUIDELINES, checkGuidelines, isValidGuidelines, type GuidelineC
 import { goalsAccount, interestNextMonth, reconcile, type Reconcile } from '../core/savingsAccount';
 import { paydayMoves, type Move } from '../core/moves';
 import { threePaycheckMonths } from '../core/budget';
+import { actualSplit } from '../core/actual';
 import type { DriveEntry, GasPrice, MealPlanEntry, PantryItem, Recipe, ShopItem, Staple } from '../core/types';
 import { paypalFundingAccount, paypalInFlight, withInFlight, type InFlight } from '../core/paypal';
 import { drivingStats, trustworthy, type DrivingStats } from '../core/driving';
@@ -99,7 +100,16 @@ export interface AppData {
   savingsAvg: { perCheck: number; basis: 'deposits' | 'paychecks' | 'estimate'; count: number; avgNet?: number };
   /** the same forecast with changed goals and some extra saved each check (for trying out a choice) */
   forecastWith: (goals: Goal[], extraPerCheck: number) => Map<string, GoalForecast>;
-  planFor: (index: number) => { period: Period; estimate: PaycheckEstimate; plan: PaycheckPlan; moves: Move[]; isPast: boolean; saved: boolean; received: boolean };
+  planFor: (index: number) => {
+    period: Period;
+    estimate: PaycheckEstimate;
+    plan: PaycheckPlan;
+    moves: Move[];
+    isPast: boolean;
+    saved: boolean;
+    received: boolean;
+    actual: { net: number; bills: number; savings: number; source: 'you' | 'bank' } | null;
+  };
   coverage: Coverage;
   advances: Advances | null; // DailyPay taken since the last payday
   drives: DriveEntry[];
@@ -397,9 +407,25 @@ export function computeData(version: number, today: ISODate): AppData {
   };
 
   const savingsName = gAcct ? (gAcct.institution && /marcus|goldman/i.test(gAcct.institution + gAcct.name) ? 'Marcus' : gAcct.name) : 'savings';
+  // what really happened with a past check: what you entered, else what the bank shows moved to bills and savings
+  const actualFor = (period: Period, net: number) => {
+    const rec = paychecks.get(period.start);
+    if (rec?.actual) return { net: rec.actual.net, bills: rec.actual.bills, savings: rec.actual.savings, source: 'you' as const };
+    if (period.payday > today) return null;
+    const a = actualSplit({
+      txns,
+      payday: period.payday,
+      nextPayday: periodByIndex(settings.pay, period.index + 1).payday,
+      billsAccountId: settings.budget.billsAccountId ?? null,
+      savingsAccountId: gAcct?.id ?? null,
+      net,
+    });
+    return a.bills > 0 || a.savings > 0 ? { net, bills: a.bills, savings: a.savings, source: 'bank' as const } : null;
+  };
   const planFor: AppData['planFor'] = (index) => {
     const period = periodByIndex(settings.pay, index);
-    if (movesFor && period.start === movesFor.period.start) return { ...movesFor, isPast: true, saved: !!paychecks.get(period.start)?.split, received: !!paychecks.get(period.start)?.received };
+    if (movesFor && period.start === movesFor.period.start)
+      return { ...movesFor, isPast: true, saved: !!paychecks.get(period.start)?.split, received: !!paychecks.get(period.start)?.received, actual: actualFor(period, movesFor.plan.net) };
     const rec = paychecks.get(period.start);
     const estimate = estimatePaycheck(period, settings, rates, workdays, rulesFile, calibration);
     const net = rec?.actualNet ?? estimate.net;
@@ -441,7 +467,7 @@ export function computeData(version: number, today: ISODate): AppData {
       billsAccountName: settings.budget.billsAccountId && cov.bills ? cov.bills.account.name : null,
       billsSteady: !!steady,
     });
-    return { period, estimate, plan: p, moves, isPast: true, saved: !!s, received: !!rec?.received };
+    return { period, estimate, plan: p, moves, isPast: true, saved: !!s, received: !!rec?.received, actual: actualFor(period, net) };
   };
 
   // your usual savings per paycheck, for anything that looks ahead: what you've really been depositing (once

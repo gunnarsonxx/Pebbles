@@ -2,7 +2,20 @@ import { describe, expect, it } from 'vitest';
 import { duePrompts, looksVariable, nextPromptTime, postedAmount, promptDue, saveAmount, snooze } from './billPrompt';
 import type { Bill } from './types';
 
-const util: Bill = { id: 'u', name: 'Cos Utilit', amount: 175, dueDay: 28, dueMonth: null, anchorDate: null, frequency: 'monthly', category: 'utilities', autopay: false, active: true, matchPattern: 'COLORADO SPRINGS UTIL', amountReminder: { day: 9, time: '10:00' } };
+const util: Bill = {
+  id: 'u',
+  name: 'Cos Utilit',
+  amount: 175,
+  dueDay: 28,
+  dueMonth: null,
+  anchorDate: null,
+  frequency: 'monthly',
+  category: 'utilities',
+  autopay: false,
+  active: true,
+  matchPattern: 'COLORADO SPRINGS UTIL',
+  amountReminder: { day: 9, time: '10:00' },
+};
 const at = (s: string) => new Date(s); // local time
 
 describe('monthly amount prompt', () => {
@@ -25,7 +38,9 @@ describe('monthly amount prompt', () => {
     expect(nextPromptTime(saved, at('2026-12-20T12:00:00'))?.getTime()).toBe(at('2027-01-09T10:00:00').getTime());
   });
   it('suggests what the bank shows, and spots utility bills', () => {
-    const txns = [{ id: 't', accountId: 'b', date: '2026-12-08', description: 'COLORADO SPRINGS UTIL WEB PMT', merchant: '', amount: -151.2, category: 'utilities', importId: null, excluded: false, note: '' }];
+    const txns = [
+      { id: 't', accountId: 'b', date: '2026-12-08', description: 'COLORADO SPRINGS UTIL WEB PMT', merchant: '', amount: -151.2, category: 'utilities', importId: null, excluded: false, note: '' },
+    ];
     expect(postedAmount(util, txns, at('2026-12-09T10:00:00'))).toEqual({ amount: 151.2, date: '2026-12-08' });
     expect(looksVariable({ ...util, name: 'Cos Utilit' })).toBe(true);
     expect(looksVariable({ ...util, name: 'Internet', category: 'utilities' })).toBe(false);

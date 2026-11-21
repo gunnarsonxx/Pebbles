@@ -56,7 +56,10 @@ interface KProduct {
 }
 
 function score(term: string, p: KProduct): number {
-  const words = term.toLowerCase().split(/\s+/).filter((w) => w.length > 2);
+  const words = term
+    .toLowerCase()
+    .split(/\s+/)
+    .filter((w) => w.length > 2);
   const d = p.description.toLowerCase();
   return words.filter((w) => d.includes(w)).length / Math.max(1, words.length);
 }
@@ -64,9 +67,7 @@ function score(term: string, p: KProduct): number {
 /** Best-matching product with a price at the chosen store. Store brands win ties (usually cheapest). */
 export async function krogerPrice(http: HttpFn, token: string, locationId: string, term: string): Promise<KrogerProduct | null> {
   const r = await get<{ data: KProduct[] }>(http, token, `/products?filter.term=${encodeURIComponent(term)}&filter.locationId=${encodeURIComponent(locationId)}&filter.limit=8`);
-  const priced = (r.data ?? [])
-    .map((p) => ({ p, item: p.items?.find((i) => i.price?.regular) }))
-    .filter((x) => x.item);
+  const priced = (r.data ?? []).map((p) => ({ p, item: p.items?.find((i) => i.price?.regular) })).filter((x) => x.item);
   if (!priced.length) return null;
   priced.sort((a, b) => {
     const s = score(term, b.p) - score(term, a.p);

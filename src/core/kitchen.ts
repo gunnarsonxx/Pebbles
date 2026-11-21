@@ -17,7 +17,30 @@ export interface StaplePreset {
 export const STAPLE_PRESETS: StaplePreset[] = [
   {
     name: 'Air Fryer Frozen Food',
-    keywords: ['pizza roll', 'popcorn chicken', 'nugget', 'chicken tender', 'chicken strip', 'tater tot', 'fries', 'egg roll', 'taquito', 'mozzarella stick', 'corn dog', 'hot pocket', 'wings', 'fish stick', 'bagel bite', 'pizza bite', 'jalapeno popper', 'onion ring', 'chimichanga', 'pot sticker', 'potsticker', 'dumpling'],
+    keywords: [
+      'pizza roll',
+      'popcorn chicken',
+      'nugget',
+      'chicken tender',
+      'chicken strip',
+      'tater tot',
+      'fries',
+      'egg roll',
+      'taquito',
+      'mozzarella stick',
+      'corn dog',
+      'hot pocket',
+      'wings',
+      'fish stick',
+      'bagel bite',
+      'pizza bite',
+      'jalapeno popper',
+      'onion ring',
+      'chimichanga',
+      'pot sticker',
+      'potsticker',
+      'dumpling',
+    ],
   },
 ];
 
@@ -104,7 +127,13 @@ export function defaultPicks(r: Pick<Receipt, 'items' | 'date'>, today: ISODate,
 const FRACTION: Record<Exclude<LeftAmount, 'gone'>, number> = { full: 1, half: 0.5, low: 0.2 };
 
 /** What to save: pantry items to update or create, and staples that gained an example. */
-export function applyPicks(picks: KitchenPick[], pantry: PantryItem[], staples: Staple[], receiptDate: ISODate, rules: ItemRule[] = []): { pantry: PantryItem[]; staples: Staple[]; added: string[]; updated: string[] } {
+export function applyPicks(
+  picks: KitchenPick[],
+  pantry: PantryItem[],
+  staples: Staple[],
+  receiptDate: ISODate,
+  rules: ItemRule[] = [],
+): { pantry: PantryItem[]; staples: Staple[]; added: string[]; updated: string[] } {
   const outPantry: PantryItem[] = [];
   const outStaples = new Map<string, Staple>();
   for (const pk of picks) {

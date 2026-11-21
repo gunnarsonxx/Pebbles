@@ -70,7 +70,10 @@ export function newPantryItem(name: string, patch: Partial<PantryItem> = {}, rul
   const key = patch.key ?? c.key;
   return {
     id: uid('pan_'),
-    name: name.trim().replace(/\s+/g, ' ').replace(/^./, (x) => x.toUpperCase()),
+    name: name
+      .trim()
+      .replace(/\s+/g, ' ')
+      .replace(/^./, (x) => x.toUpperCase()),
     key,
     dept: deptFor(c.name, key, rules),
     mode: 'level',
@@ -156,7 +159,10 @@ export function nextLevel(l: Level, dir: 1 | -1 = 1): Level {
 export function dueSoon(p: PantryItem, receipts: Receipt[], asOf: ISODate): number | null {
   const dates = [...new Set(receipts.filter((r) => r.items.some((i) => matches(p, i.key, i.name))).map((r) => r.date))].sort();
   if (dates.length < 2) return null;
-  const gaps = dates.slice(1).map((d, i) => diffDays(d, dates[i])).filter((g) => g > 0);
+  const gaps = dates
+    .slice(1)
+    .map((d, i) => diffDays(d, dates[i]))
+    .filter((g) => g > 0);
   if (!gaps.length) return null;
   const avg = gaps.reduce((s, g) => s + g, 0) / gaps.length;
   const since = diffDays(asOf, dates[dates.length - 1]);
