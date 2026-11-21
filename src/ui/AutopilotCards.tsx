@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   Check,
   Pencil,
@@ -17,7 +17,7 @@ import {
   SlidersHorizontal,
 } from 'lucide-react';
 import { SplitBar } from './charts';
-import { Field, GemIcon, NumberInput, Sheet, useToast } from './components';
+import { Field, GemIcon, NumberInput, Segmented, Sheet, useToast } from './components';
 import { store } from '../data/store';
 import { saveSettings } from '../data/actions';
 import { setGoalSplit } from '../core/savingsAccount';
@@ -104,14 +104,17 @@ export function SavingsAccountCard({ data }: { data: AppData }) {
   const acct = data.goalsAccount;
   const balance = acct?.balance ?? data.saved;
   const apy = acct?.apy ?? null;
-  // the next 12 months (26 paychecks) of the same forecast the goals use: your usual deposits, interest, and
-  // each goal's money coming out on its date
-  const pts = data.forecast.series.slice(0, 27);
+  // the next 12 months, from every future check's own plan, at three pay levels; swipe or tap to switch
+  const [level, setLevel] = useState<Level>('average');
+  const fc = useMemo(() => (acct ? data.savingsForecasts() : null), [data, acct]);
+  const f = fc?.[level] ?? data.forecast;
+  const pts = f.series.slice(0, 27);
   const end = pts[pts.length - 1];
   const yearEnd = pts[pts.length - 1]?.date ?? data.today;
-  const outs = data.forecast.withdrawals.filter((w) => w.date <= yearEnd);
-  const avg = data.savingsAvg;
+  const outs = f.withdrawals.filter((w) => w.date <= yearEnd);
   const proj = apy != null && end ? end : null;
+  const touch = useRef<number | null>(null);
+  const step = (dir: 1 | -1) => setLevel(LEVELS[(LEVELS.indexOf(level) + dir + LEVELS.length) % LEVELS.length]);
   const rec = data.reconcile;
   const [splitting, setSplitting] = useState(false);
   const [showMath, setShowMath] = useState(false);
@@ -159,7 +162,28 @@ export function SavingsAccountCard({ data }: { data: AppData }) {
           </div>
         )}
       </div>
-      {proj && <Projection points={pts.map((p) => p.balance)} />}
+      {proj && (
+        <>
+          <div className="mt-s" style={{ maxWidth: 360 }}>
+            <Segmented value={level} options={LEVELS.map((l) => ({ value: l, label: LEVEL_NAME[l] }))} onChange={setLevel} />
+          </div>
+          <div
+            onTouchStart={(e) => (touch.current = e.touches[0].clientX)}
+            onTouchEnd={(e) => {
+              const dx = touch.current == null ? 0 : e.changedTouches[0].clientX - touch.current;
+              touch.current = null;
+              if (Math.abs(dx) > 50) step(dx < 0 ? 1 : -1);
+            }}
+          >
+            <Projection points={pts.map((p) => p.balance)} />
+          </div>
+          <div className="row" style={{ justifyContent: 'center', gap: 6, marginTop: 4 }} aria-hidden>
+            {LEVELS.map((l) => (
+              <span key={l} className={`dot-pill${l === level ? ' on' : ''}`} />
+            ))}
+          </div>
+        </>
+      )}
       {proj && apy != null && (
         <>
           <button className="link-btn small mt-s" onClick={() => setShowMath(!showMath)}>
@@ -173,7 +197,7 @@ export function SavingsAccountCard({ data }: { data: AppData }) {
               </div>
               <div className="row between small">
                 <span>
-                  + Deposits: this paycheck’s {usd(data.plan.savings)}, then about {usd(avg.perCheck)} a paycheck for {pts.length - 2} more
+                  + Deposits: each paycheck’s planned savings at {LEVEL_LONG[level]}, {pts.length - 1} paychecks (about {usd(proj.deposits / Math.max(1, pts.length - 1))} each)
                 </span>
                 <span className="num">+{usd(proj.deposits)}</span>
               </div>
@@ -202,13 +226,8 @@ export function SavingsAccountCard({ data }: { data: AppData }) {
                 ))}
               </div>
               <p className="tiny muted" style={{ margin: '6px 0 0' }}>
-                {avg.basis === 'deposits'
-                  ? `About ${usd(avg.perCheck)} a paycheck is what you’ve actually deposited on average over your last ${avg.count} paychecks.`
-                  : avg.basis === 'paychecks'
-                    ? `About ${usd(avg.perCheck)} a paycheck is what your average take-home (${usd(avg.avgNet ?? 0)}, from your last ${avg.count} paycheck${avg.count === 1 ? '' : 's'}) saves after bills and basics. Once you have a few deposits, Pebbles uses your real average instead.`
-                    : `About ${usd(avg.perCheck)} a paycheck is what your expected take-home saves after bills and basics. Once you have a few deposits, Pebbles uses your real average instead.`}{' '}
-                This paycheck uses its own plan ({usd(data.plan.savings)}). Goals for things are spent on their dates; when a must-be-ready goal needs more than usual, those checks save more. The rate
-                is assumed to stay at {apy}%.
+                Every check’s deposit is that check’s own plan from the Bills look-ahead, worked out at {LEVEL_LONG[level]}: what’s left for savings after its bills (with the Bills account played
+                forward), groceries, gas and basics. Goals for things are spent on their dates. The rate is assumed to stay at {apy}%.
               </p>
             </div>
           )}
@@ -290,6 +309,11 @@ function SplitSheet({ account, data, onClose }: { account: Account; data: AppDat
     </Sheet>
   );
 }
+
+type Level = 'average' | 'base' | 'projected';
+const LEVELS: Level[] = ['average', 'base', 'projected'];
+const LEVEL_NAME: Record<Level, string> = { average: 'Average', base: '80 h Base', projected: 'Projected' };
+const LEVEL_LONG: Record<Level, string> = { average: 'your average take-home', base: '80 hours at your base rate', projected: 'your projected pay (from your Shifts)' };
 
 function Projection({ points }: { points: number[] }) {
   const W = 600;

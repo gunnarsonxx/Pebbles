@@ -112,6 +112,8 @@ export interface AppData {
   goalForecast: Map<string, GoalForecast>;
   /** look ahead: every payday in a month, with the Bills account played forward and the plan at three pay levels */
   lookAhead: (month: string) => LookAheadCheck[];
+  /** the savings account's next 12 months from every future check's plan: at your average pay, 80 h base pay, and projected pay */
+  savingsForecasts: () => { average: Forecast; base: Forecast; projected: Forecast };
   /** your savings walked forward: balance each paycheck, with goals' money coming out on their dates */
   forecast: Forecast;
   /** your usual savings per paycheck, and where the number comes from */
@@ -569,6 +571,24 @@ export function computeData(version: number, today: ISODate): AppData {
       const recent = paycheckList.filter((p) => p.received && p.actualNet != null);
       return recent.length ? round2(recent.reduce((t, p) => t + (p.actualNet as number), 0) / recent.length) : upcoming.net;
     })();
+  // one paycheck's plan at three pay levels (cached by payday)
+  const checkCache = new Map<string, LookAheadCheck>();
+  const checkPlans = (p: Period): LookAheadCheck => {
+    const hit = checkCache.get(p.payday);
+    if (hit) return hit;
+    const next = periodByIndex(settings.pay, p.index + 1).payday;
+    const l = ledger().find((c) => c.payday === p.payday) ?? null;
+    const rec = paychecks.get(p.start);
+    const est = p.start === upPeriod.start ? upcoming : estimatePaycheck(p, settings, rates, workdays, rulesFile, calibration);
+    const base80 = round2(computeWithholding(settings.pay.baseRate * 80, settings, rulesForYear(rulesFile, Number(p.payday.slice(0, 4))).rules).net + calibration);
+    const planAt = (net: number): LookAheadPlan => {
+      const pl = buildPlan({ settings, net, payday: p.payday, nextPayday: next, bills, essentials, goals, contributions, ...(l ? { billsTopUp: l.deposit } : {}) });
+      return { net: round2(net), bills: pl.bills, essentials: pl.essentials, savings: pl.savings, personal: pl.personal };
+    };
+    const out = { period: p, ledger: l, average: planAt(avgNetAll), base: planAt(base80), projected: planAt(rec?.actualNet ?? est.net), received: !!rec?.received };
+    checkCache.set(p.payday, out);
+    return out;
+  };
   const lookAhead: AppData['lookAhead'] = (month) => {
     const [yy, mm] = month.split('-').map(Number);
     const first = `${month}-01`;
@@ -578,22 +598,34 @@ export function computeData(version: number, today: ISODate): AppData {
     for (let k = 0; k < 6; k++, p = periodByIndex(settings.pay, p.index + 1)) {
       if (p.payday < first) continue;
       if (p.payday > lastDay) break;
-      const next = periodByIndex(settings.pay, p.index + 1).payday;
-      const l = ledger().find((c) => c.payday === p.payday) ?? null;
-      const rec = paychecks.get(p.start);
-      const est = estimatePaycheck(p, settings, rates, workdays, rulesFile, calibration);
-      const base80 = round2(computeWithholding(settings.pay.baseRate * 80, settings, rulesForYear(rulesFile, Number(p.payday.slice(0, 4))).rules).net + calibration);
-      const planAt = (net: number): LookAheadPlan => {
-        const pl = buildPlan({ settings, net, payday: p.payday, nextPayday: next, bills, essentials, goals, contributions, ...(l ? { billsTopUp: l.deposit } : {}) });
-        return { net: round2(net), bills: pl.bills, essentials: pl.essentials, savings: pl.savings, personal: pl.personal };
-      };
-      out.push({ period: p, ledger: l, average: planAt(avgNetAll), base: planAt(base80), projected: planAt(rec?.actualNet ?? est.net), received: !!rec?.received });
+      out.push(checkPlans(p));
     }
     return out;
+  };
+  // the savings account's next 12 months, from each future check's plan at each pay level (worked out when asked)
+  let sfCache: AppData['savingsForecasts'] extends () => infer R ? R : never;
+  const savingsForecasts: AppData['savingsForecasts'] = () => {
+    if (sfCache) return sfCache;
+    const periods = Array.from({ length: 27 }, (_, k) => periodByIndex(settings.pay, upPeriod.index + k));
+    const run = (level: 'average' | 'base' | 'projected') => {
+      const amounts = periods.map((pp) => checkPlans(pp)[level].savings);
+      return forecastGoals({
+        ...forecastOpts,
+        goals: forecastGoalsList(goals),
+        ...(level === 'projected' ? { firstAllocations: plan.allocations, firstAmount: plan.savings } : {}),
+        savingsPerCheck: savingsAvg.perCheck,
+        perCheckAt: (k: number) => amounts[k] ?? savingsAvg.perCheck,
+        cap: Number.POSITIVE_INFINITY,
+        checks: 27,
+      });
+    };
+    sfCache = { average: run('average'), base: run('base'), projected: run('projected') };
+    return sfCache;
   };
 
   return {
     lookAhead,
+    savingsForecasts,
     goalForecast,
     forecast,
     savingsAvg,

@@ -502,6 +502,7 @@ export function forecastGoals(opts: {
   firstAllocations?: Allocation[]; // this paycheck's real plan (worked out like the rest if left out)
   firstAmount?: number; // this paycheck's planned savings
   savingsPerCheck: number; // usual savings after this check
+  perCheckAt?: (k: number, day: ISODate) => number; // each check's own planned savings, when known
   cap: number; // most a check can save
   monthlyNeeds: number;
   payday: ISODate;
@@ -542,13 +543,15 @@ export function forecastGoals(opts: {
     const live = goals.filter((g) => !g.completedAt && !waiting.has(g.id));
     let allocs: Allocation[] = [];
     // what goes into savings this check, even when every goal is already full (it just isn't earmarked)
-    let saved = k === 0 && opts.firstAllocations ? (opts.firstAmount ?? opts.firstAllocations.reduce((t, a) => t + a.amount, 0)) : opts.savingsPerCheck;
+    const usual = opts.perCheckAt ? opts.perCheckAt(k, day) : opts.savingsPerCheck;
+    let saved = k === 0 && opts.firstAllocations ? (opts.firstAmount ?? opts.firstAllocations.reduce((t, a) => t + a.amount, 0)) : usual;
     if (live.length) {
       const contribs: Contribution[] = live.map((g) => ({ id: g.id, goalId: g.id, amount: bal.get(g.id) ?? 0, date: day, note: '', paycheckId: null }));
       if (k === 0 && opts.firstAllocations) allocs = opts.firstAllocations;
       else {
         const mh = mustHitPlan(live, (id) => bal.get(id) ?? 0, day);
-        const amount = Math.min(opts.cap, Math.max(opts.savingsPerCheck, Math.ceil(mh.perCheck)));
+        // a check's own plan already raises savings for must-be-ready goals; otherwise use the usual amount, raised if needed
+        const amount = opts.perCheckAt ? usual : Math.min(opts.cap, Math.max(usual, Math.ceil(mh.perCheck)));
         allocs = allocateSavings(amount, live, contribs, opts.monthlyNeeds, day, mh.thisCheck);
         saved = amount;
       }

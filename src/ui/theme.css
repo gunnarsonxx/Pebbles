@@ -2123,3 +2123,15 @@ svg.spin {
   text-align: left;
   cursor: pointer;
 }
+
+.dot-pill {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--line);
+  transition: width 0.2s, background 0.2s;
+}
+.dot-pill.on {
+  width: 16px;
+  background: var(--jade);
+}

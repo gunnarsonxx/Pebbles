@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { COMMUNITY } from '../../core/edition';
 import { CalendarPlus, ChevronLeft, ChevronRight, Plus, Search, Users, X } from 'lucide-react';
 import type { AppData, LookAheadCheck, LookAheadPlan } from '../../data/useData';
@@ -19,6 +19,7 @@ import type { Bill, BillFrequency, ISODate, Transaction } from '../../core/types
 export function BillsView({ data }: { data: AppData }) {
   const toast = useToast();
   const [month, setMonth] = useState(data.today.slice(0, 7));
+  const swipe = useRef<{ x: number; y: number } | null>(null);
   const [editing, setEditing] = useState<Bill | null>(null);
   const [thorough, setThorough] = useState(false);
   const [picked, setPicked] = useState<string | null>(null);
@@ -61,7 +62,19 @@ export function BillsView({ data }: { data: AppData }) {
 
   return (
     <div className="col" style={{ gap: 14 }}>
-      <div className="card">
+      <div
+        className="card"
+        onTouchStart={(e) => (swipe.current = { x: e.touches[0].clientX, y: e.touches[0].clientY })}
+        onTouchEnd={(e) => {
+          const st = swipe.current;
+          swipe.current = null;
+          if (!st) return;
+          const dx = e.changedTouches[0].clientX - st.x;
+          const dy = e.changedTouches[0].clientY - st.y;
+          // a sideways swipe changes the month (a scroll up or down doesn't)
+          if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) setMonth(addMonths(month, dx < 0 ? 1 : -1));
+        }}
+      >
         <div className="row between" style={{ marginBottom: 10 }}>
           <button className="icon-btn" onClick={() => setMonth(addMonths(month, -1))} aria-label="Previous month">
             <ChevronLeft />
