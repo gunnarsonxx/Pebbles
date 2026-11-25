@@ -448,7 +448,7 @@ export function computeData(version: number, today: ISODate): AppData {
       txns,
       payday: period.payday,
       nextPayday: periodByIndex(settings.pay, period.index + 1).payday,
-      billsAccountId: settings.budget.billsAccountId ?? null,
+      billsAccountId: settings.budget.billsAccountId ?? rawBills?.id ?? null, // your pick, else the account Pebbles found for bills
       savingsAccountId: gAcct?.id ?? null,
       net,
     });

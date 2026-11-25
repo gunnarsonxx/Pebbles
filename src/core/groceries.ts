@@ -464,8 +464,8 @@ export function plainNameFor(name: string): { name: string; key: string } | null
 }
 
 /** The full product name as the store wrote it, tidied: no ®/™, UPC numbers or trailing price. */
-export function fullName(raw: string): string {
-  return raw
+export function fullName(raw: string | null | undefined): string {
+  return (raw ?? '')
     .replace(/[®™©]/g, '')
     .replace(/\b\d{8,}\b/g, ' ')
     .replace(/\s+-?\$?\d+[.,]\d{2}\s*[A-Z]{0,2}\s*$/i, '')
