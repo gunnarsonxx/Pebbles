@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Sparkles, X } from 'lucide-react';
 import { markWhatsNewSeen, unseenWhatsNew } from '../core/whatsnew';
 import { fmtShort } from '../core/dates';
+import { COMMUNITY } from '../core/edition';
 
 const store = (): Storage | null => {
   try {
@@ -11,9 +12,10 @@ const store = (): Storage | null => {
   }
 };
 
-/** Once after an update: what changed in this build. Close it and it's gone until the next one. */
+/** Community build, once after an update: what changed in this build. Close it and it's gone until the next one. */
 export function WhatsNewCard({ fresh }: { fresh: boolean }) {
-  const [entry, setEntry] = useState(() => unseenWhatsNew(store(), fresh));
+  // Community build only; the personal build gets its patch notes in chat
+  const [entry, setEntry] = useState(() => (COMMUNITY ? unseenWhatsNew(store(), fresh) : null));
   if (!entry) return null;
   const close = () => {
     markWhatsNewSeen(store());
