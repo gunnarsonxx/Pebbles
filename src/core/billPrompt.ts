@@ -1,5 +1,6 @@
 // Bills whose amount changes every month (utilities): on a set day and time Pebbles asks for this
 // month's amount. "Not posted" snoozes it 24 hours; saving the amount is done until next month.
+import { toISO } from './dates';
 import { matchesBill } from './analytics';
 import type { Bill, Transaction } from './types';
 
@@ -46,7 +47,7 @@ export function nextPromptTime(b: Bill, now: Date): Date | null {
 
 /** The bill as it posted, if the bank already shows it (last 40 days). */
 export function postedAmount(b: Bill, txns: Transaction[], now: Date): { amount: number; date: string } | null {
-  const since = new Date(now.getTime() - 40 * 86_400_000).toISOString().slice(0, 10);
+  const since = toISO(new Date(now.getTime() - 40 * 86_400_000));
   const hit = txns.filter((t) => t.date >= since && !t.excluded && matchesBill(t, b)).sort((a, c) => c.date.localeCompare(a.date))[0];
   return hit ? { amount: Math.abs(hit.amount), date: hit.date } : null;
 }

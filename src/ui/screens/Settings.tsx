@@ -25,7 +25,7 @@ import { Field, NumberInput, Segmented, TextInput, ToggleRow, useConfirm, useToa
 import { saveSettings, checkTaxUpdates, exportBackup, restoreBackup } from '../../data/actions';
 import { syncClient, DEFAULT_PORT } from '../../data/syncClient';
 import { desktop, platformKind, type DesktopInfo, type DeviceInfo, type PairingInfo } from '../../platform';
-import { addDays, diffDays, fmtDay, fmtLong } from '../../core/dates';
+import { addDays, diffDays, fmtDay, fmtLong, toISO } from '../../core/dates';
 import { STATE_NAMES, rulesForYear } from '../../core/taxrules';
 import { holidaysInYear } from '../../core/holidays';
 import { statusLabel } from '../../core/tax';
@@ -649,7 +649,7 @@ function DataSection() {
             const blob = new Blob([text], { type: 'application/json' });
             const a = document.createElement('a');
             a.href = URL.createObjectURL(blob);
-            a.download = `pebbles-backup-${new Date().toISOString().slice(0, 10)}.json`;
+            a.download = `pebbles-backup-${toISO(new Date())}.json`;
             a.click();
             setTimeout(() => URL.revokeObjectURL(a.href), 2000);
           }}
@@ -973,7 +973,7 @@ export function DesktopSync() {
                   <div className="grow">
                     <div className="strong">{d.name}</div>
                     <div className="tiny muted">
-                      Paired {fmtLong(new Date(d.pairedAt).toISOString().slice(0, 10))} ·{' '}
+                      Paired {fmtLong(toISO(new Date(d.pairedAt)))} ·{' '}
                       {d.lastSeen ? `last sync ${new Date(d.lastSeen).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}` : 'never synced'}
                     </div>
                   </div>

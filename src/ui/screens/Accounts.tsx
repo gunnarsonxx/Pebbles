@@ -5,7 +5,7 @@ import { Field, NumberInput, Sheet, ToggleRow, TextInput, useConfirm, useToast }
 import { bankLog, connectBank, cancelConnect, disconnectBank, plaidCreds, syncAllBanks, syncBank } from '../../data/bank';
 import { store } from '../../data/store';
 import { usd } from '../../core/money';
-import { fmtShort } from '../../core/dates';
+import { fmtShort, today } from '../../core/dates';
 import type { InFlight } from '../../core/paypal';
 import type { Account, BankLink } from '../../core/types';
 
@@ -250,7 +250,7 @@ function AccountSheet({ account, onClose }: { account: Account; onClose: () => v
         )}
         {a.source !== 'plaid' && (
           <Field label="Current Balance (Optional)" hint="Connected banks fill this in automatically">
-            <NumberInput value={a.balance ?? null} allowEmpty onChange={(v) => setA({ ...a, balance: v, balanceDate: new Date().toISOString().slice(0, 10) })} prefix="$" />
+            <NumberInput value={a.balance ?? null} allowEmpty onChange={(v) => setA({ ...a, balance: v, balanceDate: today() })} prefix="$" />
           </Field>
         )}
         {a.type !== 'savings' && (

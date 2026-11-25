@@ -1,5 +1,5 @@
 // Reading grocery receipts (from a photo, a PDF, or pasted text) into line items.
-import { parseLooseDate } from './dates';
+import { parseLooseDate, today } from './dates';
 import { round2 } from './money';
 import { cleanItemName, deptFor, packOf } from './groceries';
 import type { Deal, ItemRule, Receipt, ReceiptItem } from './types';
@@ -273,7 +273,7 @@ function parseDigital(lines: OcrLine[], rules: ItemRule[], fallbackDate?: string
   return {
     fuel: null,
     store: store || 'King Soopers',
-    date: date ?? fallbackDate ?? new Date().toISOString().slice(0, 10),
+    date: date ?? fallbackDate ?? today(),
     items,
     subtotal,
     tax,
@@ -402,7 +402,7 @@ export function parseReceipt(lines: OcrLine[], rules: ItemRule[] = [], fallbackD
   return {
     fuel,
     store: store || (fuel ? 'Gas station' : 'Grocery store'),
-    date: date ?? fallbackDate ?? new Date().toISOString().slice(0, 10),
+    date: date ?? fallbackDate ?? today(),
     items,
     subtotal,
     tax,
