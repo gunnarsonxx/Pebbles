@@ -6,6 +6,7 @@ import { SplitBar } from '../charts';
 import { PebblePile } from '../PebblePile';
 import { GemIcon, Progress } from '../components';
 import { UpdateBanner } from '../UpdateCard';
+import { WhatsNewCard } from '../WhatsNewCard';
 import { MoneyGlance, MovesCard, PastPlanCard } from '../AutopilotCards';
 import { ReceiveSheet } from '../sheets/ReceiveSheet';
 import { fmtDay, fmtDayOrd, fmtShort, relativeDays, diffDays } from '../../core/dates';
@@ -56,6 +57,7 @@ export function HomeScreen({ data, go }: { data: AppData; go: GoTo }) {
         <p className="muted">{fmtDay(data.today)}</p>
       </div>
       <UpdateBanner />
+      <WhatsNewCard fresh={data.txns.length === 0} />
       {back > 0 && (
         <div style={{ marginBottom: 14 }}>
           <PastPlanCard data={data} back={back} setBack={setBack} />
