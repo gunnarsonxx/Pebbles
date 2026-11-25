@@ -386,18 +386,31 @@ export function BillSheet({ bill, onClose }: { bill: Bill; onClose: () => void }
             options={[
               { value: 'mine', label: 'All Mine' },
               { value: 'split', label: 'Split It' },
-              { value: 'to', label: 'I Pay Them' },
+              { value: 'to', label: 'Rent to Them' },
             ]}
             onChange={(v) =>
               setB({
                 ...b,
                 toRoommate: v === 'to' ? true : undefined,
-                category: v === 'to' && b.category === 'utilities' ? 'housing' : b.category,
+                // leaving "Rent to Them" puts back the category the bill had before
+                category: v === 'to' ? (b.category === 'utilities' ? 'housing' : b.category) : b.toRoommate && b.category === 'housing' && bill.category !== 'housing' ? bill.category : b.category,
                 yourSharePct: v === 'split' ? (split ? b.yourSharePct : 50) : null,
                 fromRent: v === 'split' ? (b.fromRent ?? true) : undefined,
               })
             }
           />
+          <p className="tiny muted" style={{ margin: '8px 0 0' }}>
+            {b.toRoommate
+              ? 'This bill is the rent you send your roommate (by Venmo, say). Split bills you take out of rent are subtracted from it on the Bills page.'
+              : split
+                ? 'You pay the whole bill and your roommate covers their share, taken off what you send them for rent.'
+                : 'You pay all of it.'}
+          </p>
+          {b.toRoommate && !/rent/i.test(b.name) && b.category !== 'housing' && (
+            <p className="tiny warn" style={{ margin: '6px 0 0' }}>
+              Only use Rent to Them for the rent itself. To take half of this bill off rent, pick Split It.
+            </p>
+          )}
           {split && (
             <div className="col gap-l mt">
               <Field label="Your Share" hint={`You pay ${usd(yourAmount(b))} of ${usd(b.amount)}`}>
@@ -406,15 +419,10 @@ export function BillSheet({ bill, onClose }: { bill: Bill; onClose: () => void }
               <ToggleRow title="Take Their Share Out of Rent" hint="You pay the whole bill and send them that much less for rent" on={!!b.fromRent} onChange={(v) => setB({ ...b, fromRent: v })} />
               {b.fromRent && !store.list('bills').some((x) => x.active && x.toRoommate) && (
                 <p className="tiny warn" style={{ margin: 0 }}>
-                  Set your rent bill to “I Pay Them” too, so their share comes off what you send on the 1st.
+                  Set your rent bill to “Rent to Them” too, so their share comes off what you send on the 1st.
                 </p>
               )}
             </div>
-          )}
-          {b.toRoommate && (
-            <p className="tiny muted" style={{ margin: '8px 0 0' }}>
-              Rent you send them (by Venmo, say). Split bills you take out of it are subtracted on the Bills page.
-            </p>
           )}
         </div>
 

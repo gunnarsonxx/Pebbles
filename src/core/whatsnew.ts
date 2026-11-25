@@ -8,6 +8,15 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    id: 2,
+    date: '2026-11-25',
+    title: 'Roommate bills, clearer',
+    items: [
+      'In a bill’s Roommate setting, “I Pay Them” is now “Rent to Them”: it’s only for the rent you send your roommate. To take their half of a bill off rent, pick Split It.',
+      'Each choice now says what it does, and switching a bill back out of Rent to Them restores its category.',
+    ],
+  },
+  {
     id: 1,
     date: '2026-11-25',
     title: 'Fixes',
