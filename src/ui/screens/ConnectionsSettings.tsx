@@ -162,7 +162,7 @@ export function GasStationSettings({ s, set }: { s: Settings; set: SetFn }) {
       </div>
       <div className="col gap-l">
         <p className="small ink2" style={{ margin: 0 }}>
-          Without this, Pebbles finds stations on OpenStreetMap (free) and prices them from your gas receipts and the prices you tap in. With a Google Maps key, it shows the prices stations post on
+          Without this, Pebbles finds stations on OpenStreetMap (free) and prices them from your fill-ups and the prices you tap in. With a Google Maps key, it shows the prices stations post on
           Google Maps.
         </p>
         <ol className="small ink2" style={{ margin: 0, paddingLeft: 18 }}>

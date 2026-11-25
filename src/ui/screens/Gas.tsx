@@ -120,7 +120,10 @@ export function GasView({ data, go }: { data: AppData; go: GoTo }) {
   const mpg = data.settings.household.vehicleMpg ?? 25;
   const gain = cheapest && nearest && cheapest.id !== nearest.id && nearest.price != null ? worthTheDrive(cheapest, nearest, tank, mpg) : null;
   const avg = currentGasPrice(data.market);
-  const lastPaid = data.gasPrices.find((g) => g.source !== 'google');
+  // what you last paid: a fill-up you logged (gas stations rarely give receipts), or a price you entered or scanned
+  const lastFill = data.drives.find((d) => d.perGallon);
+  const lastPrice = data.gasPrices.find((g) => g.source !== 'google');
+  const lastPaid = lastFill && (!lastPrice || lastFill.date >= lastPrice.date) ? { perGallon: lastFill.perGallon as number, station: 'Your fill-up', date: lastFill.date } : lastPrice;
 
   return (
     <div className="col" style={{ gap: 14 }}>
@@ -130,7 +133,7 @@ export function GasView({ data, go }: { data: AppData; go: GoTo }) {
           <div>
             <div className="eyebrow">You Last Paid</div>
             <div className="big-number">{lastPaid ? ppg(lastPaid.perGallon) : '—'}</div>
-            <div className="tiny muted">{lastPaid ? `${lastPaid.station} · ${fmtShort(lastPaid.date)}` : 'Upload a gas receipt or tap a price below'}</div>
+            <div className="tiny muted">{lastPaid ? `${lastPaid.station} · ${fmtShort(lastPaid.date)}` : 'Log a fill-up under Your Driving, or tap a price below'}</div>
           </div>
           <div>
             <div className="eyebrow">{data.market?.gas?.region ? data.market.gas.region.replace(/ avg$/, ' Average') : 'Average Price'}</div>
@@ -212,7 +215,7 @@ export function GasView({ data, go }: { data: AppData; go: GoTo }) {
             <div>
               <div className="eyebrow">{where === 'home' ? 'Stations Near Home' : 'Stations Near You'}</div>
               <div className="tiny muted">
-                {stations.length} within 5 miles · {cache.source === 'google' ? 'live prices from Google Maps' : 'prices from your receipts and taps'}
+                {stations.length} within 5 miles · {cache.source === 'google' ? 'live prices from Google Maps' : 'prices you’ve paid and tapped in'}
               </div>
               <div className="tiny muted">{busy ? 'Refreshing…' : `Updated ${new Date(cache.googleAt ?? cache.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`}</div>
             </div>
@@ -344,7 +347,7 @@ export function GasView({ data, go }: { data: AppData; go: GoTo }) {
           )}
           {cache.source !== 'google' && !i.googlePlacesKey && (
             <p className="tiny muted mt">
-              Station prices aren’t public for free. Pebbles uses your gas receipts and the prices you tap in. For live posted prices,{' '}
+              Station prices aren’t public for free. Pebbles uses the prices from your fill-ups and the ones you tap in. For live posted prices,{' '}
               <button className="link-btn" onClick={() => go('settings', 'connections')}>
                 Add a Google Maps Key
               </button>

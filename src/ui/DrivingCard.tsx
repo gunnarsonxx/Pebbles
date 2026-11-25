@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Car, Gauge, Plus, Trash2 } from 'lucide-react';
 import { Field, NumberInput, Sheet, ToggleRow, useConfirm, useToast } from './components';
 import { fillupMpg, monthlyFuelCost, trustworthy } from '../core/driving';
-import { fmtShort, today } from '../core/dates';
+import { fmtShort, today, addDays } from '../core/dates';
 import { uid, usd } from '../core/money';
 import { store } from '../data/store';
 import type { AppData } from '../data/useData';
@@ -131,17 +131,25 @@ function DriveHistory({ data }: { data: AppData }) {
 function DriveSheet({ data, onClose }: { data: AppData; onClose: () => void }) {
   const toast = useToast();
   const last = data.drives[0] ?? null;
-  // a gas receipt from today fills in the fill-up
+  // a gas receipt from today fills in the fill-up; gas stations rarely give one, so today's (or yesterday's) gas charge
+  // from your bank fills in the total instead
   const todaysFuel = data.receipts.find((r) => r.date === data.today && r.fuel)?.fuel ?? null;
+  const yesterday = addDays(data.today, -1);
+  const bankGas = data.txns.find((t) => t.amount < 0 && t.category === 'gas' && (t.date === data.today || t.date === yesterday) && !data.drives.some((d) => d.date >= yesterday && d.gallons));
   const [odo, setOdo] = useState<number | null>(null);
   const [dash, setDash] = useState<number | null>(null);
-  const [filled, setFilled] = useState(!!todaysFuel);
+  const [filled, setFilled] = useState(!!todaysFuel || !!bankGas);
   const [gallons, setGallons] = useState<number | null>(todaysFuel?.gallons ?? null);
-  const [ppg, setPpg] = useState<number | null>(todaysFuel?.perGallon ?? data.gasPrices.find((g) => g.source !== 'google')?.perGallon ?? null);
+  const [ppg, setPpg] = useState<number | null>(todaysFuel?.perGallon ?? data.drives.find((d) => d.perGallon)?.perGallon ?? data.gasPrices.find((g) => g.source !== 'google')?.perGallon ?? null);
+  // the pump shows the total and the price a gallon: gallons follow from those
+  const [total, setTotal] = useState<number | null>(
+    todaysFuel?.gallons && todaysFuel?.perGallon ? Math.round(todaysFuel.gallons * todaysFuel.perGallon * 100) / 100 : bankGas ? -bankGas.amount : null,
+  );
+  const gal = gallons ?? (total && ppg ? Math.round((total / ppg) * 1000) / 1000 : null);
   const [full, setFull] = useState(true);
   const since = odo != null && last ? odo - last.odometer : null;
   const bad = odo != null && last != null && odo < last.odometer;
-  const preview = filled && gallons && since && since > 0 && full && last?.gallons ? fillupMpg([last, { id: 'x', date: data.today, at: Date.now(), odometer: odo!, gallons, full }]) : null;
+  const preview = filled && gal && since && since > 0 && full && last?.gallons ? fillupMpg([last, { id: 'x', date: data.today, at: Date.now(), odometer: odo!, gallons: gal, full }]) : null;
 
   return (
     <Sheet
@@ -158,8 +166,8 @@ function DriveSheet({ data, onClose }: { data: AppData; onClose: () => void }) {
               at: Date.now(),
               odometer: odo!,
               dashMpg: dash,
-              gallons: filled ? gallons : null,
-              perGallon: filled ? ppg : null,
+              gallons: filled ? gal : null,
+              perGallon: filled ? (ppg ?? (total && gallons ? Math.round((total / gallons) * 1000) / 1000 : null)) : null,
               full: filled ? full : undefined,
             };
             await store.put('drives', e);
@@ -183,12 +191,16 @@ function DriveSheet({ data, onClose }: { data: AppData; onClose: () => void }) {
         <ToggleRow title="I Filled Up" hint="Two fill-ups in a row give your exact mpg" on={filled} onChange={setFilled} />
         {filled && (
           <>
+            <div className="small ink2">From the pump: any two of these and Pebbles works out the third.</div>
             <div className="form-grid two">
-              <Field label="Gallons">
-                <NumberInput value={gallons} onChange={setGallons} allowEmpty ariaLabel="Gallons" />
+              <Field label="Total Paid" hint={bankGas && total === -bankGas.amount ? `From your bank: ${bankGas.merchant || bankGas.description}` : undefined}>
+                <NumberInput value={total} onChange={setTotal} allowEmpty prefix="$" money ariaLabel="Total paid" />
               </Field>
               <Field label="Price per Gallon">
                 <NumberInput value={ppg} onChange={setPpg} allowEmpty prefix="$" ariaLabel="Price per gallon" />
+              </Field>
+              <Field label="Gallons" hint={gallons == null && gal ? `About ${gal} gal` : undefined}>
+                <NumberInput value={gallons} onChange={setGallons} allowEmpty ariaLabel="Gallons" />
               </Field>
             </div>
             <ToggleRow title="Filled to Full" hint="Turn off if you only put in some" on={full} onChange={setFull} />

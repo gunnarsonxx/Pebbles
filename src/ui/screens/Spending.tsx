@@ -44,7 +44,7 @@ function ReceiptBreakdown({ data, month }: { data: AppData; month: string }) {
           </div>
         ))}
       </div>
-      <p className="tiny muted mt">Upload every receipt (gas stations too) to see this for all your spending.</p>
+      <p className="tiny muted mt">Upload your store receipts to see this for more of your spending.</p>
     </div>
   );
 }

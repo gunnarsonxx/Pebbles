@@ -9,6 +9,7 @@ import { CATEGORIES, categoryOf } from '../../core/categories';
 import { addDays, addMonths, dayOfWeek, dowName, fmtDay, fmtMonth, fmtShort, makeDate, daysInMonth, relativeDays } from '../../core/dates';
 import { usd } from '../../core/money';
 import { billsCalendar } from '../../core/ics';
+import { cashAmount } from '../../core/coverage';
 import { deleteBill, dismissInsight, newBill, saveBill } from '../../data/actions';
 import { looksVariable, ym } from '../../core/billPrompt';
 import { openTextFile } from '../../platform/files';
@@ -34,7 +35,7 @@ export function BillsView({ data }: { data: AppData }) {
   const first = makeDate(y, m, 1);
   const last = makeDate(y, m, daysInMonth(y, m));
   const due = new Map<ISODate, { bill: Bill; amount: number }[]>();
-  for (const b of data.bills.filter((x) => x.active)) for (const d of billDueDates(b, first, addDays(last, 1))) due.set(d, [...(due.get(d) ?? []), { bill: b, amount: yourAmount(b) }]);
+  for (const b of data.bills.filter((x) => x.active)) for (const d of billDueDates(b, first, addDays(last, 1))) due.set(d, [...(due.get(d) ?? []), { bill: b, amount: cashAmount(b, data.bills) }]);
   // every payday in the month you're looking at, however far ahead
   const ahead = useMemo(() => data.lookAhead(month), [data, month]);
   const paydays = new Set<ISODate>(ahead.map((c) => c.period.payday));
@@ -81,7 +82,7 @@ export function BillsView({ data }: { data: AppData }) {
           </button>
           <div className="center">
             <div className="strong">{fmtMonth(month)}</div>
-            <div className="tiny muted">{usd(monthTotal)} due · your share</div>
+            <div className="tiny muted">{usd(monthTotal)} leaves your account</div>
           </div>
           <button className="icon-btn" onClick={() => setMonth(addMonths(month, 1))} aria-label="Next month">
             <ChevronRight />
@@ -119,9 +120,12 @@ export function BillsView({ data }: { data: AppData }) {
             <div className="small strong">{fmtDay(picked)}</div>
             {pickedList.length ? (
               pickedList.map((x) => (
-                <div key={x.bill.id} className="row between small" style={{ padding: '4px 0' }}>
-                  <span>{x.bill.name}</span>
-                  <span className="num">{usd(x.amount)}</span>
+                <div key={x.bill.id} style={{ padding: '4px 0' }}>
+                  <div className="row between small">
+                    <span>{x.bill.toRoommate ? `Send for ${x.bill.name}` : x.bill.name}</span>
+                    <span className="num strong">{usd(x.amount)}</span>
+                  </div>
+                  <RentMath bill={x.bill} bills={data.bills} />
                 </div>
               ))
             ) : (
@@ -400,6 +404,11 @@ export function BillSheet({ bill, onClose }: { bill: Bill; onClose: () => void }
                 <NumberInput value={b.yourSharePct ?? 50} onChange={(v) => setB({ ...b, yourSharePct: Math.min(99, Math.max(1, Math.round(v ?? 50))) })} suffix="%" />
               </Field>
               <ToggleRow title="Take Their Share Out of Rent" hint="You pay the whole bill and send them that much less for rent" on={!!b.fromRent} onChange={(v) => setB({ ...b, fromRent: v })} />
+              {b.fromRent && !store.list('bills').some((x) => x.active && x.toRoommate) && (
+                <p className="tiny warn" style={{ margin: 0 }}>
+                  Set your rent bill to “I Pay Them” too, so their share comes off what you send on the 1st.
+                </p>
+              )}
             </div>
           )}
           {b.toRoommate && (
@@ -437,7 +446,7 @@ export function BillSheet({ bill, onClose }: { bill: Bill; onClose: () => void }
 
 /** What's due in the next two weeks (it used to sit on Home). */
 function SoonCard({ data }: { data: AppData }) {
-  const soon = billsDueBetween(data.bills, data.today, addDays(data.today, 15));
+  const soon = billsDueBetween(data.bills, data.today, addDays(data.today, 15)).map((x) => ({ ...x, amount: cashAmount(x.bill, data.bills) }));
   if (!data.bills.length) return null;
   return (
     <div className="card">
@@ -450,7 +459,8 @@ function SoonCard({ data }: { data: AppData }) {
             <div key={b.bill.id + b.date} className="list-item">
               <CategoryIcon id={b.bill.category} size={34} />
               <div className="grow">
-                <div className="strong ellipsis">{b.bill.name}</div>
+                <div className="strong ellipsis">{b.bill.toRoommate ? `Send for ${b.bill.name}` : b.bill.name}</div>
+                <RentMath bill={b.bill} bills={data.bills} />
                 <div className="tiny muted">
                   {fmtDay(b.date)} · {relativeDays(b.date, data.today)}
                   {b.bill.autopay ? ' · autopay' : ''}
@@ -574,6 +584,18 @@ function MonthAhead({ data, month, checks }: { data: AppData; month: string; che
       <p className="tiny muted" style={{ margin: '8px 0 0' }}>
         Average is your usual take-home from your recent paychecks; 80 h base is two weeks at {usd(data.settings.pay.baseRate)}/h with no extras; Projected follows the days on your Shifts.
       </p>
+    </div>
+  );
+}
+
+/** Under rent you send a roommate: the full rent, minus their share of the bills you pay in full. */
+function RentMath({ bill, bills }: { bill: Bill; bills: Bill[] }) {
+  if (!bill.toRoommate) return null;
+  const rm = roommateTransfer(bills);
+  if (!rm || !rm.credits.length) return null;
+  return (
+    <div className="tiny muted">
+      {usd(bill.amount)} rent {rm.credits.map((c) => `− ${usd(c.amount)} their part of ${c.name}`).join(' ')}
     </div>
   );
 }
