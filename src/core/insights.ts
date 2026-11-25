@@ -3,7 +3,7 @@ import { addMonths, diffDays, fmtMonth, monthKey } from './dates';
 import { categoryOf } from './categories';
 import { averageCategory, detectRecurring, recentFullMonths, summarizeMonth } from './analytics';
 import { foodPlanMonthly, FOOD_PLAN_LABEL, inflationSinceReference } from './food';
-import { goalBalance, monthlyBillsTotal, threePaycheckMonths } from './budget';
+import { goalBalance, monthlyBillsTotal, monthlyEquivalent, threePaycheckMonths } from './budget';
 import { cleanMerchant } from './statements';
 import { round2, usd } from './money';
 import type { Bill, Contribution, Goal, ISODate, MarketData, Settings, Transaction } from './types';
@@ -238,7 +238,7 @@ export function generateInsights(i: InsightInput): Insight[] {
       body:
         i.settings.budget.billsMode === 'even' && i.settings.budget.billsAccountId
           ? `With the same amount to bills every check, the third one still sends its usual share to bills (that steady amount was worked out for all 26 checks a year). What's extra is its fun money: Pebbles suggests moving about half of it to savings that payday.`
-          : `Your bills come from what's due, and the third check usually has little due before the next one, so most of it (about ${usd(i.netPerPaycheck)}) can go to savings. That's a big pile of pebbles in one go.`,
+          : `Your bills come from what's due, and the third check usually has little due before the next one, so the part that usually covers bills (about ${usd(round2((monthlyBillsTotal(i.bills) * 12) / 26))}) can go to savings instead. Groceries, gas and your own money still come out of it as usual.`,
       monthlyImpact: 0,
       priority: 62,
     });
@@ -316,12 +316,13 @@ export function generateInsights(i: InsightInput): Insight[] {
         id: 'shop-insurance',
         kind: 'cut',
         title: 'Shop Your Insurance Once a Year',
-        body: `You pay ${usd(insurance.reduce((s, b) => s + b.amount, 0))} a month for insurance. Getting two quotes at renewal and raising deductibles (once your Bedrock fund can cover them) often saves 10–20%.`,
-        monthlyImpact: round2(insurance.reduce((s, b) => s + b.amount, 0) * 0.12),
+        body: `You pay ${usd(insurance.reduce((s, b) => s + monthlyEquivalent(b), 0))} a month for insurance. Getting two quotes at renewal and raising deductibles (once your Bedrock fund can cover them) often saves 10–20%.`,
+        monthlyImpact: round2(insurance.reduce((s, b) => s + monthlyEquivalent(b), 0) * 0.12),
         priority: 28,
       });
     }
-    const phoneTotal = phone.reduce((s, b) => s + b.amount, 0);
+    // your share, per month (a roommate's half or a yearly bill doesn't count as yours each month)
+    const phoneTotal = round2(phone.reduce((s, b) => s + monthlyEquivalent(b), 0));
     if (phoneTotal > 90) {
       out.push({
         id: 'phone-plan',
