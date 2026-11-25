@@ -368,6 +368,7 @@ export interface DriveEntry {
   gallons?: number | null; // filled up: how many gallons
   perGallon?: number | null;
   full?: boolean; // filled to full (needed for exact mpg)
+  txnId?: string | null; // the bank charge this fill-up was
   note?: string;
 }
 

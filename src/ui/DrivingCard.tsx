@@ -5,6 +5,7 @@ import { fillupMpg, monthlyFuelCost, trustworthy } from '../core/driving';
 import { fmtShort, today, addDays } from '../core/dates';
 import { uid, usd } from '../core/money';
 import { store } from '../data/store';
+import { updateTransaction } from '../data/actions';
 import type { AppData } from '../data/useData';
 import type { DriveEntry } from '../core/types';
 
@@ -134,17 +135,17 @@ function DriveSheet({ data, onClose }: { data: AppData; onClose: () => void }) {
   // a gas receipt from today fills in the fill-up; gas stations rarely give one, so today's (or yesterday's) gas charge
   // from your bank fills in the total instead
   const todaysFuel = data.receipts.find((r) => r.date === data.today && r.fuel)?.fuel ?? null;
-  const yesterday = addDays(data.today, -1);
-  const bankGas = data.txns.find((t) => t.amount < 0 && t.category === 'gas' && (t.date === data.today || t.date === yesterday) && !data.drives.some((d) => d.date >= yesterday && d.gallons));
+  // recent gas-station charges that aren't a logged fill-up yet: only suggestions, since a stop can be snacks, not gas
+  const linked = new Set(data.drives.map((d) => d.txnId).filter(Boolean));
+  const gasCharges = data.txns.filter((t) => t.amount < 0 && t.category === 'gas' && t.date >= addDays(data.today, -3) && !linked.has(t.id)).slice(0, 3);
+  const [usedTxn, setUsedTxn] = useState<string | null>(null);
   const [odo, setOdo] = useState<number | null>(null);
   const [dash, setDash] = useState<number | null>(null);
-  const [filled, setFilled] = useState(!!todaysFuel || !!bankGas);
+  const [filled, setFilled] = useState(!!todaysFuel);
   const [gallons, setGallons] = useState<number | null>(todaysFuel?.gallons ?? null);
   const [ppg, setPpg] = useState<number | null>(todaysFuel?.perGallon ?? data.drives.find((d) => d.perGallon)?.perGallon ?? data.gasPrices.find((g) => g.source !== 'google')?.perGallon ?? null);
   // the pump shows the total and the price a gallon: gallons follow from those
-  const [total, setTotal] = useState<number | null>(
-    todaysFuel?.gallons && todaysFuel?.perGallon ? Math.round(todaysFuel.gallons * todaysFuel.perGallon * 100) / 100 : bankGas ? -bankGas.amount : null,
-  );
+  const [total, setTotal] = useState<number | null>(todaysFuel?.gallons && todaysFuel?.perGallon ? Math.round(todaysFuel.gallons * todaysFuel.perGallon * 100) / 100 : null);
   const gal = gallons ?? (total && ppg ? Math.round((total / ppg) * 1000) / 1000 : null);
   const [full, setFull] = useState(true);
   const since = odo != null && last ? odo - last.odometer : null;
@@ -169,6 +170,7 @@ function DriveSheet({ data, onClose }: { data: AppData; onClose: () => void }) {
               gallons: filled ? gal : null,
               perGallon: filled ? (ppg ?? (total && gallons ? Math.round((total / gallons) * 1000) / 1000 : null)) : null,
               full: filled ? full : undefined,
+              txnId: filled ? usedTxn : null,
             };
             await store.put('drives', e);
             toast(since != null && since > 0 ? `Logged · ${mi(since)} since last time` : 'Logged');
@@ -188,12 +190,51 @@ function DriveSheet({ data, onClose }: { data: AppData; onClose: () => void }) {
         <Field label="Average MPG on Your Dash (Optional)" hint="If your car shows one">
           <NumberInput value={dash} onChange={setDash} allowEmpty suffix="mpg" ariaLabel="Dash mpg" />
         </Field>
+        {gasCharges.length > 0 && (
+          <div className="coverage-math">
+            <div className="small strong">Gas station charges from your bank</div>
+            <div className="tiny muted" style={{ marginBottom: 4 }}>
+              Was one of these a fill-up? Stops for snacks or drinks aren’t gas: mark those and they stop counting as gas.
+            </div>
+            {gasCharges.map((t) => (
+              <div key={t.id} className="row between small" style={{ padding: '4px 0', gap: 8, flexWrap: 'wrap' }}>
+                <span>
+                  {t.merchant || t.description} · {fmtShort(t.date)} · <strong>{usd(-t.amount)}</strong>
+                  {-t.amount < 15 && <span className="tiny muted"> · small, maybe snacks</span>}
+                </span>
+                <span className="row gap-s">
+                  <button
+                    className={`btn small${usedTxn === t.id ? ' primary' : ''}`}
+                    onClick={() => {
+                      setUsedTxn(t.id);
+                      setFilled(true);
+                      setTotal(-t.amount);
+                      setGallons(null);
+                    }}
+                  >
+                    {usedTxn === t.id ? 'This Fill-Up' : 'Use as This Fill-Up'}
+                  </button>
+                  <button
+                    className="btn ghost small"
+                    onClick={async () => {
+                      await updateTransaction({ ...t, category: 'shopping', note: t.note || 'Gas station, not gas' });
+                      if (usedTxn === t.id) setUsedTxn(null);
+                      toast(`${usd(-t.amount)} at ${t.merchant || 'the gas station'} no longer counts as gas`);
+                    }}
+                  >
+                    Not Gas
+                  </button>
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
         <ToggleRow title="I Filled Up" hint="Two fill-ups in a row give your exact mpg" on={filled} onChange={setFilled} />
         {filled && (
           <>
             <div className="small ink2">From the pump: any two of these and Pebbles works out the third.</div>
             <div className="form-grid two">
-              <Field label="Total Paid" hint={bankGas && total === -bankGas.amount ? `From your bank: ${bankGas.merchant || bankGas.description}` : undefined}>
+              <Field label="Total Paid" hint={usedTxn ? 'From your bank; change it to just the gas if you bought other things too' : undefined}>
                 <NumberInput value={total} onChange={setTotal} allowEmpty prefix="$" money ariaLabel="Total paid" />
               </Field>
               <Field label="Price per Gallon">
